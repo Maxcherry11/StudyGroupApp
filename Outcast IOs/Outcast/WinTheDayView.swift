@@ -56,6 +56,26 @@ struct SettingsView: View {
     }
 }
 
+struct RoundedCorner: Shape {
+    var radius: CGFloat = .infinity
+    var corners: UIRectCorner = .allCorners
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
+        )
+        return Path(path.cgPath)
+    }
+}
+
+extension View {
+    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
+        clipShape( RoundedCorner(radius: radius, corners: corners) )
+    }
+}
+
 struct WinTheDayView: View {
     @AppStorage("selectedUserName") private var selectedUserName: String = ""
     @Environment(\.presentationMode) var presentationMode
@@ -73,30 +93,32 @@ struct WinTheDayView: View {
     @State private var editingValue: Int = 0
 
     var body: some View {
-        TabView {
-            mainContent
-                .tabItem {
-                    Label("Win the Day", systemImage: "checkmark.seal.fill")
-                }
+        VStack {
+            TabView {
+                mainContent
+                    .tabItem {
+                        Label("Win the Day", systemImage: "checkmark.seal.fill")
+                    }
 
-            DashboardView()
-                .tabItem {
-                    Label("Life Scoreboard", systemImage: "briefcase.fill")
-                }
+                DashboardView()
+                    .tabItem {
+                        Label("Life Scoreboard", systemImage: "briefcase.fill")
+                    }
 
-            SettingsView()
-                .tabItem {
-                    Label("12 Week Year", systemImage: "calendar")
-                }
+                SettingsView()
+                    .tabItem {
+                        Label("12 Week Year", systemImage: "calendar")
+                    }
+            }
         }
     }
 
-    var mainContent: some View {
+    private var mainContent: some View {
         VStack(spacing: 20) {
             HStack {
                 Text("Win the Day")
                     .font(.largeTitle.bold())
-                Spacer()
+                    .frame(maxWidth: .infinity, alignment: .leading) // Ensure it spans full width
                 Button(action: {
                     // Future settings action
                 }) {
@@ -104,11 +126,11 @@ struct WinTheDayView: View {
                         .font(.title2)
                 }
             }
-            .padding(.horizontal)
+            .padding(.horizontal, 20)
             .padding(.top, 20)
 
             ScrollView {
-                VStack(spacing: 12) {
+                VStack(spacing: 15) {
                     ForEach(team) { member in
                         Button(action: {
                             selectedMember = member
@@ -118,7 +140,7 @@ struct WinTheDayView: View {
                         .buttonStyle(PlainButtonStyle())
                     }
                 }
-                .padding()
+                .padding(.horizontal, 20) // Added horizontal padding for the ScrollView content
             }
 
             Spacer()
@@ -128,7 +150,7 @@ struct WinTheDayView: View {
             Group {
                 if let editingID = editingMemberID,
                    let index = team.firstIndex(where: { $0.id == editingID }) {
-                    VStack(spacing: 12) {
+                    VStack(spacing: 15) {
                         Text("Edit \(editingField)")
                             .font(.headline)
                         Stepper("\(editingValue)", value: $editingValue)
@@ -149,7 +171,7 @@ struct WinTheDayView: View {
                         }
                     }
                     .padding()
-                    .frame(width: 250)
+                    .frame(width: 280)
                     .background(Color.white)
                     .cornerRadius(12)
                     .shadow(radius: 8)
@@ -160,14 +182,14 @@ struct WinTheDayView: View {
     }
 
     private func TeamCard(member: TeamMember) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("🕶️ \(member.name)")
                 .font(.title2.bold())
-                .padding(8)
+                .padding(6)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(red: 237/255, green: 29/255, blue: 36/255))
+                .background(Color(red: 237/255, green: 29/255, blue: 36/255)) // Red background spans full width
                 .foregroundColor(.white)
-                .cornerRadius(10)
+                .cornerRadius(10, corners: [.topLeft, .topRight]) // Top corners rounded for consistency
 
             StatRow(title: "Quotes Today", value: member.quotesToday, goal: member.quotesGoal) {
                 editingMemberID = member.id
@@ -185,21 +207,43 @@ struct WinTheDayView: View {
                 editingValue = member.salesMTD
             }
         }
-        .padding()
+        .padding(12) // Adjusted padding for the card
         .background(Color.white)
         .cornerRadius(12)
         .shadow(radius: 2)
+        .frame(maxWidth: 520) // Reduced max width to prevent overflow
+        .padding(.horizontal, 15) // Horizontal padding to fit within screen
     }
 
     private func StatRow(title: String, value: Int, goal: Int, onTap: @escaping () -> Void) -> some View {
         HStack {
             Text(title)
                 .font(.body.bold())
+                .lineLimit(1) // Prevents the text from breaking into multiple lines
+                .frame(width: 100, alignment: .leading) // Ensure the title has fixed width
+
             Spacer()
-            ProgressView(value: Float(value), total: Float(goal))
-                .frame(width: 100)
+            
+            ZStack(alignment: .leading) {
+                // Gray background (inactive part of progress)
+                Capsule()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 150, height: 12) // Progress bar width
+                    .padding(.leading, 10)
+                // Blue progress bar (active part of progress)
+                Capsule()
+                    .fill(Color.blue)
+                    .frame(
+                        width: goal > 0 ? CGFloat(value) / CGFloat(goal) * 180 : 0, // Adjusted width dynamically
+                        height: 12
+                    )
+                    .padding(.leading, 10)
+            }
+
             Text("\(value) / \(goal)")
                 .font(.body.bold())
+                .lineLimit(1) // Prevents the text from breaking into multiple lines
+                .frame(width: 80, alignment: .trailing) // Ensure the text has fixed width
         }
         .contentShape(Rectangle())
         .onTapGesture {
