@@ -184,7 +184,7 @@ struct WinTheDayView: View {
     private func TeamCard(member: TeamMember) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("🕶️ \(member.name)")
-                .font(.title2.bold())
+                .font(.title2.bold()) // Increased font size for the name
                 .padding(6)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(red: 237/255, green: 29/255, blue: 36/255)) // Red background spans full width
@@ -207,43 +207,43 @@ struct WinTheDayView: View {
                 editingValue = member.salesMTD
             }
         }
-        .padding(12) // Adjusted padding for the card
+        .padding(8) // Reduced padding for a more balanced card size
         .background(Color.white)
         .cornerRadius(12)
         .shadow(radius: 2)
-        .frame(maxWidth: 520) // Reduced max width to prevent overflow
-        .padding(.horizontal, 15) // Horizontal padding to fit within screen
+        .frame(maxWidth: .infinity) // Allow the card to span the entire screen width
+        .padding(.horizontal, 0) // Remove horizontal padding for a more edge-to-edge fit
     }
 
     private func StatRow(title: String, value: Int, goal: Int, onTap: @escaping () -> Void) -> some View {
         HStack {
             Text(title)
-                .font(.body.bold())
-                .lineLimit(1) // Prevents the text from breaking into multiple lines
-                .frame(width: 100, alignment: .leading) // Ensure the title has fixed width
+                .font(.title2.bold()) // Increased font size for the title
+                .lineLimit(1) // Ensures text does not wrap
+                .frame(maxWidth: .infinity, alignment: .leading) // Allow the title to use the available space
 
             Spacer()
             
             ZStack(alignment: .leading) {
-                // Gray background (inactive part of progress)
+                // Combined background and progress bar
                 Capsule()
                     .fill(Color.gray.opacity(0.3))
-                    .frame(width: 150, height: 12) // Progress bar width
+                    .frame(width: 140, height: 12) // Standardized width and height
                     .padding(.leading, 10)
-                // Blue progress bar (active part of progress)
+                
                 Capsule()
                     .fill(Color.blue)
                     .frame(
-                        width: goal > 0 ? CGFloat(value) / CGFloat(goal) * 180 : 0, // Adjusted width dynamically
+                        width: goal > 0 ? CGFloat(value) / CGFloat(goal) * 140 : 0, // Adjusted width dynamically
                         height: 12
                     )
                     .padding(.leading, 10)
             }
 
             Text("\(value) / \(goal)")
-                .font(.body.bold())
-                .lineLimit(1) // Prevents the text from breaking into multiple lines
-                .frame(width: 80, alignment: .trailing) // Ensure the text has fixed width
+                .font(.title2.bold()) // Increased font size for the number text
+                .lineLimit(1)
+                .frame(width: 70, alignment: .trailing) // Allow for more space for numbers
         }
         .contentShape(Rectangle())
         .onTapGesture {
