@@ -78,6 +78,7 @@ extension View {
 
 struct WinTheDayView: View {
     @AppStorage("selectedUserName") private var selectedUserName: String = ""
+    @AppStorage("goalText") private var goalText: String = "Your Goal"
     @Environment(\.presentationMode) var presentationMode
 
     @State private var team: [TeamMember] = [
@@ -107,7 +108,7 @@ struct WinTheDayView: View {
 
                 SettingsView()
                     .tabItem {
-                        Label("12 Week Year", systemImage: "calendar")
+                        Label("Settings", systemImage: "gearshape.fill")
                     }
             }
         }
@@ -119,10 +120,27 @@ struct WinTheDayView: View {
                 Text("Win the Day")
                     .font(.largeTitle.bold())
                     .frame(maxWidth: .infinity, alignment: .leading) // Ensure it spans full width
-                Button(action: {
-                    // Future settings action
-                }) {
-                    Image(systemName: "gearshape")
+
+                Menu {
+                    Button(action: {
+                        // Handle change activity action
+                    }) {
+                        Text("Change Activity")
+                        Image(systemName: "arrow.down.circle.fill")
+                    }
+                    Button(action: {
+                        // Handle change goal action
+                    }) {
+                        Text("Change Goal")
+                        Image(systemName: "arrow.down.circle.fill")
+                    }
+                    Button(action: resetValues) {
+                        Text("Reset")
+                            .foregroundColor(.red) // Red color for the reset button
+                        Image(systemName: "trash.fill") // Optional trash icon for reset
+                    }
+                } label: {
+                    Image(systemName: "gearshape.fill")
                         .font(.title2)
                 }
             }
@@ -132,12 +150,18 @@ struct WinTheDayView: View {
             ScrollView {
                 VStack(spacing: 15) {
                     ForEach(team) { member in
-                        Button(action: {
-                            selectedMember = member
-                        }) {
-                            TeamCard(member: member)
+                        // Only allow tap/edit if the card is for the logged-in user
+                        if member.name == selectedUserName {
+                            Button(action: {
+                                selectedMember = member
+                            }) {
+                                TeamCard(member: member, isEditable: true)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        } else {
+                            // For other users, show a locked, non-editable card
+                            TeamCard(member: member, isEditable: false)
                         }
-                        .buttonStyle(PlainButtonStyle())
                     }
                 }
                 .padding(.horizontal, 20) // Added horizontal padding for the ScrollView content
@@ -151,21 +175,34 @@ struct WinTheDayView: View {
                 if let editingID = editingMemberID,
                    let index = team.firstIndex(where: { $0.id == editingID }) {
                     VStack(spacing: 15) {
-                        Text("Edit \(editingField)")
-                            .font(.headline)
-                        Stepper("\(editingValue)", value: $editingValue)
+                        // Removed the title from the top of the input card, leaving only the steppers
+                        HStack {
+                            Text("Quotes Today")
+                            Stepper(value: $team[index].quotesToday, in: 0...team[index].quotesGoal) {
+                                Text("\(team[index].quotesToday)")
+                            }
+                        }
+
+                        HStack {
+                            Text("Sales WTD")
+                            Stepper(value: $team[index].salesWTD, in: 0...team[index].salesWTDGoal) {
+                                Text("\(team[index].salesWTD)")
+                            }
+                        }
+
+                        HStack {
+                            Text("Sales MTD")
+                            Stepper(value: $team[index].salesMTD, in: 0...team[index].salesMTDGoal) {
+                                Text("\(team[index].salesMTD)")
+                            }
+                        }
+
                         HStack {
                             Button("Cancel") {
                                 editingMemberID = nil
                             }
                             Spacer()
                             Button("Save") {
-                                switch editingField {
-                                case "quotesToday": team[index].quotesToday = editingValue
-                                case "salesWTD": team[index].salesWTD = editingValue
-                                case "salesMTD": team[index].salesMTD = editingValue
-                                default: break
-                                }
                                 editingMemberID = nil
                             }
                         }
@@ -181,73 +218,100 @@ struct WinTheDayView: View {
         )
     }
 
-    private func TeamCard(member: TeamMember) -> some View {
+    // Add isEditable parameter to TeamCard
+    private func TeamCard(member: TeamMember, isEditable: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("🕶️ \(member.name)")
-                .font(.title2.bold()) // Increased font size for the name
+                .font(.title2.bold())
                 .padding(6)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(red: 237/255, green: 29/255, blue: 36/255)) // Red background spans full width
+                .background(Color(red: 237/255, green: 29/255, blue: 36/255))
                 .foregroundColor(.white)
-                .cornerRadius(10, corners: [.topLeft, .topRight]) // Top corners rounded for consistency
+                .cornerRadius(10, corners: [.topLeft, .topRight])
 
-            StatRow(title: "Quotes Today", value: member.quotesToday, goal: member.quotesGoal) {
-                editingMemberID = member.id
-                editingField = "quotesToday"
-                editingValue = member.quotesToday
+            // Only allow tap/edit on Quotes Today if editable, otherwise show as read-only
+            StatRow(title: "Quotes Today", value: member.quotesToday, goal: member.quotesGoal, isEditable: isEditable) {
+                if isEditable {
+                    editingMemberID = member.id
+                    editingField = "quotesToday"
+                    editingValue = member.quotesToday
+                }
             }
-            StatRow(title: "Sales WTD", value: member.salesWTD, goal: member.salesWTDGoal) {
-                editingMemberID = member.id
-                editingField = "salesWTD"
-                editingValue = member.salesWTD
-            }
-            StatRow(title: "Sales MTD", value: member.salesMTD, goal: member.salesMTDGoal) {
-                editingMemberID = member.id
-                editingField = "salesMTD"
-                editingValue = member.salesMTD
-            }
+            StatRow(title: "Sales WTD", value: member.salesWTD, goal: member.salesWTDGoal, isEditable: false) {}
+            StatRow(title: "Sales MTD", value: member.salesMTD, goal: member.salesMTDGoal, isEditable: false) {}
         }
-        .padding(8) // Reduced padding for a more balanced card size
+        .padding(8)
         .background(Color.white)
         .cornerRadius(12)
         .shadow(radius: 2)
-        .frame(maxWidth: .infinity) // Allow the card to span the entire screen width
-        .padding(.horizontal, 0) // Remove horizontal padding for a more edge-to-edge fit
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 0)
     }
 
-    private func StatRow(title: String, value: Int, goal: Int, onTap: @escaping () -> Void) -> some View {
+    // Add isEditable parameter to StatRow
+    private func StatRow(title: String, value: Int, goal: Int, isEditable: Bool, onTap: @escaping () -> Void) -> some View {
         HStack {
             Text(title)
-                .font(.title2.bold()) // Increased font size for the title
-                .lineLimit(1) // Ensures text does not wrap
-                .frame(maxWidth: .infinity, alignment: .leading) // Allow the title to use the available space
+                .font(.title2.bold())
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer()
-            
+
             ZStack(alignment: .leading) {
-                // Combined background and progress bar
                 Capsule()
                     .fill(Color.gray.opacity(0.3))
-                    .frame(width: 140, height: 12) // Standardized width and height
+                    .frame(width: 140, height: 12)
                     .padding(.leading, 10)
-                
                 Capsule()
                     .fill(Color.blue)
                     .frame(
-                        width: goal > 0 ? CGFloat(value) / CGFloat(goal) * 140 : 0, // Adjusted width dynamically
+                        width: goal > 0 ? CGFloat(value) / CGFloat(goal) * 140 : 0,
                         height: 12
                     )
                     .padding(.leading, 10)
             }
 
-            Text("\(value) / \(goal)")
-                .font(.title2.bold()) // Increased font size for the number text
-                .lineLimit(1)
-                .frame(width: 70, alignment: .trailing) // Allow for more space for numbers
+            // Always show the stat text, and for non-editable Quotes Today, ensure it's not gray
+            if !isEditable && title == "Quotes Today" {
+                Text("\(value) / \(goal)")
+                    .font(.title2.bold())
+                    .foregroundColor(.black)
+                    .lineLimit(1)
+                    .frame(width: 70, alignment: .trailing)
+            } else {
+                Text("\(value) / \(goal)")
+                    .font(.title2.bold())
+                    .lineLimit(1)
+                    .frame(width: 70, alignment: .trailing)
+            }
         }
         .contentShape(Rectangle())
         .onTapGesture {
-            onTap()
+            if isEditable {
+                onTap()
+            }
+        }
+        // Remove opacity change for Quotes Today, always keep visible and styled
+        .opacity(1.0)
+        .overlay(
+            Group {
+                if !isEditable && title == "Quotes Today" {
+                    Image(systemName: "lock.fill")
+                        .foregroundColor(.gray)
+                        .padding(.trailing, 6)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            }
+        )
+    }
+
+    // Reset function to reset values
+    private func resetValues() {
+        for index in team.indices {
+            team[index].quotesToday = 0
+            team[index].salesWTD = 0
+            team[index].salesMTD = 0
         }
     }
 }
