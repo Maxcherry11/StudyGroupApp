@@ -79,14 +79,16 @@ extension View {
 struct WinTheDayView: View {
     @AppStorage("selectedUserName") private var selectedUserName: String = ""
     @AppStorage("goalText") private var goalText: String = "Your Goal"
+    @AppStorage("savedTeam") private var savedTeamData: Data = Data()
     @Environment(\.presentationMode) var presentationMode
 
     @State private var team: [TeamMember] = [
-        TeamMember(name: "D.J.", quotesToday: 10, salesWTD: 2, salesMTD: 5, quotesGoal: 10, salesWTDGoal: 3, salesMTDGoal: 8),
-        TeamMember(name: "Ron", quotesToday: 7, salesWTD: 1, salesMTD: 2, quotesGoal: 10, salesWTDGoal: 3, salesMTDGoal: 8),
-        TeamMember(name: "Deanna", quotesToday: 5, salesWTD: 0, salesMTD: 1, quotesGoal: 10, salesWTDGoal: 3, salesMTDGoal: 8),
-        TeamMember(name: "Dimitri", quotesToday: 8, salesWTD: 2, salesMTD: 3, quotesGoal: 10, salesWTDGoal: 3, salesMTDGoal: 8)
+        TeamMember(name: "D.J.", quotesToday: 10, salesWTD: 2, salesMTD: 5, quotesGoal: 10, salesWTDGoal: 2, salesMTDGoal: 8),
+        TeamMember(name: "Ron", quotesToday: 7, salesWTD: 1, salesMTD: 2, quotesGoal: 10, salesWTDGoal: 2, salesMTDGoal: 8),
+        TeamMember(name: "Deanna", quotesToday: 5, salesWTD: 0, salesMTD: 1, quotesGoal: 10, salesWTDGoal: 2, salesMTDGoal: 8),
+        TeamMember(name: "Dimitri", quotesToday: 8, salesWTD: 2, salesMTD: 3, quotesGoal: 10, salesWTDGoal: 2, salesMTDGoal: 8)
     ]
+    @State private var recentlyCompletedIDs: Set<UUID> = []
     
     @State private var selectedMember: TeamMember?
     @State private var editingMemberID: UUID?
@@ -95,12 +97,26 @@ struct WinTheDayView: View {
     @State private var emojiPickerVisible: Bool = false
     @State private var emojiEditingID: UUID?
 
+    @State private var shimmerPosition: CGFloat = -1.0
+
     var body: some View {
         VStack {
             TabView {
                 mainContent
                     .tabItem {
                         Label("Win the Day", systemImage: "checkmark.seal.fill")
+                    }
+                    .onAppear {
+                        // Load team from savedTeamData if possible
+                        if let loadedTeam = try? JSONDecoder().decode([TeamMember].self, from: savedTeamData), !loadedTeam.isEmpty {
+                            team = loadedTeam
+                        }
+                    }
+                    .onDisappear {
+                        // Save team to savedTeamData
+                        if let encoded = try? JSONEncoder().encode(team) {
+                            savedTeamData = encoded
+                        }
                     }
 
                 DashboardView()
@@ -121,7 +137,7 @@ struct WinTheDayView: View {
             HStack {
                 Text("Win the Day")
                     .font(.largeTitle.bold())
-                    .frame(maxWidth: .infinity, alignment: .leading) // Ensure it spans full width
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 Menu {
                     Button(action: {
@@ -138,8 +154,8 @@ struct WinTheDayView: View {
                     }
                     Button(action: resetValues) {
                         Text("Reset")
-                            .foregroundColor(.red) // Red color for the reset button
-                        Image(systemName: "trash.fill") // Optional trash icon for reset
+                            .foregroundColor(.red)
+                        Image(systemName: "trash.fill")
                     }
                 } label: {
                     Image(systemName: "line.3.horizontal")
@@ -149,9 +165,15 @@ struct WinTheDayView: View {
             .padding(.horizontal, 20)
             .padding(.top, 20)
 
+            // Restore ScrollView with VStack, remove GeometryReader and dynamic frame
             ScrollView {
+                let sortedTeam = team.sorted { lhs, rhs in
+                    let lhsScore = lhs.quotesToday + lhs.salesWTD * 3 + lhs.salesMTD * 2
+                    let rhsScore = rhs.quotesToday + rhs.salesWTD * 3 + rhs.salesMTD * 2
+                    return lhsScore > rhsScore
+                }
                 VStack(spacing: 10) {
-                    ForEach(team) { member in
+                    ForEach(sortedTeam) { member in
                         // Only allow tap/edit if the card is for the logged-in user
                         if member.name == selectedUserName {
                             Button(action: {
@@ -161,50 +183,87 @@ struct WinTheDayView: View {
                             }
                             .buttonStyle(PlainButtonStyle())
                         } else {
-                            // For other users, show a locked, non-editable card
                             TeamCard(member: member, isEditable: false)
                         }
                     }
                 }
-                .padding(.horizontal, 20) // Added horizontal padding for the ScrollView content
+                .padding(.horizontal, 20)
             }
 
             Spacer()
         }
-        .background(Color(.systemGray6).ignoresSafeArea())
+        .background(
+            ZStack {
+                backgroundGradient(for: team).ignoresSafeArea()
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color.white.opacity(0.0),
+                        Color.white.opacity(0.25),
+                        Color.white.opacity(0.0)
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .frame(width: 400)
+                .rotationEffect(.degrees(30))
+                .offset(x: shimmerPosition * 600)
+                .blendMode(.overlay)
+                .ignoresSafeArea()
+            }
+        )
+        .onAppear {
+            withAnimation(Animation.linear(duration: 2.5).repeatForever(autoreverses: false)) {
+                shimmerPosition = 1.0
+            }
+        }
         .overlay(
             Group {
                 if let editingID = editingMemberID,
                    let index = team.firstIndex(where: { $0.id == editingID }) {
                     VStack(spacing: 15) {
-                        // Removed the title from the top of the input card, leaving only the steppers
-                        HStack {
-                            Text("Quotes Today")
-                            Stepper(value: $team[index].quotesToday, in: 0...team[index].quotesGoal) {
-                                Text("\(team[index].quotesToday)")
+                        if editingField == "quotesToday" {
+                            HStack {
+                                Text("Quotes Today")
+                                Stepper(value: $team[index].quotesToday, in: 0...1000) {
+                                    Text("\(team[index].quotesToday)")
+                                }
+                            }
+                        } else if editingField == "salesWTD" {
+                            HStack {
+                                Text("Sales WTD")
+                                Stepper(value: $team[index].salesWTD, in: 0...1000) {
+                                    Text("\(team[index].salesWTD)")
+                                }
+                            }
+                        } else if editingField == "salesMTD" {
+                            HStack {
+                                Text("Sales MTD")
+                                Stepper(value: $team[index].salesMTD, in: 0...1000) {
+                                    Text("\(team[index].salesMTD)")
+                                }
                             }
                         }
-
-                        HStack {
-                            Text("Sales WTD")
-                            Stepper(value: $team[index].salesWTD, in: 0...team[index].salesWTDGoal) {
-                                Text("\(team[index].salesWTD)")
-                            }
-                        }
-
-                        HStack {
-                            Text("Sales MTD")
-                            Stepper(value: $team[index].salesMTD, in: 0...team[index].salesMTDGoal) {
-                                Text("\(team[index].salesMTD)")
-                            }
-                        }
-
                         HStack {
                             Button("Cancel") {
                                 editingMemberID = nil
                             }
                             Spacer()
                             Button("Save") {
+                                if let id = editingMemberID,
+                                   let index = team.firstIndex(where: { $0.id == id }) {
+                                    let member = team[index]
+                                    // Check if Quotes Today or Sales WTD just became on pace
+                                    let nowGreen = ["Quotes Today", "Sales WTD"].contains { title in
+                                        progressColor(for: title, value: valueFor(title, of: member), goal: goalFor(title, of: member)) == .green
+                                    }
+                                    if nowGreen {
+                                        recentlyCompletedIDs.insert(member.id)
+                                        // Auto-remove icon after delay
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                            recentlyCompletedIDs.remove(member.id)
+                                        }
+                                    }
+                                }
                                 editingMemberID = nil
                             }
                         }
@@ -278,8 +337,14 @@ struct WinTheDayView: View {
                     Text(member.emoji)
                         .font(.title2.bold())
                 }
-                Text(member.name)
-                    .font(.title2.bold())
+                HStack(spacing: 6) {
+                    Text(member.name)
+                        .font(.title2.bold())
+                    if isEditable {
+                        Image(systemName: "pencil")
+                            .foregroundColor(.white)
+                    }
+                }
             }
             .padding(6)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -287,30 +352,55 @@ struct WinTheDayView: View {
             .foregroundColor(.white)
             .cornerRadius(10, corners: [.topLeft, .topRight])
 
-            // Only allow tap/edit on Quotes Today if editable, otherwise show as read-only
-            StatRow(title: "Quotes Today", value: member.quotesToday, goal: member.quotesGoal, isEditable: isEditable) {
-                if isEditable {
+            if isEditable {
+                StatRow(title: "Quotes Today", value: member.quotesToday, goal: member.quotesGoal, isEditable: true) {
                     editingMemberID = member.id
                     editingField = "quotesToday"
                     editingValue = member.quotesToday
                 }
+                StatRow(title: "Sales WTD", value: member.salesWTD, goal: member.salesWTDGoal, isEditable: true) {
+                    editingMemberID = member.id
+                    editingField = "salesWTD"
+                    editingValue = member.salesWTD
+                }
+                StatRow(title: "Sales MTD", value: member.salesMTD, goal: member.salesMTDGoal, isEditable: true) {
+                    editingMemberID = member.id
+                    editingField = "salesMTD"
+                    editingValue = member.salesMTD
+                }
+            } else {
+                StatRow(title: "Quotes Today", value: member.quotesToday, goal: member.quotesGoal, isEditable: false) {}
+                StatRow(title: "Sales WTD", value: member.salesWTD, goal: member.salesWTDGoal, isEditable: false) {}
+                StatRow(title: "Sales MTD", value: member.salesMTD, goal: member.salesMTDGoal, isEditable: false) {}
             }
-            StatRow(title: "Sales WTD", value: member.salesWTD, goal: member.salesWTDGoal, isEditable: false) {}
-            StatRow(title: "Sales MTD", value: member.salesMTD, goal: member.salesMTDGoal, isEditable: false) {}
         }
         .padding(6)
         .background(Color.white)
         .cornerRadius(12)
         .shadow(radius: 2)
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 0)
+        // Remove any .frame(height: ...) modifiers here to avoid overlap
+        .padding(.horizontal, 0) // line 362
+        .overlay(
+            VStack {
+                Spacer()
+                if recentlyCompletedIDs.contains(member.id) {
+                    Text("🎉")
+                        .font(.system(size: 40))
+                        .scaleEffect(1.4)
+                        .transition(.scale)
+                        .padding(.bottom, 30)
+                }
+            }
+            .animation(.easeOut(duration: 0.4), value: recentlyCompletedIDs.contains(member.id))
+        )
     }
 
     // Add isEditable parameter to StatRow
     private func StatRow(title: String, value: Int, goal: Int, isEditable: Bool, onTap: @escaping () -> Void) -> some View {
         HStack {
             Text(title)
-                .font(.title2.bold())
+                .font(.subheadline.bold())
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -322,28 +412,22 @@ struct WinTheDayView: View {
                     .frame(width: 140, height: 10)
                     .padding(.leading, 10)
                 Capsule()
-                    .fill(Color.blue)
+                    .fill(progressColor(for: title, value: value, goal: goal))
                     .frame(
-                        width: goal > 0 ? CGFloat(value) / CGFloat(goal) * 140 : 0,
+                        width: goal > 0 ? min(CGFloat(value) / CGFloat(goal), 1.0) * 140 : 0,
                         height: 10
                     )
                     .padding(.leading, 10)
             }
 
-            // Always show the stat text, and for non-editable Quotes Today, ensure it's not gray
-            if !isEditable && title == "Quotes Today" {
-                Text("\(value) / \(goal)")
-                    .font(.title2.bold())
-                    .foregroundColor(.black)
-                    .lineLimit(1)
-                    .frame(width: 70, alignment: .trailing)
-            } else {
-                Text("\(value) / \(goal)")
-                    .font(.title2.bold())
-                    .lineLimit(1)
-                    .frame(width: 70, alignment: .trailing)
-            }
+            // Always show the stat text with consistent styling
+            Text("\(value) / \(goal)")
+                .font(.subheadline.bold())
+                .foregroundColor(.black)
+                .lineLimit(1)
+                .frame(width: 90, alignment: .trailing)
         }
+        .frame(height: 26)
         .contentShape(Rectangle())
         .onTapGesture {
             if isEditable {
@@ -352,16 +436,7 @@ struct WinTheDayView: View {
         }
         // Remove opacity change for Quotes Today, always keep visible and styled
         .opacity(1.0)
-        .overlay(
-            Group {
-                if !isEditable && title == "Quotes Today" {
-                    Image(systemName: "lock.fill")
-                        .foregroundColor(.gray)
-                        .padding(.trailing, 6)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
-            }
-        )
+        // Removed overlay for lock icon
     }
 
     // Reset function to reset values
@@ -370,6 +445,69 @@ struct WinTheDayView: View {
             team[index].quotesToday = 0
             team[index].salesWTD = 0
             team[index].salesMTD = 0
+        }
+    }
+
+    // Background gradient based on team progress
+    private func backgroundGradient(for team: [TeamMember]) -> LinearGradient {
+        var totalActual = 0
+        var totalGoal = 0
+
+        for member in team {
+            totalActual += member.quotesToday + member.salesWTD + member.salesMTD
+            totalGoal += member.quotesGoal + member.salesWTDGoal + member.salesMTDGoal
+        }
+
+        guard totalGoal > 0 else {
+            return LinearGradient(
+                gradient: Gradient(colors: [Color.gray.opacity(0.3), Color.gray]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+
+        let percent = Double(totalActual) / Double(totalGoal)
+
+        let colors: [Color]
+        switch percent {
+        case 0:
+            colors = [Color.gray.opacity(0.3), Color.gray]
+        case 0..<0.25:
+            colors = [Color.red.opacity(0.3), Color.red]
+        case 0.25..<0.75:
+            colors = [Color.yellow.opacity(0.3), Color.yellow]
+        default:
+            colors = [Color.green.opacity(0.3), Color.green]
+        }
+
+        return LinearGradient(
+            gradient: Gradient(colors: colors),
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private func progressColor(for title: String, value: Int, goal: Int) -> Color {
+        guard goal > 0 else { return .gray }
+
+        let calendar = Calendar.current
+        let today = Date()
+
+        switch title {
+        case "Quotes Today", "Sales WTD":
+            let weekday = calendar.component(.weekday, from: today)
+            let dayOfWeek = max(weekday - 1, 1)
+            let pace = Double(goal) * Double(dayOfWeek) / 7.0
+            return Double(value) >= pace ? .green : .yellow
+
+        case "Sales MTD":
+            let dayOfMonth = calendar.component(.day, from: today)
+            let totalDays = calendar.range(of: .day, in: .month, for: today)?.count ?? 30
+            let pace = Double(goal) * Double(dayOfMonth) / Double(totalDays)
+            return Double(value) >= pace ? .green : .yellow
+
+        default:
+            return .gray
         }
     }
 }
@@ -406,3 +544,21 @@ extension Array {
         }
     }
 }
+
+    private func valueFor(_ title: String, of member: TeamMember) -> Int {
+        switch title {
+        case "Quotes Today": return member.quotesToday
+        case "Sales WTD": return member.salesWTD
+        case "Sales MTD": return member.salesMTD
+        default: return 0
+        }
+    }
+
+    private func goalFor(_ title: String, of member: TeamMember) -> Int {
+        switch title {
+        case "Quotes Today": return member.quotesGoal
+        case "Sales WTD": return member.salesWTDGoal
+        case "Sales MTD": return member.salesMTDGoal
+        default: return 1
+        }
+    }
