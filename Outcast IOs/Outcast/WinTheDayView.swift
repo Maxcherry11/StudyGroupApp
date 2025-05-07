@@ -92,6 +92,8 @@ struct WinTheDayView: View {
     @State private var editingMemberID: UUID?
     @State private var editingField: String = ""
     @State private var editingValue: Int = 0
+    @State private var emojiPickerVisible: Bool = false
+    @State private var emojiEditingID: UUID?
 
     var body: some View {
         VStack {
@@ -126,13 +128,13 @@ struct WinTheDayView: View {
                         // Handle change activity action
                     }) {
                         Text("Change Activity")
-                        Image(systemName: "arrow.down.circle.fill")
+                        Image(systemName: "circle")
                     }
                     Button(action: {
                         // Handle change goal action
                     }) {
                         Text("Change Goal")
-                        Image(systemName: "arrow.down.circle.fill")
+                        Image(systemName: "circle")
                     }
                     Button(action: resetValues) {
                         Text("Reset")
@@ -140,7 +142,7 @@ struct WinTheDayView: View {
                         Image(systemName: "trash.fill") // Optional trash icon for reset
                     }
                 } label: {
-                    Image(systemName: "gearshape.fill")
+                    Image(systemName: "line.3.horizontal")
                         .font(.title2)
                 }
             }
@@ -148,7 +150,7 @@ struct WinTheDayView: View {
             .padding(.top, 20)
 
             ScrollView {
-                VStack(spacing: 15) {
+                VStack(spacing: 10) {
                     ForEach(team) { member in
                         // Only allow tap/edit if the card is for the logged-in user
                         if member.name == selectedUserName {
@@ -216,18 +218,74 @@ struct WinTheDayView: View {
                 }
             }
         )
+        .sheet(isPresented: $emojiPickerVisible) {
+            VStack(spacing: 20) {
+                Text("Choose Your Emoji").font(.headline)
+                let emojis = [
+                    "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇",
+                    "🙂", "🙃", "😉", "😌", "😍", "😘", "😗", "😙", "😚", "😋",
+                    "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔", "🤐", "😶",
+                     "👩🏾", "👧🏽", "👨🏾", "👩🏿", "👩🏾‍🦱", "👱🏽‍♂️", "👨🏽‍🦲", "👨🏽‍💻",
+                    "🧓🏾", "👴🏻", "👮🏽‍♂️", "👷🏾‍♀️", "💂🏿", "🕵🏻‍♂️", "👩🏼‍⚕️", "👨🏽‍🎓", "👩🏻‍🏫",
+                    "👨🏾‍🏭", "👩🏿‍💻", "👨🏻‍💼", "👩🏼‍🔧", "👨🏽‍🔬", "👩🏾‍🎤", "👨🏾‍🦱", "👨🏿‍🦱", "👩🏽‍⚖️",
+                    "🧑🏾‍🌾", "🧑🏿‍🍳", "🧑🏻‍🎨", "🧑🏼‍🔬", "🧑🏽‍✈️", "🧑🏾‍🚀", "🧑🏿‍⚖️", "🧑🏻‍⚕️", "🧑🏼‍🎓", "🧑🏽‍🏫",
+                    "❤️", "🧡", "💛", "💚", "💙", "💜", "🤎", "🖤", "🤍", "💯",
+                    "🌟", "⭐", "✨", "🔥", "🎉", "🎯", "🏆", "🎖", "🎓", "🎬",
+                    "🎧", "🎮", "🎨", "🎼", "🕹", "🧠", "📚", "💡", "📈", "📅"
+                ]
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        ForEach(emojis.chunked(into: 8), id: \.self) { row in
+                            HStack {
+                                ForEach(row, id: \.self) { emoji in
+                                    Button(action: {
+                                        if let id = emojiEditingID,
+                                           let index = team.firstIndex(where: { $0.id == id }) {
+                                            team[index].emoji = emoji
+                                        }
+                                        emojiPickerVisible = false
+                                    }) {
+                                        Text(emoji)
+                                            .font(.largeTitle)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Button("Cancel") {
+                    emojiPickerVisible = false
+                }
+            }
+            .padding()
+        }
     }
 
     // Add isEditable parameter to TeamCard
     private func TeamCard(member: TeamMember, isEditable: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("🕶️ \(member.name)")
-                .font(.title2.bold())
-                .padding(6)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(red: 237/255, green: 29/255, blue: 36/255))
-                .foregroundColor(.white)
-                .cornerRadius(10, corners: [.topLeft, .topRight])
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                if isEditable {
+                    Button(action: {
+                        emojiEditingID = member.id
+                        emojiPickerVisible = true
+                    }) {
+                        Text(member.emoji)
+                            .font(.title2.bold())
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                } else {
+                    Text(member.emoji)
+                        .font(.title2.bold())
+                }
+                Text(member.name)
+                    .font(.title2.bold())
+            }
+            .padding(6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(red: 237/255, green: 29/255, blue: 36/255))
+            .foregroundColor(.white)
+            .cornerRadius(10, corners: [.topLeft, .topRight])
 
             // Only allow tap/edit on Quotes Today if editable, otherwise show as read-only
             StatRow(title: "Quotes Today", value: member.quotesToday, goal: member.quotesGoal, isEditable: isEditable) {
@@ -240,7 +298,7 @@ struct WinTheDayView: View {
             StatRow(title: "Sales WTD", value: member.salesWTD, goal: member.salesWTDGoal, isEditable: false) {}
             StatRow(title: "Sales MTD", value: member.salesMTD, goal: member.salesMTDGoal, isEditable: false) {}
         }
-        .padding(8)
+        .padding(6)
         .background(Color.white)
         .cornerRadius(12)
         .shadow(radius: 2)
@@ -261,13 +319,13 @@ struct WinTheDayView: View {
             ZStack(alignment: .leading) {
                 Capsule()
                     .fill(Color.gray.opacity(0.3))
-                    .frame(width: 140, height: 12)
+                    .frame(width: 140, height: 10)
                     .padding(.leading, 10)
                 Capsule()
                     .fill(Color.blue)
                     .frame(
                         width: goal > 0 ? CGFloat(value) / CGFloat(goal) * 140 : 0,
-                        height: 12
+                        height: 10
                     )
                     .padding(.leading, 10)
             }
@@ -325,10 +383,26 @@ struct TeamMember: Identifiable, Codable {
     var quotesGoal: Int
     var salesWTDGoal: Int
     var salesMTDGoal: Int
+    
+    var emoji: String {
+        get {
+            UserDefaults.standard.string(forKey: "emoji-\(name)") ?? "🕶️"
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "emoji-\(name)")
+        }
+    }
 }
-
 struct WinTheDayView_Previews: PreviewProvider {
     static var previews: some View {
         WinTheDayView()
+    }
+}
+
+extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        stride(from: 0, to: count, by: size).map {
+            Array(self[$0..<Swift.min($0 + size, count)])
+        }
     }
 }
