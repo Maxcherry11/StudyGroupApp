@@ -1,4 +1,5 @@
 import SwiftUI
+import CloudKit
 
 struct UserSelectorView: View {
     @AppStorage("selectedUserName") private var selectedUserName: String = ""
@@ -27,7 +28,7 @@ struct UserSelectorView: View {
                     }
                 }
                 NavigationLink(
-                    destination: WinTheDayView(),
+                    destination: WinTheDayView(viewModel: WinTheDayViewModel()),
                     isActive: $navigateToWin
                 ) {
                     EmptyView()
@@ -77,62 +78,26 @@ extension View {
 }
 
 struct WinTheDayView: View {
+    @ObservedObject var viewModel: WinTheDayViewModel
     @AppStorage("selectedUserName") private var selectedUserName: String = ""
-    @AppStorage("goalText") private var goalText: String = "Your Goal"
-    @AppStorage("savedTeam") private var savedTeamData: Data = Data()
-    @Environment(\.presentationMode) var presentationMode
-
-    @State private var team: [TeamMember] = [
-        TeamMember(name: "D.J.", quotesToday: 10, salesWTD: 2, salesMTD: 5, quotesGoal: 10, salesWTDGoal: 2, salesMTDGoal: 8),
-        TeamMember(name: "Ron", quotesToday: 7, salesWTD: 1, salesMTD: 2, quotesGoal: 10, salesWTDGoal: 2, salesMTDGoal: 8),
-        TeamMember(name: "Deanna", quotesToday: 5, salesWTD: 0, salesMTD: 1, quotesGoal: 10, salesWTDGoal: 2, salesMTDGoal: 8),
-        TeamMember(name: "Dimitri", quotesToday: 8, salesWTD: 2, salesMTD: 3, quotesGoal: 10, salesWTDGoal: 2, salesMTDGoal: 8)
-    ]
-    @State private var recentlyCompletedIDs: Set<UUID> = []
-    
     @State private var selectedMember: TeamMember?
+    @State private var shimmerPosition: CGFloat = 0
     @State private var editingMemberID: UUID?
     @State private var editingField: String = ""
     @State private var editingValue: Int = 0
-    @State private var emojiPickerVisible: Bool = false
+    @State private var emojiPickerVisible = false
     @State private var emojiEditingID: UUID?
+    @State private var recentlyCompletedIDs: Set<UUID> = []
 
-    @State private var shimmerPosition: CGFloat = -1.0
-
-    var body: some View {
-        VStack {
-            TabView {
-                mainContent
-                    .tabItem {
-                        Label("Win the Day", systemImage: "checkmark.seal.fill")
-                    }
-                    .onAppear {
-                        // Load team from savedTeamData if possible
-                        if let loadedTeam = try? JSONDecoder().decode([TeamMember].self, from: savedTeamData), !loadedTeam.isEmpty {
-                            team = loadedTeam
-                        }
-                    }
-                    .onDisappear {
-                        // Save team to savedTeamData
-                        if let encoded = try? JSONEncoder().encode(team) {
-                            savedTeamData = encoded
-                        }
-                    }
-
-                DashboardView()
-                    .tabItem {
-                        Label("Life Scoreboard", systemImage: "briefcase.fill")
-                    }
-
-                SettingsView()
-                    .tabItem {
-                        Label("Settings", systemImage: "gearshape.fill")
-                    }
-            }
-        }
+    private var team: [TeamMember] {
+        viewModel.teamData
     }
 
-    private var mainContent: some View {
+var body: some View {
+    mainContent
+}
+
+private var mainContent: some View {
         VStack(spacing: 20) {
             HStack {
                 Text("Win the Day")
@@ -167,13 +132,13 @@ struct WinTheDayView: View {
 
             // Restore ScrollView with VStack, remove GeometryReader and dynamic frame
             ScrollView {
-                let sortedTeam = team.sorted { lhs, rhs in
-                    let lhsScore = lhs.quotesToday + lhs.salesWTD * 3 + lhs.salesMTD * 2
-                    let rhsScore = rhs.quotesToday + rhs.salesWTD * 3 + rhs.salesMTD * 2
-                    return lhsScore > rhsScore
-                }
                 VStack(spacing: 10) {
-                    ForEach(sortedTeam) { member in
+                    // DEBUG: Show team count and selected user
+                    Text("Team count: \(team.count)")
+                        .foregroundColor(.red)
+                    Text("User: \(selectedUserName)")
+                        .foregroundColor(.blue)
+                    ForEach(team) { member in
                         // Only allow tap/edit if the card is for the logged-in user
                         if member.name == selectedUserName {
                             Button(action: {
@@ -219,61 +184,14 @@ struct WinTheDayView: View {
         .overlay(
             Group {
                 if let editingID = editingMemberID,
-                   let index = team.firstIndex(where: { $0.id == editingID }) {
-                    VStack(spacing: 15) {
-                        if editingField == "quotesToday" {
-                            HStack {
-                                Text("Quotes Today")
-                                Stepper(value: $team[index].quotesToday, in: 0...1000) {
-                                    Text("\(team[index].quotesToday)")
-                                }
-                            }
-                        } else if editingField == "salesWTD" {
-                            HStack {
-                                Text("Sales WTD")
-                                Stepper(value: $team[index].salesWTD, in: 0...1000) {
-                                    Text("\(team[index].salesWTD)")
-                                }
-                            }
-                        } else if editingField == "salesMTD" {
-                            HStack {
-                                Text("Sales MTD")
-                                Stepper(value: $team[index].salesMTD, in: 0...1000) {
-                                    Text("\(team[index].salesMTD)")
-                                }
-                            }
-                        }
-                        HStack {
-                            Button("Cancel") {
-                                editingMemberID = nil
-                            }
-                            Spacer()
-                            Button("Save") {
-                                if let id = editingMemberID,
-                                   let index = team.firstIndex(where: { $0.id == id }) {
-                                    let member = team[index]
-                                    // Check if Quotes Today or Sales WTD just became on pace
-                                    let nowGreen = ["Quotes Today", "Sales WTD"].contains { title in
-                                        progressColor(for: title, value: valueFor(title, of: member), goal: goalFor(title, of: member)) == .green
-                                    }
-                                    if nowGreen {
-                                        recentlyCompletedIDs.insert(member.id)
-                                        // Auto-remove icon after delay
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                            recentlyCompletedIDs.remove(member.id)
-                                        }
-                                    }
-                                }
-                                editingMemberID = nil
-                            }
-                        }
-                    }
-                    .padding()
-                    .frame(width: 280)
-                    .background(Color.white)
-                    .cornerRadius(12)
-                    .shadow(radius: 8)
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.4)))
+                   let member = team.first(where: { $0.id == editingID }) {
+                    EditingOverlayView(
+                        member: member,
+                        field: editingField,
+                        editingMemberID: $editingMemberID,
+                        recentlyCompletedIDs: $recentlyCompletedIDs,
+                        teamData: $viewModel.teamData
+                    )
                 }
             }
         )
@@ -300,7 +218,7 @@ struct WinTheDayView: View {
                                     Button(action: {
                                         if let id = emojiEditingID,
                                            let index = team.firstIndex(where: { $0.id == id }) {
-                                            team[index].emoji = emoji
+                                            viewModel.teamData[index].emoji = emoji
                                         }
                                         emojiPickerVisible = false
                                     }) {
@@ -442,9 +360,9 @@ struct WinTheDayView: View {
     // Reset function to reset values
     private func resetValues() {
         for index in team.indices {
-            team[index].quotesToday = 0
-            team[index].salesWTD = 0
-            team[index].salesMTD = 0
+            viewModel.teamData[index].quotesToday = 0
+            viewModel.teamData[index].salesWTD = 0
+            viewModel.teamData[index].salesMTD = 0
         }
     }
 
@@ -477,7 +395,7 @@ struct WinTheDayView: View {
         case 0.25..<0.75:
             colors = [Color.yellow.opacity(0.3), Color.yellow]
         default:
-            colors = [Color.green.opacity(0.3), Color.green]
+            colors = [Color.green.opacity(0), Color.green]
         }
 
         return LinearGradient(
@@ -530,11 +448,17 @@ struct TeamMember: Identifiable, Codable {
             UserDefaults.standard.set(newValue, forKey: "emoji-\(name)")
         }
     }
-}
-struct WinTheDayView_Previews: PreviewProvider {
-    static var previews: some View {
-        WinTheDayView()
-    }
+    
+//    init(from record: CKRecord) {
+//        self.id = UUID(uuidString: record.recordID.recordName) ?? UUID()
+//        self.name = record["name"] as? String ?? ""
+//        self.quotesToday = record["quotesToday"] as? Int ?? 0
+//        self.salesWTD = record["salesWTD"] as? Int ?? 0
+//        self.salesMTD = record["salesMTD"] as? Int ?? 0
+//        self.quotesGoal = record["quotesGoal"] as? Int ?? 0
+//        self.salesWTDGoal = record["salesWTDGoal"] as? Int ?? 0
+//        self.salesMTDGoal = record["salesMTDGoal"] as? Int ?? 0
+//    }
 }
 
 extension Array {
@@ -545,6 +469,8 @@ extension Array {
     }
 }
 
+
+    // Helper: Get value for a stat title and member
     private func valueFor(_ title: String, of member: TeamMember) -> Int {
         switch title {
         case "Quotes Today": return member.quotesToday
@@ -554,11 +480,71 @@ extension Array {
         }
     }
 
+    // Helper: Get goal for a stat title and member
     private func goalFor(_ title: String, of member: TeamMember) -> Int {
         switch title {
         case "Quotes Today": return member.quotesGoal
         case "Sales WTD": return member.salesWTDGoal
         case "Sales MTD": return member.salesMTDGoal
-        default: return 1
+        default: return 0
         }
     }
+
+
+// MARK: - EditingOverlayView
+
+private struct EditingOverlayView: View {
+    let member: TeamMember
+    let field: String
+    @Binding var editingMemberID: UUID?
+    @Binding var recentlyCompletedIDs: Set<UUID>
+    @Binding var teamData: [TeamMember]
+
+    var body: some View {
+        VStack(spacing: 15) {
+            if field == "quotesToday" {
+                HStack {
+                    Text("Quotes Today")
+                    Stepper(value: $teamData[index].quotesToday, in: 0...1000) {
+                        Text("\(teamData[index].quotesToday)")
+                    }
+                }
+            } else if field == "salesWTD" {
+                HStack {
+                    Text("Sales WTD")
+                    Stepper(value: $teamData[index].salesWTD, in: 0...1000) {
+                        Text("\(teamData[index].salesWTD)")
+                    }
+                }
+            } else if field == "salesMTD" {
+                HStack {
+                    Text("Sales MTD")
+                    Stepper(value: $teamData[index].salesMTD, in: 0...1000) {
+                        Text("\(teamData[index].salesMTD)")
+                    }
+                }
+            }
+
+            HStack {
+                Button("Cancel") {
+                    editingMemberID = nil
+                }
+                Spacer()
+                Button("Save") {
+                    // Handle progress logic here if needed
+                    editingMemberID = nil
+                }
+            }
+        }
+        .padding()
+        .frame(width: 280)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(radius: 8)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.4)))
+    }
+
+    private var index: Int {
+        teamData.firstIndex(where: { $0.id == member.id }) ?? 0
+    }
+}

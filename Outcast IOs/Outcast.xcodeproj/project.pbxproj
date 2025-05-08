@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B64453E42DCC4646002D4FCB /* CloudKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B64453E32DCC4646002D4FCB /* CloudKitManager.swift */; };
 		B6FDF9F72DC7EB5E00F4A0CF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6FDF9F22DC7EB5E00F4A0CF /* ContentView.swift */; };
 		B6FDF9F82DC7EB5E00F4A0CF /* WinTheDayViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6FDF9F62DC7EB5E00F4A0CF /* WinTheDayViewModel.swift */; };
 		B6FDF9F92DC7EB5E00F4A0CF /* WinTheDayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6FDF9F52DC7EB5E00F4A0CF /* WinTheDayView.swift */; };
@@ -15,6 +16,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		B64453E32DCC4646002D4FCB /* CloudKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitManager.swift; sourceTree = "<group>"; };
+		B66E7C912DCC3F2000E40D91 /* Outcast.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = Outcast.entitlements; path = Outcast/Outcast.entitlements; sourceTree = "<group>"; };
 		B6FDF9CE2DC7E1BD00F4A0CF /* Outcast.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Outcast.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B6FDF9F22DC7EB5E00F4A0CF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ContentView.swift; path = Outcast/ContentView.swift; sourceTree = "<group>"; };
 		B6FDF9F32DC7EB5E00F4A0CF /* Outcast IOs.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = "Outcast IOs.entitlements"; path = "Outcast/Outcast IOs.entitlements"; sourceTree = "<group>"; };
@@ -38,6 +41,8 @@
 		B6FDF9C52DC7E1BD00F4A0CF = {
 			isa = PBXGroup;
 			children = (
+				B64453E32DCC4646002D4FCB /* CloudKitManager.swift */,
+				B66E7C912DCC3F2000E40D91 /* Outcast.entitlements */,
 				B6FDF9FB2DC7F05200F4A0CF /* Assets.xcassets */,
 				B6FDF9CF2DC7E1BD00F4A0CF /* Products */,
 				B6FDF9F22DC7EB5E00F4A0CF /* ContentView.swift */,
@@ -133,6 +138,7 @@
 				B6FDF9F82DC7EB5E00F4A0CF /* WinTheDayViewModel.swift in Sources */,
 				B6FDF9F92DC7EB5E00F4A0CF /* WinTheDayView.swift in Sources */,
 				B6FDF9FA2DC7EB5E00F4A0CF /* Outcast_IOsApp.swift in Sources */,
+				B64453E42DCC4646002D4FCB /* CloudKitManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -264,6 +270,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Outcast/Outcast.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 9VBRJ595EC;
@@ -295,6 +302,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Outcast/Outcast.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 9VBRJ595EC;
