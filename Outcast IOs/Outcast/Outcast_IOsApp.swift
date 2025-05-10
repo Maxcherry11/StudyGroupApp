@@ -11,7 +11,7 @@ import SwiftUI
 struct Outcast_IOsApp: App {
     var body: some Scene {
         WindowGroup(content: {
-            UserSelectorView()
+            CloudKitTestPusher() // ← now showing the push screen
         })
     }
 }
