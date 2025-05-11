@@ -6,10 +6,10 @@ class WinTheDayViewModel: ObservableObject {
 
     init() {
         self.teamData = [
-            TeamMember(name: "D.J.", quotesToday: 3, salesWTD: 1, salesMTD: 4, quotesGoal: 10, salesWTDGoal: 5, salesMTDGoal: 12),
-            TeamMember(name: "Ron", quotesToday: 6, salesWTD: 2, salesMTD: 7, quotesGoal: 8, salesWTDGoal: 4, salesMTDGoal: 10),
-            TeamMember(name: "Deanna", quotesToday: 2, salesWTD: 1, salesMTD: 3, quotesGoal: 7, salesWTDGoal: 3, salesMTDGoal: 8),
-            TeamMember(name: "Dimitri", quotesToday: 5, salesWTD: 3, salesMTD: 6, quotesGoal: 9, salesWTDGoal: 4, salesMTDGoal: 11)
+            TeamMember(name: "D.J.", quotesToday: 3, salesWTD: 1, salesMTD: 4, quotesGoal: 10, salesWTDGoal: 2, salesMTDGoal: 8),
+            TeamMember(name: "Ron", quotesToday: 6, salesWTD: 2, salesMTD: 7, quotesGoal: 10, salesWTDGoal: 2, salesMTDGoal: 8),
+            TeamMember(name: "Deanna", quotesToday: 2, salesWTD: 1, salesMTD: 3, quotesGoal: 10, salesWTDGoal: 2, salesMTDGoal: 8),
+            TeamMember(name: "Dimitri", quotesToday: 5, salesWTD: 3, salesMTD: 6, quotesGoal: 10, salesWTDGoal: 2, salesMTDGoal: 8)
         ]
     }
 

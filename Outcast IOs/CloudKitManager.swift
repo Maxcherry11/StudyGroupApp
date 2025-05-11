@@ -16,17 +16,17 @@ class CloudKitManager: ObservableObject {
         let operation = CKQueryOperation(query: query)
         operation.recordMatchedBlock = { recordID, result in
             switch result {
-            case .success:
-                let generatedID = UUID()
+            case .success(let record):
                 let member = TeamMember(
-                    id: generatedID,
-                    name: "Placeholder",
-                    quotesToday: 0,
-                    salesWTD: 0,
-                    salesMTD: 0,
-                    quotesGoal: 10,
-                    salesWTDGoal: 5,
-                    salesMTDGoal: 20
+                    id: UUID(uuidString: record.recordID.recordName) ?? UUID(),
+                    name: record["name"] as? String ?? "",
+                    quotesToday: record["quotesToday"] as? Int ?? 0,
+                    salesWTD: record["salesWTD"] as? Int ?? 0,
+                    salesMTD: record["salesMTD"] as? Int ?? 0,
+                    quotesGoal: record["quotesGoal"] as? Int ?? 10,
+                    salesWTDGoal: record["salesWTDGoal"] as? Int ?? 2,
+                    salesMTDGoal: record["salesMTDGoal"] as? Int ?? 8,
+                    emoji: record["emoji"] as? String ?? "🕶️"
                 )
                 fetchedMembers.append(member)
             case .failure(let error):
@@ -53,6 +53,14 @@ class CloudKitManager: ObservableObject {
     func save(_ member: TeamMember) {
         let recordID = CKRecord.ID(recordName: member.id.uuidString)
         let record = CKRecord(recordType: "TeamMember", recordID: recordID)
+        record["name"] = member.name as NSString
+        record["quotesToday"] = member.quotesToday as NSNumber
+        record["salesWTD"] = member.salesWTD as NSNumber
+        record["salesMTD"] = member.salesMTD as NSNumber
+        record["quotesGoal"] = member.quotesGoal as NSNumber
+        record["salesWTDGoal"] = member.salesWTDGoal as NSNumber
+        record["salesMTDGoal"] = member.salesMTDGoal as NSNumber
+        record["emoji"] = member.emoji as NSString
         database.save(record) { returnedRecord, error in
             if let error = error {
                 print("❌ Error saving:", error.localizedDescription)

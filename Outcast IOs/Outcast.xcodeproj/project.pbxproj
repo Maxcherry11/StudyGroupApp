@@ -11,10 +11,9 @@
 		B6C200132DCD8706007D7BF6 /* CloudKitProbeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C200122DCD8706007D7BF6 /* CloudKitProbeView.swift */; };
 		B6C200152DCD88C5007D7BF6 /* CloudKitTestPusher.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C200142DCD88C5007D7BF6 /* CloudKitTestPusher.swift */; };
 		B6C200172DCEDE53007D7BF6 /* CloudKitDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C200162DCEDE53007D7BF6 /* CloudKitDebugView.swift */; };
-		B6FDF9F72DC7EB5E00F4A0CF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6FDF9F22DC7EB5E00F4A0CF /* ContentView.swift */; };
+		B6DC8C932DD0271A0018BC57 /* StudyGroupApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6DC8C922DD0271A0018BC57 /* StudyGroupApp.swift */; };
 		B6FDF9F82DC7EB5E00F4A0CF /* WinTheDayViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6FDF9F62DC7EB5E00F4A0CF /* WinTheDayViewModel.swift */; };
 		B6FDF9F92DC7EB5E00F4A0CF /* WinTheDayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6FDF9F52DC7EB5E00F4A0CF /* WinTheDayView.swift */; };
-		B6FDF9FA2DC7EB5E00F4A0CF /* Outcast_IOsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6FDF9F42DC7EB5E00F4A0CF /* Outcast_IOsApp.swift */; };
 		B6FDF9FC2DC7F05200F4A0CF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B6FDF9FB2DC7F05200F4A0CF /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -25,10 +24,9 @@
 		B6C200142DCD88C5007D7BF6 /* CloudKitTestPusher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitTestPusher.swift; sourceTree = "<group>"; };
 		B6C200162DCEDE53007D7BF6 /* CloudKitDebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitDebugView.swift; sourceTree = "<group>"; };
 		B6C200182DCEE5B5007D7BF6 /* Outcast.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Outcast.entitlements; sourceTree = "<group>"; };
+		B6DC8C922DD0271A0018BC57 /* StudyGroupApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyGroupApp.swift; sourceTree = "<group>"; };
 		B6FDF9CE2DC7E1BD00F4A0CF /* Outcast.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Outcast.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		B6FDF9F22DC7EB5E00F4A0CF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ContentView.swift; path = Outcast/ContentView.swift; sourceTree = "<group>"; };
 		B6FDF9F32DC7EB5E00F4A0CF /* Outcast IOs.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = "Outcast IOs.entitlements"; path = "Outcast/Outcast IOs.entitlements"; sourceTree = "<group>"; };
-		B6FDF9F42DC7EB5E00F4A0CF /* Outcast_IOsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Outcast_IOsApp.swift; path = Outcast/Outcast_IOsApp.swift; sourceTree = "<group>"; };
 		B6FDF9F52DC7EB5E00F4A0CF /* WinTheDayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WinTheDayView.swift; path = Outcast/WinTheDayView.swift; sourceTree = "<group>"; };
 		B6FDF9F62DC7EB5E00F4A0CF /* WinTheDayViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WinTheDayViewModel.swift; path = Outcast/WinTheDayViewModel.swift; sourceTree = "<group>"; };
 		B6FDF9FB2DC7F05200F4A0CF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = Outcast/Assets.xcassets; sourceTree = "<group>"; };
@@ -48,6 +46,7 @@
 		B6FDF9C52DC7E1BD00F4A0CF = {
 			isa = PBXGroup;
 			children = (
+				B6DC8C922DD0271A0018BC57 /* StudyGroupApp.swift */,
 				B6C200182DCEE5B5007D7BF6 /* Outcast.entitlements */,
 				B6C200162DCEDE53007D7BF6 /* CloudKitDebugView.swift */,
 				B6C200122DCD8706007D7BF6 /* CloudKitProbeView.swift */,
@@ -55,9 +54,7 @@
 				B66E7C912DCC3F2000E40D91 /* Outcast.entitlements */,
 				B6FDF9FB2DC7F05200F4A0CF /* Assets.xcassets */,
 				B6FDF9CF2DC7E1BD00F4A0CF /* Products */,
-				B6FDF9F22DC7EB5E00F4A0CF /* ContentView.swift */,
 				B6FDF9F32DC7EB5E00F4A0CF /* Outcast IOs.entitlements */,
-				B6FDF9F42DC7EB5E00F4A0CF /* Outcast_IOsApp.swift */,
 				B6C200142DCD88C5007D7BF6 /* CloudKitTestPusher.swift */,
 				B6FDF9F52DC7EB5E00F4A0CF /* WinTheDayView.swift */,
 				B6FDF9F62DC7EB5E00F4A0CF /* WinTheDayViewModel.swift */,
@@ -145,12 +142,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B6FDF9F72DC7EB5E00F4A0CF /* ContentView.swift in Sources */,
 				B6FDF9F82DC7EB5E00F4A0CF /* WinTheDayViewModel.swift in Sources */,
 				B6FDF9F92DC7EB5E00F4A0CF /* WinTheDayView.swift in Sources */,
+				B6DC8C932DD0271A0018BC57 /* StudyGroupApp.swift in Sources */,
 				B6C200172DCEDE53007D7BF6 /* CloudKitDebugView.swift in Sources */,
 				B6C200152DCD88C5007D7BF6 /* CloudKitTestPusher.swift in Sources */,
-				B6FDF9FA2DC7EB5E00F4A0CF /* Outcast_IOsApp.swift in Sources */,
 				B6C200132DCD8706007D7BF6 /* CloudKitProbeView.swift in Sources */,
 				B64453E42DCC4646002D4FCB /* CloudKitManager.swift in Sources */,
 			);

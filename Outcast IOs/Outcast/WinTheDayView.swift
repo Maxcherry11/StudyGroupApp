@@ -93,6 +93,14 @@ struct WinTheDayView: View {
         viewModel.teamData
     }
 
+//    // Sorted team by sum of quotesToday, salesWTD, salesMTD (descending)
+//    private var sortedTeam: [TeamMember] {
+//        team.sorted {
+//            ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
+//            ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+//        }
+//    }
+
 var body: some View {
     mainContent
 }
@@ -130,14 +138,9 @@ private var mainContent: some View {
             .padding(.horizontal, 20)
             .padding(.top, 20)
 
-            // Restore ScrollView with VStack, remove GeometryReader and dynamic frame
+            // Animate card reordering in ScrollView
             ScrollView {
                 VStack(spacing: 10) {
-                    // DEBUG: Show team count and selected user
-                    Text("Team count: \(team.count)")
-                        .foregroundColor(.red)
-                    Text("User: \(selectedUserName)")
-                        .foregroundColor(.blue)
                     ForEach(team) { member in
                         // Only allow tap/edit if the card is for the logged-in user
                         if member.name == selectedUserName {
@@ -153,6 +156,7 @@ private var mainContent: some View {
                     }
                 }
                 .padding(.horizontal, 20)
+                .animation(.easeInOut, value: team.map { $0.id }) // Animate changes to team order
             }
 
             Spacer()
@@ -271,25 +275,73 @@ private var mainContent: some View {
             .cornerRadius(10, corners: [.topLeft, .topRight])
 
             if isEditable {
-                StatRow(title: "Quotes Today", value: member.quotesToday, goal: member.quotesGoal, isEditable: true) {
+                StatRow(
+                    title: "Quotes Today",
+                    value: member.quotesToday,
+                    goal: member.quotesGoal,
+                    isEditable: true,
+                    member: member,
+                    recentlyCompletedIDs: $recentlyCompletedIDs,
+                    teamData: $viewModel.teamData
+                ) {
                     editingMemberID = member.id
                     editingField = "quotesToday"
                     editingValue = member.quotesToday
                 }
-                StatRow(title: "Sales WTD", value: member.salesWTD, goal: member.salesWTDGoal, isEditable: true) {
+                StatRow(
+                    title: "Sales WTD",
+                    value: member.salesWTD,
+                    goal: member.salesWTDGoal,
+                    isEditable: true,
+                    member: member,
+                    recentlyCompletedIDs: $recentlyCompletedIDs,
+                    teamData: $viewModel.teamData
+                ) {
                     editingMemberID = member.id
                     editingField = "salesWTD"
                     editingValue = member.salesWTD
                 }
-                StatRow(title: "Sales MTD", value: member.salesMTD, goal: member.salesMTDGoal, isEditable: true) {
+                StatRow(
+                    title: "Sales MTD",
+                    value: member.salesMTD,
+                    goal: member.salesMTDGoal,
+                    isEditable: true,
+                    member: member,
+                    recentlyCompletedIDs: $recentlyCompletedIDs,
+                    teamData: $viewModel.teamData
+                ) {
                     editingMemberID = member.id
                     editingField = "salesMTD"
                     editingValue = member.salesMTD
                 }
             } else {
-                StatRow(title: "Quotes Today", value: member.quotesToday, goal: member.quotesGoal, isEditable: false) {}
-                StatRow(title: "Sales WTD", value: member.salesWTD, goal: member.salesWTDGoal, isEditable: false) {}
-                StatRow(title: "Sales MTD", value: member.salesMTD, goal: member.salesMTDGoal, isEditable: false) {}
+                StatRow(
+                    title: "Quotes Today",
+                    value: member.quotesToday,
+                    goal: member.quotesGoal,
+                    isEditable: false,
+                    member: member,
+                    recentlyCompletedIDs: $recentlyCompletedIDs,
+                    teamData: $viewModel.teamData
+                ) {}
+                StatRow(
+                    title: "Sales WTD",
+                    value: member.salesWTD,
+                    goal: member.salesWTDGoal,
+                    isEditable: false,
+                    member: member,
+                    recentlyCompletedIDs: $recentlyCompletedIDs,
+                    teamData: $viewModel.teamData
+                ) {}
+                StatRow(
+                    title: "Sales MTD",
+                    value: member.salesMTD,
+                    goal: member.salesMTDGoal,
+                    isEditable: false,
+                    member: member,
+                    recentlyCompletedIDs: $recentlyCompletedIDs,
+                    teamData: $viewModel.teamData
+                ) {}
             }
         }
         .padding(6)
@@ -314,8 +366,17 @@ private var mainContent: some View {
         )
     }
 
-    // Add isEditable parameter to StatRow
-    private func StatRow(title: String, value: Int, goal: Int, isEditable: Bool, onTap: @escaping () -> Void) -> some View {
+    // Add isEditable parameter to StatRow and celebration logic
+    private func StatRow(
+        title: String,
+        value: Int,
+        goal: Int,
+        isEditable: Bool,
+        member: TeamMember,
+        recentlyCompletedIDs: Binding<Set<UUID>>,
+        teamData: Binding<[TeamMember]>,
+        onTap: @escaping () -> Void
+    ) -> some View {
         HStack {
             Text(title)
                 .font(.subheadline.bold())
@@ -352,9 +413,18 @@ private var mainContent: some View {
                 onTap()
             }
         }
-        // Remove opacity change for Quotes Today, always keep visible and styled
         .opacity(1.0)
-        // Removed overlay for lock icon
+        .onChange(of: value) { newValue in
+            let color = progressColor(for: title, value: newValue, goal: goal)
+            if color == .green {
+                if let index = teamData.wrappedValue.firstIndex(where: { $0.id == member.id }) {
+                    recentlyCompletedIDs.wrappedValue.insert(teamData.wrappedValue[index].id)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        recentlyCompletedIDs.wrappedValue.remove(teamData.wrappedValue[index].id)
+                    }
+                }
+            }
+        }
     }
 
     // Reset function to reset values
@@ -436,9 +506,9 @@ struct TeamMember: Identifiable, Codable {
     var quotesToday: Int
     var salesWTD: Int
     var salesMTD: Int
-    var quotesGoal: Int
-    var salesWTDGoal: Int
-    var salesMTDGoal: Int
+    var quotesGoal: Int = 10
+    var salesWTDGoal: Int = 2
+    var salesMTDGoal: Int = 8
     
     var emoji: String {
         get {
@@ -455,9 +525,9 @@ struct TeamMember: Identifiable, Codable {
 //        self.quotesToday = record["quotesToday"] as? Int ?? 0
 //        self.salesWTD = record["salesWTD"] as? Int ?? 0
 //        self.salesMTD = record["salesMTD"] as? Int ?? 0
-//        self.quotesGoal = record["quotesGoal"] as? Int ?? 0
-//        self.salesWTDGoal = record["salesWTDGoal"] as? Int ?? 0
-//        self.salesMTDGoal = record["salesMTDGoal"] as? Int ?? 0
+//        self.quotesGoal = record["quotesGoal"] as? Int ?? 10
+//        self.salesWTDGoal = record["salesWTDGoal"] as? Int ?? 2
+//        self.salesMTDGoal = record["salesMTDGoal"] as? Int ?? 8
 //    }
 }
 
@@ -533,6 +603,12 @@ private struct EditingOverlayView: View {
                 Button("Save") {
                     // Handle progress logic here if needed
                     editingMemberID = nil
+                    withAnimation(.easeInOut) {
+                        teamData.sort {
+                            ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
+                            ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+                        }
+                    }
                 }
             }
         }
