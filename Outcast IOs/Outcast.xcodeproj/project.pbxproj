@@ -11,6 +11,7 @@
 		B6C200132DCD8706007D7BF6 /* CloudKitProbeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C200122DCD8706007D7BF6 /* CloudKitProbeView.swift */; };
 		B6C200152DCD88C5007D7BF6 /* CloudKitTestPusher.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C200142DCD88C5007D7BF6 /* CloudKitTestPusher.swift */; };
 		B6C200172DCEDE53007D7BF6 /* CloudKitDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C200162DCEDE53007D7BF6 /* CloudKitDebugView.swift */; };
+		B6CCF3E72DD0FB3D00EFF960 /* TeamMember.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6CCF3E62DD0FB3D00EFF960 /* TeamMember.swift */; };
 		B6DC8C932DD0271A0018BC57 /* StudyGroupApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6DC8C922DD0271A0018BC57 /* StudyGroupApp.swift */; };
 		B6FDF9F82DC7EB5E00F4A0CF /* WinTheDayViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6FDF9F62DC7EB5E00F4A0CF /* WinTheDayViewModel.swift */; };
 		B6FDF9F92DC7EB5E00F4A0CF /* WinTheDayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6FDF9F52DC7EB5E00F4A0CF /* WinTheDayView.swift */; };
@@ -24,6 +25,7 @@
 		B6C200142DCD88C5007D7BF6 /* CloudKitTestPusher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitTestPusher.swift; sourceTree = "<group>"; };
 		B6C200162DCEDE53007D7BF6 /* CloudKitDebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitDebugView.swift; sourceTree = "<group>"; };
 		B6C200182DCEE5B5007D7BF6 /* Outcast.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Outcast.entitlements; sourceTree = "<group>"; };
+		B6CCF3E62DD0FB3D00EFF960 /* TeamMember.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamMember.swift; sourceTree = "<group>"; };
 		B6DC8C922DD0271A0018BC57 /* StudyGroupApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyGroupApp.swift; sourceTree = "<group>"; };
 		B6FDF9CE2DC7E1BD00F4A0CF /* Outcast.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Outcast.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B6FDF9F32DC7EB5E00F4A0CF /* Outcast IOs.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = "Outcast IOs.entitlements"; path = "Outcast/Outcast IOs.entitlements"; sourceTree = "<group>"; };
@@ -46,6 +48,7 @@
 		B6FDF9C52DC7E1BD00F4A0CF = {
 			isa = PBXGroup;
 			children = (
+				B6CCF3E62DD0FB3D00EFF960 /* TeamMember.swift */,
 				B6DC8C922DD0271A0018BC57 /* StudyGroupApp.swift */,
 				B6C200182DCEE5B5007D7BF6 /* Outcast.entitlements */,
 				B6C200162DCEDE53007D7BF6 /* CloudKitDebugView.swift */,
@@ -144,6 +147,7 @@
 			files = (
 				B6FDF9F82DC7EB5E00F4A0CF /* WinTheDayViewModel.swift in Sources */,
 				B6FDF9F92DC7EB5E00F4A0CF /* WinTheDayView.swift in Sources */,
+				B6CCF3E72DD0FB3D00EFF960 /* TeamMember.swift in Sources */,
 				B6DC8C932DD0271A0018BC57 /* StudyGroupApp.swift in Sources */,
 				B6C200172DCEDE53007D7BF6 /* CloudKitDebugView.swift in Sources */,
 				B6C200152DCD88C5007D7BF6 /* CloudKitTestPusher.swift in Sources */,

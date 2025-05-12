@@ -1,39 +1,38 @@
-import SwiftUI
+import Foundation
 import CloudKit
 
 class WinTheDayViewModel: ObservableObject {
     @Published var teamData: [TeamMember] = []
+    private let manager = CloudKitManager()
 
     init() {
-        self.teamData = [
-            TeamMember(name: "D.J.", quotesToday: 3, salesWTD: 1, salesMTD: 4, quotesGoal: 10, salesWTDGoal: 2, salesMTDGoal: 8),
-            TeamMember(name: "Ron", quotesToday: 6, salesWTD: 2, salesMTD: 7, quotesGoal: 10, salesWTDGoal: 2, salesMTDGoal: 8),
-            TeamMember(name: "Deanna", quotesToday: 2, salesWTD: 1, salesMTD: 3, quotesGoal: 10, salesWTDGoal: 2, salesMTDGoal: 8),
-            TeamMember(name: "Dimitri", quotesToday: 5, salesWTD: 3, salesMTD: 6, quotesGoal: 10, salesWTDGoal: 2, salesMTDGoal: 8)
-        ]
+        print("✅ WinTheDayViewModel initialized")
+        loadData()
     }
 
     func loadData() {
-        let manager = CloudKitManager()
-        manager.fetchTeam { members in
+        manager.fetchTeam { [weak self] members in
             DispatchQueue.main.async {
-                self.teamData = members
+                self?.teamData = members
+                self?.teamData.sort { $0.sortIndex < $1.sortIndex }
+                print("📦 Loaded cards count: \(self?.teamData.count ?? 0)")
             }
         }
     }
 
-    func saveData() {
-        let manager = CloudKitManager()
-        for member in teamData {
+    func saveData(completion: (() -> Void)? = nil) {
+        for (index, member) in teamData.enumerated() {
+            member.sortIndex = index
             manager.save(member)
         }
+        completion?()
     }
 
     func resetAllProgress() {
-        for index in teamData.indices {
-            teamData[index].quotesToday = 0
-            teamData[index].salesWTD = 0
-            teamData[index].salesMTD = 0
+        for member in teamData {
+            member.quotesToday = 0
+            member.salesWTD = 0
+            member.salesMTD = 0
         }
         saveData()
     }

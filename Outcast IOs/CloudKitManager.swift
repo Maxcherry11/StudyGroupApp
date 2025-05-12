@@ -18,7 +18,6 @@ class CloudKitManager: ObservableObject {
             switch result {
             case .success(let record):
                 let member = TeamMember(
-                    id: UUID(uuidString: record.recordID.recordName) ?? UUID(),
                     name: record["name"] as? String ?? "",
                     quotesToday: record["quotesToday"] as? Int ?? 0,
                     salesWTD: record["salesWTD"] as? Int ?? 0,
@@ -26,11 +25,12 @@ class CloudKitManager: ObservableObject {
                     quotesGoal: record["quotesGoal"] as? Int ?? 10,
                     salesWTDGoal: record["salesWTDGoal"] as? Int ?? 2,
                     salesMTDGoal: record["salesMTDGoal"] as? Int ?? 8,
-                    emoji: record["emoji"] as? String ?? "🕶️"
+                    emoji: record["emoji"] as? String ?? "🙂",
+                    sortIndex: record["sortIndex"] as? Int ?? 0
                 )
                 fetchedMembers.append(member)
             case .failure(let error):
-                print("❌ Failed to match record:", error.localizedDescription)
+                print("❌ Failed to match record: \(error.localizedDescription)")
             }
         }
 
@@ -41,7 +41,7 @@ class CloudKitManager: ObservableObject {
                     self.team = fetchedMembers
                     completion(fetchedMembers)
                 case .failure(let error):
-                    print("❌ CloudKit query failed:", error.localizedDescription)
+                    print("❌ CloudKit query failed: \(error.localizedDescription)")
                     completion([])
                 }
             }
@@ -61,9 +61,10 @@ class CloudKitManager: ObservableObject {
         record["salesWTDGoal"] = member.salesWTDGoal as NSNumber
         record["salesMTDGoal"] = member.salesMTDGoal as NSNumber
         record["emoji"] = member.emoji as NSString
-        database.save(record) { returnedRecord, error in
+        record["sortIndex"] = member.sortIndex as NSNumber
+        database.save(record) { _, error in
             if let error = error {
-                print("❌ Error saving:", error.localizedDescription)
+                print("❌ Error saving: \(error.localizedDescription)")
             }
         }
     }
@@ -72,7 +73,7 @@ class CloudKitManager: ObservableObject {
         let id = CKRecord.ID(recordName: member.id.uuidString)
         database.delete(withRecordID: id) { _, error in
             if let error = error {
-                print("❌ Error deleting:", error.localizedDescription)
+                print("❌ Error deleting: \(error.localizedDescription)")
             }
         }
     }

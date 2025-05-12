@@ -1,9 +1,11 @@
 import SwiftUI
 import CloudKit
+import Foundation
 
 struct UserSelectorView: View {
     @AppStorage("selectedUserName") private var selectedUserName: String = ""
     @State private var navigateToWin = false
+    @StateObject private var viewModel = WinTheDayViewModel()
 
     let users = ["D.J.", "Ron", "Deanna", "Dimitri"]
 
@@ -27,13 +29,14 @@ struct UserSelectorView: View {
                             .cornerRadius(10)
                     }
                 }
+                Spacer()
                 NavigationLink(
                     destination: WinTheDayView(viewModel: WinTheDayViewModel()),
                     isActive: $navigateToWin
                 ) {
-                    EmptyView()
+                    Text("→ Go")
+                        .opacity(0)
                 }
-                Spacer()
             }
             .padding(.horizontal)
             .navigationBarHidden(true)
@@ -90,7 +93,8 @@ struct WinTheDayView: View {
     @State private var recentlyCompletedIDs: Set<UUID> = []
 
     private var team: [TeamMember] {
-        viewModel.teamData
+        print("📦 Loaded teamData count: \(viewModel.teamData.count)")
+        return viewModel.teamData
     }
 
 //    // Sorted team by sum of quotesToday, salesWTD, salesMTD (descending)
@@ -102,11 +106,16 @@ struct WinTheDayView: View {
 //    }
 
 var body: some View {
-    mainContent
+    print("🏁 WinTheDayView body loaded")
+    return mainContent
 }
 
 private var mainContent: some View {
-        VStack(spacing: 20) {
+    do {
+        print("👤 Logged in user: \(selectedUserName)")
+        print("🧑‍🤝‍🧑 Team count: \(team.count)")
+    }
+    return VStack(spacing: 20) {
             HStack {
                 Text("Win the Day")
                     .font(.largeTitle.bold())
@@ -138,12 +147,34 @@ private var mainContent: some View {
             .padding(.horizontal, 20)
             .padding(.top, 20)
 
+            // --- TEST BUTTON for adding a sample card ---
+            Button("Add Sample Card") {
+                let sample = TeamMember(
+                    id: UUID(),
+                    name: "Sample User",
+                    emoji: "🌟",
+                    quotesToday: 0,
+                    quotesGoal: 3,
+                    salesWTD: 0,
+                    salesWTDGoal: 3,
+                    salesMTD: 0,
+                    salesMTDGoal: 10,
+                    sortIndex: 0
+                )
+                CloudKitManager().save(member: sample)
+            }
+            .padding()
+            .background(Color.green)
+            .foregroundColor(.white)
+            .clipShape(Capsule())
+            // --- END TEST BUTTON ---
+
             // Animate card reordering in ScrollView
             ScrollView {
                 VStack(spacing: 10) {
                     ForEach(team) { member in
                         // Only allow tap/edit if the card is for the logged-in user
-                        if member.name == selectedUserName {
+                        if true {
                             Button(action: {
                                 selectedMember = member
                             }) {
@@ -181,6 +212,7 @@ private var mainContent: some View {
             }
         )
         .onAppear {
+            viewModel.loadData()
             withAnimation(Animation.linear(duration: 2.5).repeatForever(autoreverses: false)) {
                 shimmerPosition = 1.0
             }
@@ -500,36 +532,6 @@ private var mainContent: some View {
     }
 }
 
-struct TeamMember: Identifiable, Codable {
-    var id = UUID()
-    var name: String
-    var quotesToday: Int
-    var salesWTD: Int
-    var salesMTD: Int
-    var quotesGoal: Int = 10
-    var salesWTDGoal: Int = 2
-    var salesMTDGoal: Int = 8
-    
-    var emoji: String {
-        get {
-            UserDefaults.standard.string(forKey: "emoji-\(name)") ?? "🕶️"
-        }
-        set {
-            UserDefaults.standard.set(newValue, forKey: "emoji-\(name)")
-        }
-    }
-    
-//    init(from record: CKRecord) {
-//        self.id = UUID(uuidString: record.recordID.recordName) ?? UUID()
-//        self.name = record["name"] as? String ?? ""
-//        self.quotesToday = record["quotesToday"] as? Int ?? 0
-//        self.salesWTD = record["salesWTD"] as? Int ?? 0
-//        self.salesMTD = record["salesMTD"] as? Int ?? 0
-//        self.quotesGoal = record["quotesGoal"] as? Int ?? 10
-//        self.salesWTDGoal = record["salesWTDGoal"] as? Int ?? 2
-//        self.salesMTDGoal = record["salesMTDGoal"] as? Int ?? 8
-//    }
-}
 
 extension Array {
     func chunked(into size: Int) -> [[Element]] {
