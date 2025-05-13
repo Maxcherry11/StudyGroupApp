@@ -150,18 +150,22 @@ private var mainContent: some View {
 
             // --- TEST BUTTON for adding a sample card ---
             Button("Add Sample Card") {
-                let sample = TeamMember(
-                    id: UUID(),
-                    name: "Sample User",
-                    quotesToday: 0,
-                    salesWTD: 0,
-                    salesMTD: 0,
-                    quotesGoal: 3,
-                    salesWTDGoal: 3,
-                    salesMTDGoal: 10, emoji: "🎯",
-                    sortIndex: 0
-                )
-                CloudKitManager().save(sample)
+                if !viewModel.teamData.contains(where: { $0.name == selectedUserName }) {
+                    let sample = TeamMember(
+                        id: UUID(),
+                        name: selectedUserName,
+                        quotesToday: 0,
+                        salesWTD: 0,
+                        salesMTD: 0,
+                        quotesGoal: 3,
+                        salesWTDGoal: 3,
+                        salesMTDGoal: 10,
+                        emoji: "🎯",
+                        sortIndex: viewModel.teamData.count
+                    )
+                    viewModel.teamData.append(sample)
+                    CloudKitManager().save(sample)
+                }
             }
             .padding()
             .background(Color.green)
@@ -235,7 +239,7 @@ private var mainContent: some View {
                         field: editingField,
                         editingMemberID: $editingMemberID,
                         recentlyCompletedIDs: $recentlyCompletedIDs,
-                        teamData: .constant([])
+                        teamData: $viewModel.teamData
                     )
                 }
             }
