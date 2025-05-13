@@ -1,38 +1,30 @@
-import Foundation
 import CloudKit
+import Combine
 
 class WinTheDayViewModel: ObservableObject {
     @Published var teamData: [TeamMember] = []
-    private let manager = CloudKitManager()
 
-    init() {
-        print("✅ WinTheDayViewModel initialized")
-        loadData()
-    }
+    private let cloudKitManager = CloudKitManager()
 
     func loadData() {
-        manager.fetchTeam { [weak self] members in
+        cloudKitManager.fetchAll { [weak self] members in
             DispatchQueue.main.async {
-                self?.teamData = members
-                self?.teamData.sort { $0.sortIndex < $1.sortIndex }
-                print("📦 Loaded cards count: \(self?.teamData.count ?? 0)")
+                self?.teamData = members.sorted(by: { $0.sortIndex < $1.sortIndex })
             }
         }
     }
 
-    func saveData(completion: (() -> Void)? = nil) {
-        for (index, member) in teamData.enumerated() {
-            member.sortIndex = index
-            manager.save(member)
+    func saveData() {
+        for member in teamData {
+            cloudKitManager.save(member)
         }
-        completion?()
     }
 
     func resetAllProgress() {
-        for member in teamData {
-            member.quotesToday = 0
-            member.salesWTD = 0
-            member.salesMTD = 0
+        for index in teamData.indices {
+            teamData[index].quotesToday = 0
+            teamData[index].salesWTD = 0
+            teamData[index].salesMTD = 0
         }
         saveData()
     }

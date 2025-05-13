@@ -77,4 +77,8 @@ class CloudKitManager: ObservableObject {
             }
         }
     }
+
+    func fetchAll(completion: @escaping ([TeamMember]) -> Void) {
+        fetchTeam(completion: completion)
+    }
 }

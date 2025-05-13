@@ -86,7 +86,7 @@ extension View {
 struct WinTheDayView: View {
     @ObservedObject var viewModel: WinTheDayViewModel
     @AppStorage("selectedUserName") private var selectedUserName: String = ""
-    @State private var selectedMember: WinTeamMember?
+    @State private var selectedMember: TeamMember?
     @State private var shimmerPosition: CGFloat = 0
     @State private var editingMemberID: UUID?
     @State private var editingField: String = ""
@@ -95,9 +95,9 @@ struct WinTheDayView: View {
     @State private var emojiEditingID: UUID?
     @State private var recentlyCompletedIDs: Set<UUID> = []
 
-    private var team: [WinTeamMember] {
+    private var team: [TeamMember] {
         print("📦 Loaded teamData count: \(viewModel.teamData.count)")
-        return viewModel.teamData.compactMap { $0 as? WinTeamMember }
+        return viewModel.teamData
     }
 
 //    // Sorted team by sum of quotesToday, salesWTD, salesMTD (descending)
@@ -150,7 +150,7 @@ private var mainContent: some View {
 
             // --- TEST BUTTON for adding a sample card ---
             Button("Add Sample Card") {
-                let sample = WinTeamMember(
+                let sample = TeamMember(
                     id: UUID(),
                     name: "Sample User",
                     quotesToday: 0,
@@ -158,10 +158,10 @@ private var mainContent: some View {
                     salesMTD: 0,
                     quotesGoal: 3,
                     salesWTDGoal: 3,
-                    salesMTDGoal: 10,
+                    salesMTDGoal: 10, emoji: "🎯",
                     sortIndex: 0
                 )
-                CloudKitManager().save(member: sample)
+                CloudKitManager().save(sample)
             }
             .padding()
             .background(Color.green)
@@ -173,17 +173,17 @@ private var mainContent: some View {
             ScrollView {
                 VStack(spacing: 10) {
                     ForEach(team) { member in
-                        print("🧪 Comparing member: \(member.name) with selectedUserName: \(selectedUserName)")
+                        let _ = print("🧪 Comparing member: \(member.name) with selectedUserName: \(selectedUserName)")
                         // Only allow tap/edit if the card is for the logged-in user
                         if member.name == selectedUserName {
                             Button(action: {
                                 selectedMember = member
                             }) {
-                                TeamCard(member, isEditable: true)
+                                TeamCard(member: member, isEditable: true)
                             }
                             .buttonStyle(PlainButtonStyle())
                         } else {
-                            TeamCard(member, isEditable: false)
+                            TeamCard(member: member, isEditable: false)
                         }
                     }
                 }
@@ -284,7 +284,7 @@ private var mainContent: some View {
     }
 
     // Add isEditable parameter to TeamCard
-    private func TeamCard(member: WinTeamMember, isEditable: Bool) -> some View {
+    private func TeamCard(member: TeamMember, isEditable: Bool) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack {
                 if isEditable {
@@ -413,9 +413,9 @@ private var mainContent: some View {
         value: Int,
         goal: Int,
         isEditable: Bool,
-        member: WinTeamMember,
+        member: TeamMember,
         recentlyCompletedIDs: Binding<Set<UUID>>,
-        teamData: Binding<[WinTeamMember]>,
+        teamData: Binding<[TeamMember]>,
         onTap: @escaping () -> Void
     ) -> some View {
         HStack {
@@ -478,7 +478,7 @@ private var mainContent: some View {
     }
 
     // Background gradient based on team progress
-    private func backgroundGradient(for team: [WinTeamMember]) -> LinearGradient {
+    private func backgroundGradient(for team: [TeamMember]) -> LinearGradient {
         var totalActual = 0
         var totalGoal = 0
 
@@ -541,48 +541,6 @@ private var mainContent: some View {
     }
 }
 
-struct WinTeamMember: Identifiable, Codable {
-    var id = UUID()
-    var name: String
-    var quotesToday: Int
-    var salesWTD: Int
-    var salesMTD: Int
-    var quotesGoal: Int = 10
-    var salesWTDGoal: Int = 2
-    var salesMTDGoal: Int = 8
-    var sortIndex: Int = 0
-
-    init(
-        id: UUID = UUID(),
-        name: String,
-        quotesToday: Int,
-        salesWTD: Int,
-        salesMTD: Int,
-        quotesGoal: Int = 10,
-        salesWTDGoal: Int = 2,
-        salesMTDGoal: Int = 8,
-        sortIndex: Int = 0
-    ) {
-        self.id = id
-        self.name = name
-        self.quotesToday = quotesToday
-        self.salesWTD = salesWTD
-        self.salesMTD = salesMTD
-        self.quotesGoal = quotesGoal
-        self.salesWTDGoal = salesWTDGoal
-        self.salesMTDGoal = salesMTDGoal
-        self.sortIndex = sortIndex
-    }
-
-    var emoji: String {
-        get {
-            UserDefaults.standard.string(forKey: "emoji-\(name)") ?? "🕶️"
-        }
-        set {
-            UserDefaults.standard.set(newValue, forKey: "emoji-\(name)")
-        }
-    }
-}
 
 extension Array {
     func chunked(into size: Int) -> [[Element]] {
@@ -594,7 +552,7 @@ extension Array {
 
 
     // Helper: Get value for a stat title and member
-    private func valueFor(_ title: String, of member: WinTeamMember) -> Int {
+    private func valueFor(_ title: String, of member: TeamMember) -> Int {
         switch title {
         case "Quotes Today": return member.quotesToday
         case "Sales WTD": return member.salesWTD
@@ -604,7 +562,7 @@ extension Array {
     }
 
     // Helper: Get goal for a stat title and member
-    private func goalFor(_ title: String, of member: WinTeamMember) -> Int {
+    private func goalFor(_ title: String, of member: TeamMember) -> Int {
         switch title {
         case "Quotes Today": return member.quotesGoal
         case "Sales WTD": return member.salesWTDGoal
@@ -617,11 +575,11 @@ extension Array {
 // MARK: - EditingOverlayView
 
 private struct EditingOverlayView: View {
-    let member: WinTeamMember
+    let member: TeamMember
     let field: String
     @Binding var editingMemberID: UUID?
     @Binding var recentlyCompletedIDs: Set<UUID>
-    @Binding var teamData: [WinTeamMember]
+    @Binding var teamData: [TeamMember]
 
     var body: some View {
         VStack(spacing: 15) {

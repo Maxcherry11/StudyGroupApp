@@ -2,46 +2,41 @@ import SwiftUI
 import CloudKit
 
 struct CloudKitProbeView: View {
-    @State private var statusMessage = "Checking iCloud status..."
+    @State private var statusMessage: String = "Checking iCloud status..."
 
     var body: some View {
         VStack(spacing: 20) {
-            Text("CloudKit Probe Test")
-                .font(.title2)
-                .bold()
-
             Text(statusMessage)
                 .multilineTextAlignment(.center)
                 .padding()
 
-            Button("Run Probe Again") {
+            Button("Check iCloud Status") {
                 checkCloudKit()
             }
+            .padding()
+            .background(Color.blue)
+            .foregroundColor(.white)
+            .clipShape(Capsule())
         }
-        .onAppear(perform: checkCloudKit)
         .padding()
     }
 
     func checkCloudKit() {
-        let container = CKContainer.default()
-        container.accountStatus { status, error in
+        CKContainer.default().accountStatus { status, error in
             DispatchQueue.main.async {
-                if let error = error {
-                    statusMessage = "❌ Error: \(error.localizedDescription)"
-                    return
-                }
-
                 switch status {
                 case .available:
                     statusMessage = "✅ iCloud is available."
                 case .noAccount:
-                    statusMessage = "❌ No iCloud account is signed in."
+                    statusMessage = "🚫 No iCloud account found."
                 case .restricted:
-                    statusMessage = "❌ iCloud access is restricted."
+                    statusMessage = "🔒 iCloud access is restricted."
                 case .couldNotDetermine:
-                    statusMessage = "❌ Could not determine iCloud status."
+                    statusMessage = "❓ Could not determine iCloud status."
+                case .temporarilyUnavailable:
+                    statusMessage = "⏳ iCloud is temporarily unavailable."
                 @unknown default:
-                    statusMessage = "❌ Unknown iCloud status."
+                    statusMessage = "⚠️ Received unknown iCloud status: \(status)"
                 }
             }
         }
