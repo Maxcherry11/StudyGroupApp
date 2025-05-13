@@ -18,6 +18,7 @@ class CloudKitManager: ObservableObject {
             switch result {
             case .success(let record):
                 let member = TeamMember(
+                    id: UUID(uuidString: record.recordID.recordName) ?? UUID(),
                     name: record["name"] as? String ?? "",
                     quotesToday: record["quotesToday"] as? Int ?? 0,
                     salesWTD: record["salesWTD"] as? Int ?? 0,
@@ -38,6 +39,11 @@ class CloudKitManager: ObservableObject {
             DispatchQueue.main.async {
                 switch result {
                 case .success:
+                    print("📤 Fetching from CloudKit...")
+                    print("✅ Retrieved \(fetchedMembers.count) members:")
+                    for member in fetchedMembers {
+                        print("   • \(member.name)")
+                    }
                     self.team = fetchedMembers
                     completion(fetchedMembers)
                 case .failure(let error):
@@ -63,8 +69,12 @@ class CloudKitManager: ObservableObject {
         record["emoji"] = member.emoji as NSString
         record["sortIndex"] = member.sortIndex as NSNumber
         database.save(record) { _, error in
-            if let error = error {
-                print("❌ Error saving: \(error.localizedDescription)")
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("❌ Error saving: \(error.localizedDescription)")
+                } else {
+                    print("✅ Successfully saved member: \(member.name)")
+                }
             }
         }
     }
