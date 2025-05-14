@@ -164,7 +164,7 @@ private var mainContent: some View {
                         sortIndex: viewModel.teamData.count
                     )
                     viewModel.teamData.append(sample)
-                    CloudKitManager().save(sample)
+                    CloudKitManager().save(sample) { _ in }
                 }
             }
             .padding()
@@ -616,13 +616,27 @@ private struct EditingOverlayView: View {
                 }
                 Spacer()
                 Button("Save") {
-                    // Handle progress logic here if needed
-                    CloudKitManager().save(teamData[index])
-                    editingMemberID = nil
-                    withAnimation(.easeInOut) {
-                        teamData.sort {
-                            ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-                            ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+                    CloudKitManager().save(teamData[index]) { newRecordID in
+                        if let newRecordID = newRecordID {
+                            teamData[index].id = UUID(uuidString: newRecordID.recordName) ?? teamData[index].id
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            // Reload data from CloudKit after saving
+                            if let winView = UIApplication.shared.connectedScenes
+                                .compactMap({ $0 as? UIWindowScene })
+                                .flatMap({ $0.windows })
+                                .compactMap({ $0.rootViewController })
+                                .compactMap({ $0 as? UIHostingController<WinTheDayView> })
+                                .first {
+                                winView.rootView.viewModel.loadData()
+                            }
+                        }
+                        editingMemberID = nil
+                        withAnimation(.easeInOut) {
+                            teamData.sort {
+                                ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
+                                ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+                            }
                         }
                     }
                 }

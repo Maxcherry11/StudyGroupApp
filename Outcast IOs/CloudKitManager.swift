@@ -56,9 +56,14 @@ class CloudKitManager: ObservableObject {
         database.add(operation)
     }
 
-    func save(_ member: TeamMember) {
-        let recordID = CKRecord.ID(recordName: member.id.uuidString)
-        let record = CKRecord(recordType: "TeamMember", recordID: recordID)
+    func save(_ member: TeamMember, completion: @escaping (CKRecord.ID?) -> Void) {
+        let record: CKRecord
+        if member.id.uuidString.count == 36 {
+            let recordID = CKRecord.ID(recordName: member.id.uuidString)
+            record = CKRecord(recordType: recordType, recordID: recordID)
+        } else {
+            record = CKRecord(recordType: recordType)
+        }
         record["name"] = member.name as NSString
         record["quotesToday"] = member.quotesToday as NSNumber
         record["salesWTD"] = member.salesWTD as NSNumber
@@ -68,14 +73,20 @@ class CloudKitManager: ObservableObject {
         record["salesMTDGoal"] = member.salesMTDGoal as NSNumber
         record["emoji"] = member.emoji as NSString
         record["sortIndex"] = member.sortIndex as NSNumber
-        print("💾 Saving member to CloudKit with ID: \(member.id.uuidString)")
+        print("💾 Saving member to CloudKit: \(member.name)")
+        
         let modifyOperation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
-        modifyOperation.modifyRecordsCompletionBlock = { _, _, error in
+        modifyOperation.modifyRecordsCompletionBlock = { savedRecords, _, error in
             DispatchQueue.main.async {
                 if let error = error {
                     print("❌ Error saving: \(error.localizedDescription)")
+                    completion(nil)
+                } else if let savedRecord = savedRecords?.first {
+                    print("✅ Successfully saved member: \(member.name) with ID: \(savedRecord.recordID.recordName)")
+                    completion(savedRecord.recordID)
                 } else {
-                    print("✅ Successfully saved member: \(member.name)")
+                    print("⚠️ Save completed but no record returned.")
+                    completion(nil)
                 }
             }
         }
@@ -93,5 +104,47 @@ class CloudKitManager: ObservableObject {
 
     func fetchAll(completion: @escaping ([TeamMember]) -> Void) {
         fetchTeam(completion: completion)
+    }
+
+    func deleteAll(completion: @escaping (Bool) -> Void) {
+        let predicate = NSPredicate(value: true)
+        let query = CKQuery(recordType: recordType, predicate: predicate)
+        var recordIDsToDelete: [CKRecord.ID] = []
+
+        let operation = CKQueryOperation(query: query)
+        operation.recordMatchedBlock = { recordID, result in
+            switch result {
+            case .success:
+                recordIDsToDelete.append(recordID)
+            case .failure(let error):
+                print("❌ Error matching record for deletion: \(error.localizedDescription)")
+            }
+        }
+
+        operation.queryResultBlock = { result in
+            if recordIDsToDelete.isEmpty {
+                DispatchQueue.main.async {
+                    print("🧹 No records to delete.")
+                    completion(true)
+                }
+                return
+            }
+
+            let deleteOperation = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: recordIDsToDelete)
+            deleteOperation.modifyRecordsCompletionBlock = { _, _, error in
+                DispatchQueue.main.async {
+                    if let error = error {
+                        print("❌ Error deleting records: \(error.localizedDescription)")
+                        completion(false)
+                    } else {
+                        print("🗑️ Deleted \(recordIDsToDelete.count) records from CloudKit.")
+                        completion(true)
+                    }
+                }
+            }
+            self.database.add(deleteOperation)
+        }
+
+        database.add(operation)
     }
 }

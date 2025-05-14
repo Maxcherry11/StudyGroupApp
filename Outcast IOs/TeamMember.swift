@@ -8,7 +8,7 @@
 import Foundation
 
 class TeamMember: Identifiable, ObservableObject {
-    let id: UUID
+    var id: UUID
     @Published var name: String
     @Published var quotesToday: Int
     @Published var salesWTD: Int
