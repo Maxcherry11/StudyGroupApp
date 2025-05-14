@@ -68,7 +68,9 @@ class CloudKitManager: ObservableObject {
         record["salesMTDGoal"] = member.salesMTDGoal as NSNumber
         record["emoji"] = member.emoji as NSString
         record["sortIndex"] = member.sortIndex as NSNumber
-        database.save(record) { _, error in
+        print("💾 Saving member to CloudKit with ID: \(member.id.uuidString)")
+        let modifyOperation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
+        modifyOperation.modifyRecordsCompletionBlock = { _, _, error in
             DispatchQueue.main.async {
                 if let error = error {
                     print("❌ Error saving: \(error.localizedDescription)")
@@ -77,6 +79,7 @@ class CloudKitManager: ObservableObject {
                 }
             }
         }
+        database.add(modifyOperation)
     }
 
     func delete(_ member: TeamMember) {

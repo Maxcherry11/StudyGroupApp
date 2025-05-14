@@ -68,7 +68,9 @@ struct CloudKitDebugView: View {
                     case .noAccount: accountStatus = "No iCloud Account ❌"
                     case .restricted: accountStatus = "Restricted ⚠️"
                     case .couldNotDetermine: accountStatus = "Could Not Determine ❓"
-                    @unknown default: accountStatus = "Unknown status 🚨"
+                    case .temporarilyUnavailable: accountStatus = "Temporarily Unavailable 🕒"
+                    @unknown default:
+                        accountStatus = "Unexpected status 🚨"
                     }
                 }
             }

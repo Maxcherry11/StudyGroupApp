@@ -181,7 +181,7 @@ private var mainContent: some View {
                         // Only allow tap/edit if the card is for the logged-in user
                         if member.name == selectedUserName {
                             Button(action: {
-                                selectedMember = member
+                                editingMemberID = member.id
                             }) {
                                 TeamCard(member: member, isEditable: true)
                             }
@@ -617,6 +617,7 @@ private struct EditingOverlayView: View {
                 Spacer()
                 Button("Save") {
                     // Handle progress logic here if needed
+                    CloudKitManager().save(teamData[index])
                     editingMemberID = nil
                     withAnimation(.easeInOut) {
                         teamData.sort {
