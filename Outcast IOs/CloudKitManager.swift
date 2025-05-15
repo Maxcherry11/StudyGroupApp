@@ -8,8 +8,10 @@ class CloudKitManager: ObservableObject {
     @Published var team: [TeamMember] = []
 
     func fetchTeam(completion: @escaping ([TeamMember]) -> Void) {
+        // Explicitly use NSPredicate(value: true) to avoid relying on implicit queryable fields
         let predicate = NSPredicate(value: true)
         let query = CKQuery(recordType: recordType, predicate: predicate)
+        query.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
 
         var fetchedMembers: [TeamMember] = []
 
@@ -17,19 +19,9 @@ class CloudKitManager: ObservableObject {
         operation.recordMatchedBlock = { recordID, result in
             switch result {
             case .success(let record):
-                let member = TeamMember(
-                    id: UUID(uuidString: record.recordID.recordName) ?? UUID(),
-                    name: record["name"] as? String ?? "",
-                    quotesToday: record["quotesToday"] as? Int ?? 0,
-                    salesWTD: record["salesWTD"] as? Int ?? 0,
-                    salesMTD: record["salesMTD"] as? Int ?? 0,
-                    quotesGoal: record["quotesGoal"] as? Int ?? 10,
-                    salesWTDGoal: record["salesWTDGoal"] as? Int ?? 2,
-                    salesMTDGoal: record["salesMTDGoal"] as? Int ?? 8,
-                    emoji: record["emoji"] as? String ?? "🙂",
-                    sortIndex: record["sortIndex"] as? Int ?? 0
-                )
-                fetchedMembers.append(member)
+                if let member = TeamMember(record: record) {
+                    fetchedMembers.append(member)
+                }
             case .failure(let error):
                 print("❌ Failed to match record: \(error.localizedDescription)")
             }
@@ -57,22 +49,7 @@ class CloudKitManager: ObservableObject {
     }
 
     func save(_ member: TeamMember, completion: @escaping (CKRecord.ID?) -> Void) {
-        let record: CKRecord
-        if member.id.uuidString.count == 36 {
-            let recordID = CKRecord.ID(recordName: member.id.uuidString)
-            record = CKRecord(recordType: recordType, recordID: recordID)
-        } else {
-            record = CKRecord(recordType: recordType)
-        }
-        record["name"] = member.name as NSString
-        record["quotesToday"] = member.quotesToday as NSNumber
-        record["salesWTD"] = member.salesWTD as NSNumber
-        record["salesMTD"] = member.salesMTD as NSNumber
-        record["quotesGoal"] = member.quotesGoal as NSNumber
-        record["salesWTDGoal"] = member.salesWTDGoal as NSNumber
-        record["salesMTDGoal"] = member.salesMTDGoal as NSNumber
-        record["emoji"] = member.emoji as NSString
-        record["sortIndex"] = member.sortIndex as NSNumber
+        let record = member.toRecord()
         print("💾 Saving member to CloudKit: \(member.name)")
         
         let modifyOperation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
@@ -104,6 +81,34 @@ class CloudKitManager: ObservableObject {
 
     func fetchAll(completion: @escaping ([TeamMember]) -> Void) {
         fetchTeam(completion: completion)
+    }
+
+    func fetchFiltered(byUserName name: String, completion: @escaping ([TeamMember]) -> Void) {
+        let predicate = NSPredicate(format: "name == %@", name)
+        let query = CKQuery(recordType: recordType, predicate: predicate)
+        query.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
+
+        var results: [TeamMember] = []
+
+        let operation = CKQueryOperation(query: query)
+        operation.recordMatchedBlock = { recordID, result in
+            switch result {
+            case .success(let record):
+                if let member = TeamMember(record: record) {
+                    results.append(member)
+                }
+            case .failure(let error):
+                print("❌ Failed to fetch record: \(error.localizedDescription)")
+            }
+        }
+
+        operation.queryResultBlock = { _ in
+            DispatchQueue.main.async {
+                completion(results)
+            }
+        }
+
+        database.add(operation)
     }
 
     func deleteAll(completion: @escaping (Bool) -> Void) {

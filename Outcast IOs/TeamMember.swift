@@ -43,3 +43,53 @@ class TeamMember: Identifiable, ObservableObject {
         self.sortIndex = sortIndex
     }
 }
+
+import CloudKit
+
+extension TeamMember {
+    static let recordType = "TeamMember"
+
+    convenience init?(record: CKRecord) {
+        guard
+            let name = record["name"] as? String,
+            let quotesToday = record["quotesToday"] as? Int,
+            let salesWTD = record["salesWTD"] as? Int,
+            let salesMTD = record["salesMTD"] as? Int,
+            let quotesGoal = record["quotesGoal"] as? Int,
+            let salesWTDGoal = record["salesWTDGoal"] as? Int,
+            let salesMTDGoal = record["salesMTDGoal"] as? Int,
+            let emoji = record["emoji"] as? String,
+            let sortIndex = record["sortIndex"] as? Int
+        else {
+            return nil
+        }
+
+        self.init(
+            id: UUID(uuidString: record.recordID.recordName) ?? UUID(),
+            name: name,
+            quotesToday: quotesToday,
+            salesWTD: salesWTD,
+            salesMTD: salesMTD,
+            quotesGoal: quotesGoal,
+            salesWTDGoal: salesWTDGoal,
+            salesMTDGoal: salesMTDGoal,
+            emoji: emoji,
+            sortIndex: sortIndex
+        )
+    }
+
+    func toRecord() -> CKRecord {
+        let recordID = CKRecord.ID(recordName: id.uuidString)
+        let record = CKRecord(recordType: Self.recordType, recordID: recordID)
+        record["name"] = name as CKRecordValue
+        record["quotesToday"] = quotesToday as CKRecordValue
+        record["salesWTD"] = salesWTD as CKRecordValue
+        record["salesMTD"] = salesMTD as CKRecordValue
+        record["quotesGoal"] = quotesGoal as CKRecordValue
+        record["salesWTDGoal"] = salesWTDGoal as CKRecordValue
+        record["salesMTDGoal"] = salesMTDGoal as CKRecordValue
+        record["emoji"] = emoji as CKRecordValue
+        record["sortIndex"] = sortIndex as CKRecordValue
+        return record
+    }
+}

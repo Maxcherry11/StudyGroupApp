@@ -7,17 +7,10 @@ class WinTheDayViewModel: ObservableObject {
     private let cloudKitManager = CloudKitManager()
 
     func loadData() {
-        // wipeAndResetCloudKit()
-        // return
         cloudKitManager.fetchAll { [weak self] members in
             DispatchQueue.main.async {
-                if members.isEmpty {
-                    let defaults = self?.createDefaultTeam() ?? []
-                    self?.teamData = defaults
-                    self?.saveData()
-                } else {
-                    self?.teamData = members.sorted(by: { $0.sortIndex < $1.sortIndex })
-                }
+                print("📦 Loaded teamData count: \(members.count)")
+                self?.teamData = members.sorted(by: { $0.sortIndex < $1.sortIndex })
             }
         }
     }
@@ -26,7 +19,7 @@ class WinTheDayViewModel: ObservableObject {
         for member in teamData {
             cloudKitManager.save(member) { recordID in
                 if let idString = recordID?.recordName,
-                   let index = self.teamData.firstIndex(where: { $0.name == member.name }) {
+                   let index = self.teamData.firstIndex(where: { $0.id == member.id }) {
                     self.teamData[index].id = UUID(uuidString: idString) ?? self.teamData[index].id
                 }
             }

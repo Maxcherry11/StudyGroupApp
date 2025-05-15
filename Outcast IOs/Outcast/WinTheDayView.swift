@@ -268,6 +268,7 @@ private var mainContent: some View {
                                         if let id = emojiEditingID,
                                            let index = team.firstIndex(where: { $0.id == id }) {
                                             viewModel.teamData[index].emoji = emoji
+                                            CloudKitManager().save(viewModel.teamData[index]) { _ in }
                                         }
                                         emojiPickerVisible = false
                                     }) {
@@ -478,6 +479,7 @@ private var mainContent: some View {
             viewModel.teamData[index].quotesToday = 0
             viewModel.teamData[index].salesWTD = 0
             viewModel.teamData[index].salesMTD = 0
+            CloudKitManager().save(viewModel.teamData[index]) { _ in }
         }
     }
 
@@ -620,22 +622,15 @@ private struct EditingOverlayView: View {
                         if let newRecordID = newRecordID {
                             teamData[index].id = UUID(uuidString: newRecordID.recordName) ?? teamData[index].id
                         }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            // Reload data from CloudKit after saving
-                            if let winView = UIApplication.shared.connectedScenes
-                                .compactMap({ $0 as? UIWindowScene })
-                                .flatMap({ $0.windows })
-                                .compactMap({ $0.rootViewController })
-                                .compactMap({ $0 as? UIHostingController<WinTheDayView> })
-                                .first {
-                                winView.rootView.viewModel.loadData()
-                            }
-                        }
+
                         editingMemberID = nil
-                        withAnimation(.easeInOut) {
-                            teamData.sort {
-                                ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-                                ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+
+                        DispatchQueue.main.async {
+                            withAnimation(.easeInOut) {
+                                teamData.sort {
+                                    ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
+                                    ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+                                }
                             }
                         }
                     }
