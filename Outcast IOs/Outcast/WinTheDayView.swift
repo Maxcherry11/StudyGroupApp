@@ -84,7 +84,7 @@ extension View {
 }
 
 struct WinTheDayView: View {
-    @ObservedObject var viewModel: WinTheDayViewModel
+    @StateObject var viewModel: WinTheDayViewModel
     @AppStorage("selectedUserName") private var selectedUserName: String = ""
     @State private var selectedMember: TeamMember?
     @State private var shimmerPosition: CGFloat = 0
@@ -95,18 +95,7 @@ struct WinTheDayView: View {
     @State private var emojiEditingID: UUID?
     @State private var recentlyCompletedIDs: Set<UUID> = []
 
-    private var team: [TeamMember] {
-        print("📦 Loaded teamData count: \(viewModel.teamData.count)")
-        return viewModel.teamData
-    }
 
-//    // Sorted team by sum of quotesToday, salesWTD, salesMTD (descending)
-//    private var sortedTeam: [TeamMember] {
-//        team.sorted {
-//            ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-//            ($1.quotesToday + $1.salesWTD + $1.salesMTD)
-//        }
-//    }
 
 var body: some View {
     print("🏁 WinTheDayView body loaded")
@@ -114,199 +103,211 @@ var body: some View {
 }
 
 private var mainContent: some View {
-    print("👤 Logged in user: \(selectedUserName)")
-    print("🧑‍🤝‍🧑 Team count: \(team.count)")
-    return VStack(spacing: 20) {
-            HStack {
-                Text("Win the Day")
-                    .font(.largeTitle.bold())
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Menu {
-                    Button(action: {
-                        // Handle change activity action
-                    }) {
-                        Text("Change Activity")
-                        Image(systemName: "circle")
-                    }
-                    Button(action: {
-                        // Handle change goal action
-                    }) {
-                        Text("Change Goal")
-                        Image(systemName: "circle")
-                    }
-                    Button(action: resetValues) {
-                        Text("Reset")
-                            .foregroundColor(.red)
-                        Image(systemName: "trash.fill")
-                    }
-                } label: {
-                    Image(systemName: "line.3.horizontal")
-                        .font(.title2)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-
-            // --- TEST BUTTON for adding a sample card ---
-            Button("Add Sample Card") {
-                if !viewModel.teamData.contains(where: { $0.name == selectedUserName }) {
-                    let sample = TeamMember(
-                        id: UUID(),
-                        name: selectedUserName,
-                        quotesToday: 0,
-                        salesWTD: 0,
-                        salesMTD: 0,
-                        quotesGoal: 3,
-                        salesWTDGoal: 3,
-                        salesMTDGoal: 10,
-                        emoji: "🎯",
-                        sortIndex: viewModel.teamData.count
-                    )
-                    viewModel.teamData.append(sample)
-                    CloudKitManager().save(sample) { _ in }
-                }
-            }
-            .padding()
-            .background(Color.green)
-            .foregroundColor(.white)
-            .clipShape(Capsule())
-            // --- END TEST BUTTON ---
-
-            // Animate card reordering in ScrollView
-            ScrollView {
-                VStack(spacing: 10) {
-                    ForEach(team) { member in
-                        let _ = print("🧪 Comparing member: \(member.name) with selectedUserName: \(selectedUserName)")
-                        // Only allow tap/edit if the card is for the logged-in user
-                        if member.name == selectedUserName {
-                            Button(action: {
-                                editingMemberID = member.id
-                            }) {
-                                TeamCard(member: member, isEditable: true)
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                        } else {
-                            TeamCard(member: member, isEditable: false)
-                        }
-                    }
-                }
-                .padding(.horizontal, 20)
-                .animation(.easeInOut, value: team.map { $0.id }) // Animate changes to team order
-            }
-
-            // Fallback message if no team data
-            if team.isEmpty {
-                Text("No team data found. Try adding a sample card.")
-                    .foregroundColor(.red)
-                    .padding()
-            }
-
-            Spacer()
-        }
-        .background(
-            ZStack {
-                backgroundGradient(for: team).ignoresSafeArea()
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color.white.opacity(0.0),
-                        Color.white.opacity(0.25),
-                        Color.white.opacity(0.0)
-                    ]),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .frame(width: 400)
-                .rotationEffect(.degrees(30))
-                .offset(x: shimmerPosition * 600)
-                .blendMode(.overlay)
-                .ignoresSafeArea()
-            }
-        )
-        .onAppear {
-            print("🟢 onAppear triggered — calling loadData()")
-            viewModel.loadData()
-            withAnimation(Animation.linear(duration: 2.5).repeatForever(autoreverses: false)) {
-                shimmerPosition = 1.0
-            }
-        }
-        .overlay(
-            Group {
-                if let editingID = editingMemberID,
-                   let member = team.first(where: { $0.id == editingID }) {
-                    EditingOverlayView(
-                        member: member,
-                        field: editingField,
-                        editingMemberID: $editingMemberID,
-                        recentlyCompletedIDs: $recentlyCompletedIDs,
-                        teamData: $viewModel.teamData
-                    )
-                }
-            }
-        )
-        .sheet(isPresented: $emojiPickerVisible) {
-            VStack(spacing: 20) {
-                Text("Choose Your Emoji").font(.headline)
-                let emojis = [
-                    "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇",
-                    "🙂", "🙃", "😉", "😌", "😍", "😘", "😗", "😙", "😚", "😋",
-                    "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔", "🤐", "😶",
-                     "👩🏾", "👧🏽", "👨🏾", "👩🏿", "👩🏾‍🦱", "👱🏽‍♂️", "👨🏽‍🦲", "👨🏽‍💻",
-                    "🧓🏾", "👴🏻", "👮🏽‍♂️", "👷🏾‍♀️", "💂🏿", "🕵🏻‍♂️", "👩🏼‍⚕️", "👨🏽‍🎓", "👩🏻‍🏫",
-                    "👨🏾‍🏭", "👩🏿‍💻", "👨🏻‍💼", "👩🏼‍🔧", "👨🏽‍🔬", "👩🏾‍🎤", "👨🏾‍🦱", "👨🏿‍🦱", "👩🏽‍⚖️",
-                    "🧑🏾‍🌾", "🧑🏿‍🍳", "🧑🏻‍🎨", "🧑🏼‍🔬", "🧑🏽‍✈️", "🧑🏾‍🚀", "🧑🏿‍⚖️", "🧑🏻‍⚕️", "🧑🏼‍🎓", "🧑🏽‍🏫",
-                    "❤️", "🧡", "💛", "💚", "💙", "💜", "🤎", "🖤", "🤍", "💯",
-                    "🌟", "⭐", "✨", "🔥", "🎉", "🎯", "🏆", "🎖", "🎓", "🎬",
-                    "🎧", "🎮", "🎨", "🎼", "🕹", "🧠", "📚", "💡", "📈", "📅"
-                ]
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 12) {
-                        ForEach(emojis.chunked(into: 8), id: \.self) { row in
-                            HStack {
-                                ForEach(row, id: \.self) { emoji in
-                                    Button(action: {
-                                        if let id = emojiEditingID,
-                                           let index = team.firstIndex(where: { $0.id == id }) {
-                                            viewModel.teamData[index].emoji = emoji
-                                            CloudKitManager().save(viewModel.teamData[index]) { _ in }
-                                        }
-                                        emojiPickerVisible = false
-                                    }) {
-                                        Text(emoji)
-                                            .font(.largeTitle)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Button("Cancel") {
-                    emojiPickerVisible = false
-                }
-            }
-            .padding()
+    VStack(spacing: 20) {
+        header
+        addSampleCardButton
+        teamCardsList
+        fallbackMessage
+        Spacer()
+    }
+    .background(backgroundLayer)
+    .onAppear {
+        print("🟢 onAppear triggered — calling loadData()")
+        viewModel.loadData()
+        withAnimation(Animation.linear(duration: 2.5).repeatForever(autoreverses: false)) {
+            shimmerPosition = 1.0
         }
     }
+    .overlay(editingOverlay)
+    .sheet(isPresented: $emojiPickerVisible) {
+        emojiPickerSheet
+    }
+}
+
+private var header: some View {
+    HStack {
+        Text("Win the Day")
+            .font(.largeTitle.bold())
+            .frame(maxWidth: .infinity, alignment: .leading)
+        Menu {
+            Button("Change Activity") {}
+            Button("Change Goal") {}
+            Button(role: .destructive, action: resetValues) {
+                Label("Reset", systemImage: "trash.fill")
+            }
+        } label: {
+            Image(systemName: "line.3.horizontal")
+                .font(.title2)
+        }
+    }
+    .padding(.horizontal, 20)
+    .padding(.top, 20)
+}
+
+private var addSampleCardButton: some View {
+    Button("Add Sample Card") {
+        if !viewModel.teamData.contains(where: { $0.name == selectedUserName }) {
+            let sample = TeamMember(
+                id: UUID(),
+                name: selectedUserName,
+                quotesToday: 0,
+                salesWTD: 0,
+                salesMTD: 0,
+                quotesGoal: 3,
+                salesWTDGoal: 3,
+                salesMTDGoal: 10,
+                emoji: "🎯",
+                sortIndex: viewModel.teamData.count
+            )
+            viewModel.teamData.append(sample)
+            CloudKitManager().save(sample) { _ in }
+        }
+    }
+    .padding()
+    .background(Color.green)
+    .foregroundColor(.white)
+    .clipShape(Capsule())
+}
+
+private var teamCardsList: some View {
+    ScrollView {
+        VStack(spacing: 10) {
+            ForEach(viewModel.teamData, id: \.id) { member in
+                memberCardView(for: member)
+            }
+        }
+        .padding(.horizontal, 20)
+        .animation(.easeInOut, value: viewModel.teamData.map { $0.id })
+    }
+}
+
+@ViewBuilder
+private func memberCardView(for member: TeamMember) -> some View {
+    let memberBinding = Binding(
+        get: {
+            viewModel.teamData.first(where: { $0.id == member.id }) ?? member
+        },
+        set: { updated in
+            if let i = viewModel.teamData.firstIndex(where: { $0.id == updated.id }) {
+                viewModel.teamData[i] = updated
+            }
+        }
+    )
+
+    if member.name == selectedUserName {
+        Button(action: {
+            editingMemberID = member.id
+        }) {
+            TeamCard(member: memberBinding, isEditable: true)
+        }
+        .buttonStyle(PlainButtonStyle())
+    } else {
+        TeamCard(member: memberBinding, isEditable: false)
+    }
+}
+
+private var fallbackMessage: some View {
+    Group {
+        if viewModel.teamData.isEmpty {
+            Text("No team data found. Try adding a sample card.")
+                .foregroundColor(.red)
+                .padding()
+        }
+    }
+}
+
+private var backgroundLayer: some View {
+    ZStack {
+        backgroundGradient(for: viewModel.teamData).ignoresSafeArea()
+        LinearGradient(
+            gradient: Gradient(colors: [
+                Color.white.opacity(0.0),
+                Color.white.opacity(0.25),
+                Color.white.opacity(0.0)
+            ]),
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .frame(width: 400)
+        .rotationEffect(.degrees(30))
+        .offset(x: shimmerPosition * 600)
+        .blendMode(.overlay)
+        .ignoresSafeArea()
+    }
+}
+
+private var editingOverlay: some View {
+    Group {
+        if let editingID = editingMemberID,
+           let index = viewModel.teamData.firstIndex(where: { $0.id == editingID }) {
+            let binding = Binding(
+                get: { viewModel.teamData[index] },
+                set: { viewModel.teamData[index] = $0 }
+            )
+            EditingOverlayView(
+                member: binding,
+                field: editingField,
+                editingMemberID: $editingMemberID,
+                recentlyCompletedIDs: $recentlyCompletedIDs
+            )
+        }
+    }
+}
+
+private var emojiPickerSheet: some View {
+    VStack(spacing: 20) {
+        Text("Choose Your Emoji").font(.headline)
+        emojiGrid
+        Button("Cancel") {
+            emojiPickerVisible = false
+        }
+    }
+    .padding()
+}
+
+private var emojiGrid: some View {
+    let emojis = ["😀", "🎯", "🏆", "🎓", "💯", "🔥", "🎉", "💡", "📈", "📅"]
+    return ScrollView {
+        LazyVStack(alignment: .leading, spacing: 12) {
+            ForEach(emojis.chunked(into: 5), id: \.self) { row in
+                HStack {
+                    ForEach(row, id: \.self) { emoji in
+                        Button(action: {
+                            if let id = emojiEditingID,
+                               let index = viewModel.teamData.firstIndex(where: { $0.id == id }) {
+                                viewModel.teamData[index].emoji = emoji
+                                CloudKitManager().save(viewModel.teamData[index]) { _ in }
+                            }
+                            emojiPickerVisible = false
+                        }) {
+                            Text(emoji).font(.largeTitle)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
     // Add isEditable parameter to TeamCard
-    private func TeamCard(member: TeamMember, isEditable: Bool) -> some View {
+    private func TeamCard(member: Binding<TeamMember>, isEditable: Bool) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack {
                 if isEditable {
                     Button(action: {
-                        emojiEditingID = member.id
+                        emojiEditingID = member.wrappedValue.id
                         emojiPickerVisible = true
                     }) {
-                        Text(member.emoji)
+                        Text(member.wrappedValue.emoji)
                             .font(.title2.bold())
                     }
                     .buttonStyle(PlainButtonStyle())
                 } else {
-                    Text(member.emoji)
+                    Text(member.wrappedValue.emoji)
                         .font(.title2.bold())
                 }
                 HStack(spacing: 6) {
-                    Text(member.name)
+                    Text(member.wrappedValue.name)
                         .font(.title2.bold())
                     if isEditable {
                         Image(systemName: "pencil")
@@ -320,74 +321,80 @@ private var mainContent: some View {
             .foregroundColor(.white)
             .cornerRadius(10, corners: [.topLeft, .topRight])
 
-            if isEditable {
-                StatRow(
-                    title: "Quotes Today",
-                    value: member.quotesToday,
-                    goal: member.quotesGoal,
-                    isEditable: true,
-                    member: member,
-                    recentlyCompletedIDs: $recentlyCompletedIDs,
-                    teamData: .constant([])
-                ) {
-                    editingMemberID = member.id
-                    editingField = "quotesToday"
-                    editingValue = member.quotesToday
+            if let index = viewModel.teamData.firstIndex(where: { $0.id == member.wrappedValue.id }) {
+                let memberBinding = Binding(
+                    get: { viewModel.teamData[index] },
+                    set: { viewModel.teamData[index] = $0 }
+                )
+                if isEditable {
+                    StatRow(
+                        title: "Quotes Today",
+                        value: member.wrappedValue.quotesToday,
+                        goal: member.wrappedValue.quotesGoal,
+                        isEditable: true,
+                        member: memberBinding,
+                        recentlyCompletedIDs: $recentlyCompletedIDs,
+                        teamData: $viewModel.teamData
+                    ) {
+                        editingMemberID = member.wrappedValue.id
+                        editingField = "quotesToday"
+                        editingValue = member.wrappedValue.quotesToday
+                    }
+                    StatRow(
+                        title: "Sales WTD",
+                        value: member.wrappedValue.salesWTD,
+                        goal: member.wrappedValue.salesWTDGoal,
+                        isEditable: true,
+                        member: memberBinding,
+                        recentlyCompletedIDs: $recentlyCompletedIDs,
+                        teamData: $viewModel.teamData
+                    ) {
+                        editingMemberID = member.wrappedValue.id
+                        editingField = "salesWTD"
+                        editingValue = member.wrappedValue.salesWTD
+                    }
+                    StatRow(
+                        title: "Sales MTD",
+                        value: member.wrappedValue.salesMTD,
+                        goal: member.wrappedValue.salesMTDGoal,
+                        isEditable: true,
+                        member: memberBinding,
+                        recentlyCompletedIDs: $recentlyCompletedIDs,
+                        teamData: $viewModel.teamData
+                    ) {
+                        editingMemberID = member.wrappedValue.id
+                        editingField = "salesMTD"
+                        editingValue = member.wrappedValue.salesMTD
+                    }
+                } else {
+                    StatRow(
+                        title: "Quotes Today",
+                        value: member.wrappedValue.quotesToday,
+                        goal: member.wrappedValue.quotesGoal,
+                        isEditable: false,
+                        member: memberBinding,
+                        recentlyCompletedIDs: $recentlyCompletedIDs,
+                        teamData: $viewModel.teamData
+                    ) {}
+                    StatRow(
+                        title: "Sales WTD",
+                        value: member.wrappedValue.salesWTD,
+                        goal: member.wrappedValue.salesWTDGoal,
+                        isEditable: false,
+                        member: memberBinding,
+                        recentlyCompletedIDs: $recentlyCompletedIDs,
+                        teamData: $viewModel.teamData
+                    ) {}
+                    StatRow(
+                        title: "Sales MTD",
+                        value: member.wrappedValue.salesMTD,
+                        goal: member.wrappedValue.salesMTDGoal,
+                        isEditable: false,
+                        member: memberBinding,
+                        recentlyCompletedIDs: $recentlyCompletedIDs,
+                        teamData: $viewModel.teamData
+                    ) {}
                 }
-                StatRow(
-                    title: "Sales WTD",
-                    value: member.salesWTD,
-                    goal: member.salesWTDGoal,
-                    isEditable: true,
-                    member: member,
-                    recentlyCompletedIDs: $recentlyCompletedIDs,
-                    teamData: .constant([])
-                ) {
-                    editingMemberID = member.id
-                    editingField = "salesWTD"
-                    editingValue = member.salesWTD
-                }
-                StatRow(
-                    title: "Sales MTD",
-                    value: member.salesMTD,
-                    goal: member.salesMTDGoal,
-                    isEditable: true,
-                    member: member,
-                    recentlyCompletedIDs: $recentlyCompletedIDs,
-                    teamData: .constant([])
-                ) {
-                    editingMemberID = member.id
-                    editingField = "salesMTD"
-                    editingValue = member.salesMTD
-                }
-            } else {
-                StatRow(
-                    title: "Quotes Today",
-                    value: member.quotesToday,
-                    goal: member.quotesGoal,
-                    isEditable: false,
-                    member: member,
-                    recentlyCompletedIDs: $recentlyCompletedIDs,
-                    teamData: .constant([])
-                ) {}
-                StatRow(
-                    title: "Sales WTD",
-                    value: member.salesWTD,
-                    goal: member.salesWTDGoal,
-                    isEditable: false,
-                    member: member,
-                    recentlyCompletedIDs: $recentlyCompletedIDs,
-                    teamData: .constant([])
-                ) {}
-                StatRow(
-                    title: "Sales MTD",
-                    value: member.salesMTD,
-                    goal: member.salesMTDGoal,
-                    isEditable: false,
-                    member: member,
-                    recentlyCompletedIDs: $recentlyCompletedIDs,
-                    teamData: .constant([])
-                ) {}
             }
         }
         .padding(6)
@@ -400,7 +407,7 @@ private var mainContent: some View {
         .overlay(
             VStack {
                 Spacer()
-                if recentlyCompletedIDs.contains(member.id) {
+                if recentlyCompletedIDs.contains(member.wrappedValue.id) {
                     Text("🎉")
                         .font(.system(size: 40))
                         .scaleEffect(1.4)
@@ -408,7 +415,7 @@ private var mainContent: some View {
                         .padding(.bottom, 30)
                 }
             }
-            .animation(.easeOut(duration: 0.4), value: recentlyCompletedIDs.contains(member.id))
+            .animation(.easeOut(duration: 0.4), value: recentlyCompletedIDs.contains(member.wrappedValue.id))
         )
     }
 
@@ -418,7 +425,7 @@ private var mainContent: some View {
         value: Int,
         goal: Int,
         isEditable: Bool,
-        member: TeamMember,
+        member: Binding<TeamMember>,
         recentlyCompletedIDs: Binding<Set<UUID>>,
         teamData: Binding<[TeamMember]>,
         onTap: @escaping () -> Void
@@ -463,7 +470,7 @@ private var mainContent: some View {
         .onChange(of: value) { newValue in
             let color = progressColor(for: title, value: newValue, goal: goal)
             if color == .green {
-                if let index = teamData.wrappedValue.firstIndex(where: { $0.id == member.id }) {
+                if let index = teamData.wrappedValue.firstIndex(where: { $0.id == member.wrappedValue.id }) {
                     recentlyCompletedIDs.wrappedValue.insert(teamData.wrappedValue[index].id)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                         recentlyCompletedIDs.wrappedValue.remove(teamData.wrappedValue[index].id)
@@ -475,7 +482,7 @@ private var mainContent: some View {
 
     // Reset function to reset values
     private func resetValues() {
-        for index in team.indices {
+        for index in viewModel.teamData.indices {
             viewModel.teamData[index].quotesToday = 0
             viewModel.teamData[index].salesWTD = 0
             viewModel.teamData[index].salesMTD = 0
@@ -528,22 +535,26 @@ private var mainContent: some View {
         let calendar = Calendar.current
         let today = Date()
 
+        let isOnTrack: Bool
+
         switch title {
         case "Quotes Today", "Sales WTD":
             let weekday = calendar.component(.weekday, from: today)
             let dayOfWeek = max(weekday - 1, 1)
-            let pace = Double(goal) * Double(dayOfWeek) / 7.0
-            return Double(value) >= pace ? .green : .yellow
+            let expected = Double(goal) * Double(dayOfWeek) / 7.0
+            isOnTrack = Double(value) >= expected
 
         case "Sales MTD":
             let dayOfMonth = calendar.component(.day, from: today)
             let totalDays = calendar.range(of: .day, in: .month, for: today)?.count ?? 30
-            let pace = Double(goal) * Double(dayOfMonth) / Double(totalDays)
-            return Double(value) >= pace ? .green : .yellow
+            let expected = Double(goal) * Double(dayOfMonth) / Double(totalDays)
+            isOnTrack = Double(value) >= expected
 
         default:
             return .gray
         }
+
+        return isOnTrack ? .green : .yellow
     }
 }
 
@@ -581,33 +592,32 @@ extension Array {
 // MARK: - EditingOverlayView
 
 private struct EditingOverlayView: View {
-    let member: TeamMember
+    @Binding var member: TeamMember
     let field: String
     @Binding var editingMemberID: UUID?
     @Binding var recentlyCompletedIDs: Set<UUID>
-    @Binding var teamData: [TeamMember]
 
     var body: some View {
         VStack(spacing: 15) {
             if field == "quotesToday" {
                 HStack {
                     Text("Quotes Today")
-                    Stepper(value: $teamData[index].quotesToday, in: 0...1000) {
-                        Text("\(teamData[index].quotesToday)")
+                    Stepper(value: $member.quotesToday, in: 0...1000) {
+                        Text("\(member.quotesToday)")
                     }
                 }
             } else if field == "salesWTD" {
                 HStack {
                     Text("Sales WTD")
-                    Stepper(value: $teamData[index].salesWTD, in: 0...1000) {
-                        Text("\(teamData[index].salesWTD)")
+                    Stepper(value: $member.salesWTD, in: 0...1000) {
+                        Text("\(member.salesWTD)")
                     }
                 }
             } else if field == "salesMTD" {
                 HStack {
                     Text("Sales MTD")
-                    Stepper(value: $teamData[index].salesMTD, in: 0...1000) {
-                        Text("\(teamData[index].salesMTD)")
+                    Stepper(value: $member.salesMTD, in: 0...1000) {
+                        Text("\(member.salesMTD)")
                     }
                 }
             }
@@ -618,21 +628,11 @@ private struct EditingOverlayView: View {
                 }
                 Spacer()
                 Button("Save") {
-                    CloudKitManager().save(teamData[index]) { newRecordID in
+                    CloudKitManager().save(member) { newRecordID in
                         if let newRecordID = newRecordID {
-                            teamData[index].id = UUID(uuidString: newRecordID.recordName) ?? teamData[index].id
+                            member.id = UUID(uuidString: newRecordID.recordName) ?? member.id
                         }
-
                         editingMemberID = nil
-
-                        DispatchQueue.main.async {
-                            withAnimation(.easeInOut) {
-                                teamData.sort {
-                                    ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-                                    ($1.quotesToday + $1.salesWTD + $1.salesMTD)
-                                }
-                            }
-                        }
                     }
                 }
             }
@@ -643,10 +643,6 @@ private struct EditingOverlayView: View {
         .cornerRadius(12)
         .shadow(radius: 8)
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.4)))
-    }
-
-    private var index: Int {
-        teamData.firstIndex(where: { $0.id == member.id }) ?? 0
     }
 }
 
