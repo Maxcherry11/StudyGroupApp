@@ -25,6 +25,19 @@ class WinTheDayViewModel: ObservableObject {
                     print("❌ CloudKit query failed:", error.localizedDescription)
                 } else {
                     print("✅ Loaded \(loadedMembers.count) records from CloudKit")
+
+                    // Sort loaded members by live stats
+                    loadedMembers.sort {
+                        ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
+                        ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+                    }
+
+                    // Save updated sortIndex values to CloudKit
+                    for (i, var member) in loadedMembers.enumerated() {
+                        member.sortIndex = i
+                        CloudKitManager().save(member) { _ in }
+                    }
+
                     self?.teamMembers = loadedMembers
                 }
             }
