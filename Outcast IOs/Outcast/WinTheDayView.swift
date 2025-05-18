@@ -96,19 +96,6 @@ struct WinTheDayView: View {
     @State private var recentlyCompletedIDs: Set<UUID> = []
 
 
-private var addSampleCardButton: some View {
-    Button("Add Sample Card") {
-        let testMember = TeamMember.dj
-        viewModel.teamMembers.append(testMember)
-        CloudKitManager().save(testMember) { result in
-            print("🧪 CloudKit Save Result: \(result)")
-        }
-    }
-    .padding()
-    .background(Color.green)
-    .foregroundColor(.white)
-    .clipShape(Capsule())
-}
 
 
 
@@ -120,7 +107,6 @@ var body: some View {
 private var mainContent: some View {
     VStack(spacing: 20) {
         header
-        addSampleCardButton
         teamCardsList
         fallbackMessage
         Spacer()

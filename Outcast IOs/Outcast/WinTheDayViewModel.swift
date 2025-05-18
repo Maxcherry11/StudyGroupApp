@@ -31,9 +31,6 @@ class WinTheDayViewModel: ObservableObject {
         }
 
         CKContainer.default().publicCloudDatabase.add(operation)
-#if DEBUG
-        uploadTestMembersToCloudKit()
-#endif
     }
 
     var filteredMembers: [TeamMember] {
@@ -48,9 +45,8 @@ class WinTheDayViewModel: ObservableObject {
     func uploadTestMembersToCloudKit() {
         print("📤 Uploading all team members to CloudKit...")
 
-        let membersToUpload = TeamMember.testMembers
-
-        let records = membersToUpload.compactMap { $0.toCKRecord() }
+        // Upload disabled to prevent duplication
+        let records: [CKRecord] = []
 
         let operation = CKModifyRecordsOperation(recordsToSave: records, recordIDsToDelete: nil)
         operation.modifyRecordsCompletionBlock = { saved, _, error in

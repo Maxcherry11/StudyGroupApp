@@ -49,26 +49,58 @@ class CloudKitManager: ObservableObject {
     }
 
     func save(_ member: TeamMember, completion: @escaping (CKRecord.ID?) -> Void) {
-        let recordID = CKRecord.ID(recordName: member.name)
-        let record = member.toRecord(recordID: recordID)
-        print("💾 Saving member to CloudKit: \(member.name)")
-        
-        let modifyOperation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
-        modifyOperation.modifyRecordsCompletionBlock = { savedRecords, _, error in
-            DispatchQueue.main.async {
-                if let error = error {
-                    print("❌ Error saving: \(error.localizedDescription)")
-                    completion(nil)
-                } else if let savedRecord = savedRecords?.first {
-                    print("✅ Successfully saved member: \(member.name) with ID: \(savedRecord.recordID.recordName)")
-                    completion(savedRecord.recordID)
-                } else {
-                    print("⚠️ Save completed but no record returned.")
-                    completion(nil)
-                }
+        let predicate = NSPredicate(format: "name == %@", member.name)
+        let query = CKQuery(recordType: recordType, predicate: predicate)
+
+        let operation = CKQueryOperation(query: query)
+        operation.desiredKeys = nil
+        operation.resultsLimit = 1
+
+        var matchedRecord: CKRecord?
+
+        operation.recordMatchedBlock = { recordID, result in
+            switch result {
+            case .success(let record):
+                matchedRecord = record
+            case .failure(let error):
+                print("❌ Failed to match existing record: \(error.localizedDescription)")
             }
         }
-        database.add(modifyOperation)
+
+        operation.queryResultBlock = { result in
+            DispatchQueue.main.async {
+                let record = matchedRecord ?? CKRecord(recordType: self.recordType, recordID: CKRecord.ID(recordName: member.id.uuidString))
+                record["name"] = member.name as NSString
+                record["quotesToday"] = member.quotesToday as NSNumber
+                record["salesWTD"] = member.salesWTD as NSNumber
+                record["salesMTD"] = member.salesMTD as NSNumber
+                record["quotesGoal"] = member.quotesGoal as NSNumber
+                record["salesWTDGoal"] = member.salesWTDGoal as NSNumber
+                record["salesMTDGoal"] = member.salesMTDGoal as NSNumber
+                record["emoji"] = member.emoji as NSString
+                record["sortIndex"] = member.sortIndex as NSNumber
+
+                let modifyOperation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
+                modifyOperation.modifyRecordsCompletionBlock = { savedRecords, _, error in
+                    DispatchQueue.main.async {
+                        if let error = error {
+                            print("❌ Error saving: \(error.localizedDescription)")
+                            completion(nil)
+                        } else if let savedRecord = savedRecords?.first {
+                            print("✅ Successfully saved member: \(member.name) with ID: \(savedRecord.recordID.recordName)")
+                            completion(savedRecord.recordID)
+                        } else {
+                            print("⚠️ Save completed but no record returned.")
+                            completion(nil)
+                        }
+                    }
+                }
+
+                self.database.add(modifyOperation)
+            }
+        }
+
+        database.add(operation)
     }
 
     func delete(_ member: TeamMember) {
