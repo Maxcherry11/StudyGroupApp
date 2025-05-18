@@ -96,6 +96,21 @@ struct WinTheDayView: View {
     @State private var recentlyCompletedIDs: Set<UUID> = []
 
 
+private var addSampleCardButton: some View {
+    Button("Add Sample Card") {
+        let testMember = TeamMember.dj
+        viewModel.teamMembers.append(testMember)
+        CloudKitManager().save(testMember) { result in
+            print("🧪 CloudKit Save Result: \(result)")
+        }
+    }
+    .padding()
+    .background(Color.green)
+    .foregroundColor(.white)
+    .clipShape(Capsule())
+}
+
+
 
 var body: some View {
     print("🏁 WinTheDayView body loaded")
@@ -114,6 +129,8 @@ private var mainContent: some View {
     .onAppear {
         print("🟢 onAppear triggered — calling loadData()")
         viewModel.loadData()
+        print("🔍 Selected User: \(selectedUserName)")
+        print("🧮 Team Data Count After Load: \(viewModel.teamMembers.count)")
         withAnimation(Animation.linear(duration: 2.5).repeatForever(autoreverses: false)) {
             shimmerPosition = 1.0
         }
@@ -144,40 +161,16 @@ private var header: some View {
     .padding(.top, 20)
 }
 
-private var addSampleCardButton: some View {
-    Button("Add Sample Card") {
-        if !viewModel.teamData.contains(where: { $0.name == selectedUserName }) {
-            let sample = TeamMember(
-                id: UUID(),
-                name: selectedUserName,
-                quotesToday: 0,
-                salesWTD: 0,
-                salesMTD: 0,
-                quotesGoal: 3,
-                salesWTDGoal: 3,
-                salesMTDGoal: 10,
-                emoji: "🎯",
-                sortIndex: viewModel.teamData.count
-            )
-            viewModel.teamData.append(sample)
-            CloudKitManager().save(sample) { _ in }
-        }
-    }
-    .padding()
-    .background(Color.green)
-    .foregroundColor(.white)
-    .clipShape(Capsule())
-}
 
 private var teamCardsList: some View {
     ScrollView {
         VStack(spacing: 10) {
-            ForEach(viewModel.teamData, id: \.id) { member in
+            ForEach(viewModel.teamMembers, id: \.id) { member in
                 memberCardView(for: member)
             }
         }
         .padding(.horizontal, 20)
-        .animation(.easeInOut, value: viewModel.teamData.map { $0.id })
+        .animation(.easeInOut, value: viewModel.teamMembers.map { $0.id })
     }
 }
 
@@ -185,30 +178,26 @@ private var teamCardsList: some View {
 private func memberCardView(for member: TeamMember) -> some View {
     let memberBinding = Binding(
         get: {
-            viewModel.teamData.first(where: { $0.id == member.id }) ?? member
+            viewModel.teamMembers.first(where: { $0.id == member.id }) ?? member
         },
         set: { updated in
-            if let i = viewModel.teamData.firstIndex(where: { $0.id == updated.id }) {
-                viewModel.teamData[i] = updated
+            if let i = viewModel.teamMembers.firstIndex(where: { $0.id == updated.id }) {
+                viewModel.teamMembers[i] = updated
             }
         }
     )
 
-    if member.name == selectedUserName {
-        Button(action: {
-            editingMemberID = member.id
-        }) {
-            TeamCard(member: memberBinding, isEditable: true)
+    TeamCard(member: memberBinding, isEditable: member.name == selectedUserName)
+        .onTapGesture {
+            if member.name == selectedUserName {
+                editingMemberID = member.id
+            }
         }
-        .buttonStyle(PlainButtonStyle())
-    } else {
-        TeamCard(member: memberBinding, isEditable: false)
-    }
 }
 
 private var fallbackMessage: some View {
     Group {
-        if viewModel.teamData.isEmpty {
+        if viewModel.teamMembers.isEmpty {
             Text("No team data found. Try adding a sample card.")
                 .foregroundColor(.red)
                 .padding()
@@ -218,7 +207,7 @@ private var fallbackMessage: some View {
 
 private var backgroundLayer: some View {
     ZStack {
-        backgroundGradient(for: viewModel.teamData).ignoresSafeArea()
+        backgroundGradient(for: viewModel.teamMembers).ignoresSafeArea()
         LinearGradient(
             gradient: Gradient(colors: [
                 Color.white.opacity(0.0),
@@ -239,10 +228,10 @@ private var backgroundLayer: some View {
 private var editingOverlay: some View {
     Group {
         if let editingID = editingMemberID,
-           let index = viewModel.teamData.firstIndex(where: { $0.id == editingID }) {
+           let index = viewModel.teamMembers.firstIndex(where: { $0.id == editingID }) {
             let binding = Binding(
-                get: { viewModel.teamData[index] },
-                set: { viewModel.teamData[index] = $0 }
+                get: { viewModel.teamMembers[index] },
+                set: { viewModel.teamMembers[index] = $0 }
             )
             EditingOverlayView(
                 member: binding,
@@ -274,9 +263,9 @@ private var emojiGrid: some View {
                     ForEach(row, id: \.self) { emoji in
                         Button(action: {
                             if let id = emojiEditingID,
-                               let index = viewModel.teamData.firstIndex(where: { $0.id == id }) {
-                                viewModel.teamData[index].emoji = emoji
-                                CloudKitManager().save(viewModel.teamData[index]) { _ in }
+                               let index = viewModel.teamMembers.firstIndex(where: { $0.id == id }) {
+                                viewModel.teamMembers[index].emoji = emoji
+                                CloudKitManager().save(viewModel.teamMembers[index]) { _ in }
                             }
                             emojiPickerVisible = false
                         }) {
@@ -321,10 +310,10 @@ private var emojiGrid: some View {
             .foregroundColor(.white)
             .cornerRadius(10, corners: [.topLeft, .topRight])
 
-            if let index = viewModel.teamData.firstIndex(where: { $0.id == member.wrappedValue.id }) {
+            if let index = viewModel.teamMembers.firstIndex(where: { $0.id == member.wrappedValue.id }) {
                 let memberBinding = Binding(
-                    get: { viewModel.teamData[index] },
-                    set: { viewModel.teamData[index] = $0 }
+                    get: { viewModel.teamMembers[index] },
+                    set: { viewModel.teamMembers[index] = $0 }
                 )
                 if isEditable {
                     StatRow(
@@ -334,7 +323,7 @@ private var emojiGrid: some View {
                         isEditable: true,
                         member: memberBinding,
                         recentlyCompletedIDs: $recentlyCompletedIDs,
-                        teamData: $viewModel.teamData
+                        teamData: $viewModel.teamMembers
                     ) {
                         editingMemberID = member.wrappedValue.id
                         editingField = "quotesToday"
@@ -347,7 +336,7 @@ private var emojiGrid: some View {
                         isEditable: true,
                         member: memberBinding,
                         recentlyCompletedIDs: $recentlyCompletedIDs,
-                        teamData: $viewModel.teamData
+                        teamData: $viewModel.teamMembers
                     ) {
                         editingMemberID = member.wrappedValue.id
                         editingField = "salesWTD"
@@ -360,7 +349,7 @@ private var emojiGrid: some View {
                         isEditable: true,
                         member: memberBinding,
                         recentlyCompletedIDs: $recentlyCompletedIDs,
-                        teamData: $viewModel.teamData
+                        teamData: $viewModel.teamMembers
                     ) {
                         editingMemberID = member.wrappedValue.id
                         editingField = "salesMTD"
@@ -374,7 +363,7 @@ private var emojiGrid: some View {
                         isEditable: false,
                         member: memberBinding,
                         recentlyCompletedIDs: $recentlyCompletedIDs,
-                        teamData: $viewModel.teamData
+                        teamData: $viewModel.teamMembers
                     ) {}
                     StatRow(
                         title: "Sales WTD",
@@ -383,7 +372,7 @@ private var emojiGrid: some View {
                         isEditable: false,
                         member: memberBinding,
                         recentlyCompletedIDs: $recentlyCompletedIDs,
-                        teamData: $viewModel.teamData
+                        teamData: $viewModel.teamMembers
                     ) {}
                     StatRow(
                         title: "Sales MTD",
@@ -392,7 +381,7 @@ private var emojiGrid: some View {
                         isEditable: false,
                         member: memberBinding,
                         recentlyCompletedIDs: $recentlyCompletedIDs,
-                        teamData: $viewModel.teamData
+                        teamData: $viewModel.teamMembers
                     ) {}
                 }
             }
@@ -482,11 +471,11 @@ private var emojiGrid: some View {
 
     // Reset function to reset values
     private func resetValues() {
-        for index in viewModel.teamData.indices {
-            viewModel.teamData[index].quotesToday = 0
-            viewModel.teamData[index].salesWTD = 0
-            viewModel.teamData[index].salesMTD = 0
-            CloudKitManager().save(viewModel.teamData[index]) { _ in }
+        for index in viewModel.teamMembers.indices {
+            viewModel.teamMembers[index].quotesToday = 0
+            viewModel.teamMembers[index].salesWTD = 0
+            viewModel.teamMembers[index].salesMTD = 0
+            CloudKitManager().save(viewModel.teamMembers[index]) { _ in }
         }
     }
 

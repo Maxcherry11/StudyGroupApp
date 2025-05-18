@@ -42,6 +42,29 @@ class TeamMember: Identifiable, ObservableObject {
         self.emoji = emoji
         self.sortIndex = sortIndex
     }
+
+    static let dj: TeamMember = TeamMember(
+        name: "D.J.",
+        quotesToday: 0,
+        salesWTD: 0,
+        salesMTD: 0,
+        quotesGoal: 1,
+        salesWTDGoal: 1,
+        salesMTDGoal: 1,
+        emoji: "🧠",
+        sortIndex: 0
+    )
+    static let ron: TeamMember = TeamMember(
+        name: "Ron",
+        quotesToday: 0,
+        salesWTD: 0,
+        salesMTD: 0,
+        quotesGoal: 2,
+        salesWTDGoal: 2,
+        salesMTDGoal: 2,
+        emoji: "🏌️",
+        sortIndex: 1
+    )
 }
 
 import CloudKit
@@ -79,7 +102,7 @@ extension TeamMember {
     }
 
     func toRecord() -> CKRecord {
-        let recordID = CKRecord.ID(recordName: id.uuidString)
+        let recordID = CKRecord.ID(recordName: name)
         let record = CKRecord(recordType: Self.recordType, recordID: recordID)
         record["name"] = name as CKRecordValue
         record["quotesToday"] = quotesToday as CKRecordValue
@@ -91,5 +114,9 @@ extension TeamMember {
         record["emoji"] = emoji as CKRecordValue
         record["sortIndex"] = sortIndex as CKRecordValue
         return record
+    }
+
+    func toCKRecord() -> CKRecord {
+        return toRecord()
     }
 }

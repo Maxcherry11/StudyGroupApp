@@ -2,7 +2,7 @@ import CloudKit
 import Foundation
 
 class CloudKitManager: ObservableObject {
-    private let database = CKContainer.default().privateCloudDatabase
+    private let database = CKContainer(identifier: "iCloud.com.dj.Outcast").publicCloudDatabase
     private let recordType = "TeamMember"
 
     @Published var team: [TeamMember] = []
@@ -49,7 +49,8 @@ class CloudKitManager: ObservableObject {
     }
 
     func save(_ member: TeamMember, completion: @escaping (CKRecord.ID?) -> Void) {
-        let record = member.toRecord()
+        let recordID = CKRecord.ID(recordName: member.name)
+        let record = member.toRecord(recordID: recordID)
         print("💾 Saving member to CloudKit: \(member.name)")
         
         let modifyOperation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
