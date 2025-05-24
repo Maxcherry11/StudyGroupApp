@@ -13,7 +13,7 @@ struct UserSelectorView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 30) {
-                Text("Who Are You?")
+                Text("Welcome Outcast")
                     .font(.largeTitle.bold())
                     .padding(.top, 60)
                 ForEach(users, id: \.self) { name in
@@ -101,31 +101,89 @@ struct WinTheDayView: View {
 
 var body: some View {
     print("🏁 WinTheDayView body loaded")
+    // synced on May 21 to resolve Git conflict
     return contentVStack
         .background(winTheDayBackground)
-        .overlay(winTheDayEditingOverlay)
+        .onAppear { onAppearContent }
+        .sheet(isPresented: $emojiPickerVisible) {
+            emojiPickerSheet
+        }
+}
+
+@ViewBuilder
+private func editingSheet(for editingID: UUID) -> some View {
+    if let index = viewModel.teamMembers.firstIndex(where: { $0.id == editingID }) {
+        let binding = Binding(
+            get: { viewModel.teamMembers[index] },
+            set: { viewModel.teamMembers[index] = $0 }
+        )
+        EditingOverlayView(
+            member: binding,
+            field: editingField,
+            editingMemberID: $editingMemberID,
+            recentlyCompletedIDs: $recentlyCompletedIDs,
+            onSave: { capturedID, capturedField in
+                viewModel.teamMembers.sort {
+                    ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
+                    ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+                }
+                for (i, member) in viewModel.teamMembers.enumerated() {
+                    viewModel.teamMembers[i].sortIndex = i
+                    CloudKitManager().save(viewModel.teamMembers[i]) { _ in }
+                }
+                viewModel.teamMembers = viewModel.teamMembers.map { $0 }
+            }
+        )
+    }
 }
 
 private var contentVStack: some View {
-    VStack(spacing: 20) {
-        header
-        teamCardsList
-        fallbackMessage
+    let headerSection = header
+    let cardsSection = teamCardsList
+    let fallbackSection = fallbackMessage
+
+    return VStack(spacing: 20) {
+        headerSection
+        cardsSection
+        fallbackSection
         Spacer()
     }
-    .onAppear { onAppearContent }
-    .sheet(isPresented: $emojiPickerVisible) {
-        emojiPickerSheet
-    }
+    .overlay(
+        Group {
+            if let editingID = editingMemberID,
+               let index = viewModel.teamMembers.firstIndex(where: { $0.id == editingID }) {
+                EditingOverlayView(
+                    member: Binding(
+                        get: { viewModel.teamMembers[index] },
+                        set: { viewModel.teamMembers[index] = $0 }
+                    ),
+                    field: editingField,
+                    editingMemberID: $editingMemberID,
+                    recentlyCompletedIDs: $recentlyCompletedIDs,
+                    onSave: { capturedID, capturedField in
+                        viewModel.teamMembers.sort {
+                            ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
+                            ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+                        }
+                        for (i, member) in viewModel.teamMembers.enumerated() {
+                            viewModel.teamMembers[i].sortIndex = i
+                            CloudKitManager().save(viewModel.teamMembers[i]) { _ in }
+                        }
+                        viewModel.teamMembers = viewModel.teamMembers.map { $0 }
+                    }
+                )
+                .transition(.scale)
+                .zIndex(100)
+            }
+        }
+    )
 }
 
 private var winTheDayBackground: some View {
     backgroundLayer
 }
 
-private var winTheDayEditingOverlay: some View {
-    editingOverlay
-}
+// Removed winTheDayEditingOverlay and editingOverlay
 
 // Split out onAppear logic for clarity and compile speed
 private var onAppearContent: Void {
@@ -139,11 +197,6 @@ private var onAppearContent: Void {
         viewModel.teamMembers.sort {
             ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
             ($1.quotesToday + $1.salesWTD + $1.salesMTD)
-        }
-        // Assign and persist sortIndex
-        for (i, member) in viewModel.teamMembers.enumerated() {
-            viewModel.teamMembers[i].sortIndex = i
-            CloudKitManager().save(viewModel.teamMembers[i]) { _ in }
         }
         // Force refresh to apply reordered list
         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
@@ -160,8 +213,6 @@ private var header: some View {
             .font(.largeTitle.bold())
             .frame(maxWidth: .infinity, alignment: .leading)
         Menu {
-            Button("Change Activity") {}
-            Button("Change Goal") {}
             Button(role: .destructive, action: resetValues) {
                 Label("Reset", systemImage: "trash.fill")
             }
@@ -176,26 +227,38 @@ private var header: some View {
 
 
 private var teamCardsList: some View {
-    ScrollView {
-        VStack(spacing: 10) {
-            ForEach($viewModel.teamMembers) { $member in
-                TeamMemberCardView(
-                    member: $member,
-                    isEditable: member.name == selectedUserName,
-                    selectedUserName: selectedUserName,
-                    onEdit: { field in
-                        if member.name == selectedUserName {
-                            editingMemberID = member.id
-                            editingField = field
-                        }
-                    },
-                    recentlyCompletedIDs: $recentlyCompletedIDs,
-                    teamData: $viewModel.teamMembers
-                )
+    ScrollViewReader { scrollProxy in
+        ScrollView {
+            VStack(spacing: 10) {
+                ForEach($viewModel.teamMembers) { $member in
+                    TeamMemberCardView(
+                        member: $member,
+                        isEditable: member.name == selectedUserName,
+                        selectedUserName: selectedUserName,
+                        onEdit: { field in
+                            if member.name == selectedUserName {
+                                editingMemberID = member.id
+                                editingField = field
+                                if field == "emoji" {
+                                    emojiPickerVisible = true
+                                    emojiEditingID = member.id
+                                    editingMemberID = nil
+                                } else {
+                                    withAnimation {
+                                        scrollProxy.scrollTo(member.id, anchor: .center)
+                                    }
+                                }
+                            }
+                        },
+                        recentlyCompletedIDs: $recentlyCompletedIDs,
+                        teamData: $viewModel.teamMembers
+                    )
+                    .id(member.id)
+                }
             }
+            .padding(.horizontal, 20)
+            .animation(.easeInOut, value: viewModel.teamMembers.map { $0.id })
         }
-        .padding(.horizontal, 20)
-        .animation(.easeInOut, value: viewModel.teamMembers.map { $0.id })
     }
 }
 
@@ -204,9 +267,7 @@ private var teamCardsList: some View {
 private var fallbackMessage: some View {
     Group {
         if viewModel.teamMembers.isEmpty {
-            Text("No team data found. Try adding a sample card.")
-                .foregroundColor(.red)
-                .padding()
+            EmptyView()
         }
     }
 }
@@ -231,34 +292,7 @@ private var backgroundLayer: some View {
     }
 }
 
-private var editingOverlay: some View {
-    Group {
-        if let editingID = editingMemberID,
-           let index = viewModel.teamMembers.firstIndex(where: { $0.id == editingID }) {
-            let binding = Binding(
-                get: { viewModel.teamMembers[index] },
-                set: { viewModel.teamMembers[index] = $0 }
-            )
-            EditingOverlayView(
-                member: binding,
-                field: editingField,
-                editingMemberID: $editingMemberID,
-                recentlyCompletedIDs: $recentlyCompletedIDs,
-                onSave: {
-                    viewModel.teamMembers.sort {
-                        ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-                        ($1.quotesToday + $1.salesWTD + $1.salesMTD)
-                    }
-                    for (i, member) in viewModel.teamMembers.enumerated() {
-                        viewModel.teamMembers[i].sortIndex = i
-                        CloudKitManager().save(viewModel.teamMembers[i]) { _ in }
-                    }
-                    viewModel.teamMembers = viewModel.teamMembers.map { $0 }
-                }
-            )
-        }
-    }
-}
+// Removed editingOverlayContent, editingOverlayBody, and editingOverlay
 
 private var emojiPickerSheet: some View {
     VStack(spacing: 20) {
@@ -342,7 +376,7 @@ private var emojiGrid: some View {
             colors = [Color.gray.opacity(0.3), Color.gray]
         case 0..<0.25:
             colors = [Color.red.opacity(0.3), Color.red]
-        case 0.25..<0.75:
+        case 0.25..<0.80:
             colors = [Color.yellow.opacity(0.3), Color.yellow]
         default:
             colors = [Color.green.opacity(0), Color.green]
@@ -432,17 +466,16 @@ struct StatRow: View {
             }
         }
         .opacity(1.0)
-        .onChange(of: value) { newValue in
-            let color = progressColor(for: title, value: newValue, goal: goal)
-            if color == .green {
-                if let index = teamData.firstIndex(where: { $0.id == member.id }) {
-                    recentlyCompletedIDs.insert(teamData[index].id)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                        recentlyCompletedIDs.remove(teamData[index].id)
-                    }
-                }
-            }
-        }
+        // .onChange(of: value) { newValue in
+        //     let oldColor = progressColor(for: title, value: newValue - 1, goal: goal)
+        //     let newColor = progressColor(for: title, value: newValue, goal: goal)
+        //     if oldColor != .green && newColor == .green {
+        //         recentlyCompletedIDs.insert(member.id)
+        //         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        //             recentlyCompletedIDs.remove(member.id)
+        //         }
+        //     }
+        // }
     }
 
     private func progressColor(for title: String, value: Int, goal: Int) -> Color {
@@ -527,7 +560,7 @@ private struct EditingOverlayView: View {
     let field: String
     @Binding var editingMemberID: UUID?
     @Binding var recentlyCompletedIDs: Set<UUID>
-    let onSave: (() -> Void)?
+    let onSave: ((UUID?, String) -> Void)?
 
     var body: some View {
         bodyContent
@@ -553,13 +586,17 @@ private struct EditingOverlayView: View {
             }
             Spacer()
             Button("Save") {
+                let capturedID = editingMemberID
+                let capturedField = field
+                editingMemberID = nil // ✅ Dismiss immediately
+
                 CloudKitManager().save(member) { newRecordID in
                     if let newRecordID = newRecordID {
                         member.id = UUID(uuidString: newRecordID.recordName) ?? member.id
                     }
+                    let finalID = member.id
                     DispatchQueue.main.async {
-                        onSave?()
-                        editingMemberID = nil
+                        onSave?(finalID, capturedField)
                     }
                 }
             }
@@ -569,16 +606,9 @@ private struct EditingOverlayView: View {
     // MARK: - Field stepper using FieldStepperRow
     @ViewBuilder
     private var fieldStepper: some View {
-        switch field {
-        case "quotesToday":
-            FieldStepperRow(label: "Quotes WTD", value: $member.quotesToday)
-        case "salesWTD":
-            FieldStepperRow(label: "Sales WTD", value: $member.salesWTD)
-        case "salesMTD":
-            FieldStepperRow(label: "Sales MTD", value: $member.salesMTD)
-        default:
-            EmptyView()
-        }
+        FieldStepperRow(label: "Quotes WTD", value: $member.quotesToday)
+        FieldStepperRow(label: "Sales WTD", value: $member.salesWTD)
+        FieldStepperRow(label: "Sales MTD", value: $member.salesMTD)
     }
 }
 
@@ -600,6 +630,7 @@ private struct TeamMemberCardView: View {
                             .font(.title2.bold())
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .contextMenu { }
                 } else {
                     Text(member.emoji)
                         .font(.title2.bold())
@@ -656,18 +687,6 @@ private struct TeamMemberCardView: View {
         .shadow(radius: 2)
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 0)
-        .overlay(
-            VStack {
-                Spacer()
-                if recentlyCompletedIDs.contains(member.id) {
-                    Text("🎉")
-                        .font(.system(size: 40))
-                        .scaleEffect(1.4)
-                        .transition(.scale)
-                        .padding(.bottom, 30)
-                }
-            }
-            .animation(.easeOut(duration: 0.4), value: recentlyCompletedIDs.contains(member.id))
-        )
+        }
     }
-}
+    

@@ -2,6 +2,12 @@ import Foundation
 import CloudKit
 
 class WinTheDayViewModel: ObservableObject {
+    @Published var teamData: [TeamMember] = []
+    private var database = CKContainer.default().publicCloudDatabase
+
+    init() {
+        fetchTeamMembers()
+    }
     @Published var teamMembers: [TeamMember] = []
     @Published var selectedUserName: String = ""
 
@@ -25,25 +31,39 @@ class WinTheDayViewModel: ObservableObject {
                     print("❌ CloudKit query failed:", error.localizedDescription)
                 } else {
                     print("✅ Loaded \(loadedMembers.count) records from CloudKit")
-
-                    // Sort loaded members by live stats
-                    loadedMembers.sort {
-                        ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-                        ($1.quotesToday + $1.salesWTD + $1.salesMTD)
-                    }
-
-                    // Save updated sortIndex values to CloudKit
-                    for (i, var member) in loadedMembers.enumerated() {
-                        member.sortIndex = i
-                        CloudKitManager().save(member) { _ in }
-                    }
-
                     self?.teamMembers = loadedMembers
                 }
             }
         }
 
         CKContainer.default().publicCloudDatabase.add(operation)
+    }
+
+    func fetchTeamMembers() {
+        let query = CKQuery(recordType: "TeamMember", predicate: NSPredicate(value: true))
+        database.perform(query, inZoneWith: nil) { records, error in
+            if let records = records {
+                DispatchQueue.main.async {
+                    self.teamData = records.compactMap { TeamMember(record: $0) }
+                }
+            }
+        }
+    }
+
+    func wipeAndResetCloudKit() {
+        let query = CKQuery(recordType: "TeamMember", predicate: NSPredicate(value: true))
+        database.perform(query, inZoneWith: nil) { records, error in
+            if let records = records {
+                let operations = records.map { CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: [$0.recordID]) }
+                let operationQueue = OperationQueue()
+                operationQueue.addOperations(operations, waitUntilFinished: true)
+
+                DispatchQueue.main.async {
+                    self.teamData.removeAll()
+                    // Add any default team members or reset logic here
+                }
+            }
+        }
     }
 
     var filteredMembers: [TeamMember] {
@@ -58,8 +78,9 @@ class WinTheDayViewModel: ObservableObject {
     func uploadTestMembersToCloudKit() {
         print("📤 Uploading all team members to CloudKit...")
 
-        // Upload disabled to prevent duplication
-        let records: [CKRecord] = []
+        let membersToUpload = TeamMember.testMembers
+
+        let records = membersToUpload.compactMap { $0.toCKRecord() }
 
         let operation = CKModifyRecordsOperation(recordsToSave: records, recordIDsToDelete: nil)
         operation.modifyRecordsCompletionBlock = { saved, _, error in
@@ -74,7 +95,8 @@ class WinTheDayViewModel: ObservableObject {
 
         CKContainer.default().publicCloudDatabase.add(operation)
     }
-}
+} // End of class WinTheDayViewModel
+
 #if DEBUG
 extension TeamMember {
     static let testMembers: [TeamMember] = [
