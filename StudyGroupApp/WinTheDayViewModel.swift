@@ -10,7 +10,6 @@ class WinTheDayViewModel: ObservableObject {
     @Published var teamMembers: [TeamMember] = []
     @Published var selectedUserName: String = ""
 
-    #if !DEBUG
     func loadData() {
         print("🔄 loadData() called")
         let predicate = NSPredicate(value: true)
@@ -31,15 +30,17 @@ class WinTheDayViewModel: ObservableObject {
                     print("❌ CloudKit query failed:", error.localizedDescription)
                 } else {
                     print("✅ Loaded \(loadedMembers.count) records from CloudKit")
-                    self?.teamMembers = loadedMembers
+                    self?.teamMembers = loadedMembers.sorted {
+                        ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
+                        ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+                    }
                 }
             }
         }
 
         print("📡 Starting loadData CloudKit operation...")
-        CKContainer.default().publicCloudDatabase.add(operation)
+        CKContainer(identifier: "iCloud.com.dj.Outcast").publicCloudDatabase.add(operation)
     }
-    #endif
 
     func fetchTeamMembers() {
         let query = CKQuery(recordType: "TeamMember", predicate: NSPredicate(value: true))
@@ -78,11 +79,10 @@ class WinTheDayViewModel: ObservableObject {
             }
         }
 
-        CKContainer.default().publicCloudDatabase.add(operation)
+        CKContainer(identifier: "iCloud.com.dj.Outcast").publicCloudDatabase.add(operation)
     }
 } // End of class WinTheDayViewModel
 
-#if DEBUG
 extension TeamMember {
     static let testMembers: [TeamMember] = [
         TeamMember(
@@ -90,8 +90,8 @@ extension TeamMember {
             quotesToday: 0,
             salesWTD: 0,
             salesMTD: 0,
-            quotesGoal: 5,
-            salesWTDGoal: 3,
+            quotesGoal: 10,
+            salesWTDGoal: 2,
             salesMTDGoal: 6,
             emoji: "🧠",
             sortIndex: 0
@@ -101,9 +101,9 @@ extension TeamMember {
             quotesToday: 0,
             salesWTD: 0,
             salesMTD: 0,
-            quotesGoal: 2,
-            salesWTDGoal: 1,
-            salesMTDGoal: 4,
+            quotesGoal: 10,
+            salesWTDGoal: 2,
+            salesMTDGoal: 6,
             emoji: "🏌️",
             sortIndex: 1
         ),
@@ -112,9 +112,9 @@ extension TeamMember {
             quotesToday: 0,
             salesWTD: 0,
             salesMTD: 0,
-            quotesGoal: 3,
+            quotesGoal: 10,
             salesWTDGoal: 2,
-            salesMTDGoal: 5,
+            salesMTDGoal: 6,
             emoji: "🎯",
             sortIndex: 2
         ),
@@ -123,12 +123,11 @@ extension TeamMember {
             quotesToday: 0,
             salesWTD: 0,
             salesMTD: 0,
-            quotesGoal: 4,
+            quotesGoal: 10,
             salesWTDGoal: 2,
-            salesMTDGoal: 5,
+            salesMTDGoal: 6,
             emoji: "🚀",
             sortIndex: 3
         )
     ]
 }
-#endif

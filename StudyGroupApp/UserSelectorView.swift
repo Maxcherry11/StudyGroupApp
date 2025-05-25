@@ -28,7 +28,7 @@ struct UserSelectorView: View {
                         navigate = true
                     }) {
                         Text(user)
-                            .font(.headline)
+                            .font(.system(size: 34, weight: .bold, design: .rounded))
                             .frame(maxWidth: .infinity)
                             .padding()
                             .background(Color.red)

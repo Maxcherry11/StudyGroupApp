@@ -51,19 +51,26 @@ struct WinTheDayView: View {
     @State private var emojiPickerVisible = false
     @State private var emojiEditingID: UUID?
     @State private var recentlyCompletedIDs: Set<UUID> = []
-
-
-
-
+    @State private var hasLoaded = false
 
 var body: some View {
-    // synced on May 21 to resolve Git conflict
-    return contentVStack
-        .background(winTheDayBackground)
-        .onAppear { handleOnAppear() }
-        .sheet(isPresented: $emojiPickerVisible) {
-            emojiPickerSheet
+    Group {
+        if hasLoaded {
+            contentVStack
+                .background(winTheDayBackground)
+        } else {
+            Color.clear
         }
+    }
+    .onAppear {
+        viewModel.loadData()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+            hasLoaded = true
+        }
+    }
+    .sheet(isPresented: $emojiPickerVisible) {
+        emojiPickerSheet
+    }
 }
 
 @ViewBuilder
@@ -79,15 +86,17 @@ private func editingSheet(for editingID: UUID) -> some View {
             editingMemberID: $editingMemberID,
             recentlyCompletedIDs: $recentlyCompletedIDs,
             onSave: { capturedID, capturedField in
-                viewModel.teamMembers.sort {
-                    ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-                    ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+                withAnimation {
+                    viewModel.teamMembers.sort {
+                        ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
+                        ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+                    }
+                    for (i, member) in viewModel.teamMembers.enumerated() {
+                        viewModel.teamMembers[i].sortIndex = i
+                        CloudKitManager().save(viewModel.teamMembers[i]) { _ in }
+                    }
+                    viewModel.teamMembers = viewModel.teamMembers.map { $0 }
                 }
-                for (i, member) in viewModel.teamMembers.enumerated() {
-                    viewModel.teamMembers[i].sortIndex = i
-                    CloudKitManager().save(viewModel.teamMembers[i]) { _ in }
-                }
-                viewModel.teamMembers = viewModel.teamMembers.map { $0 }
             }
         )
     }
@@ -117,15 +126,17 @@ private var contentVStack: some View {
                     editingMemberID: $editingMemberID,
                     recentlyCompletedIDs: $recentlyCompletedIDs,
                     onSave: { capturedID, capturedField in
-                        viewModel.teamMembers.sort {
-                            ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-                            ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+                        withAnimation {
+                            viewModel.teamMembers.sort {
+                                ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
+                                ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+                            }
+                            for (i, member) in viewModel.teamMembers.enumerated() {
+                                viewModel.teamMembers[i].sortIndex = i
+                                CloudKitManager().save(viewModel.teamMembers[i]) { _ in }
+                            }
+                            viewModel.teamMembers = viewModel.teamMembers.map { $0 }
                         }
-                        for (i, member) in viewModel.teamMembers.enumerated() {
-                            viewModel.teamMembers[i].sortIndex = i
-                            CloudKitManager().save(viewModel.teamMembers[i]) { _ in }
-                        }
-                        viewModel.teamMembers = viewModel.teamMembers.map { $0 }
                     }
                 )
                 .transition(.scale)
@@ -144,9 +155,7 @@ private var winTheDayBackground: some View {
 // Split out onAppear logic for clarity and compile speed
 private func handleOnAppear() {
     print("🟢 onAppear triggered")
-#if !DEBUG
     viewModel.loadData()
-#endif
     print("🔍 Selected User: \(selectedUserName)")
     print("🧮 Team Data Count After Load: \(viewModel.teamMembers.count)")
 
@@ -218,7 +227,6 @@ private var teamCardsList: some View {
                 }
             }
             .padding(.horizontal, 20)
-            .animation(.easeInOut, value: viewModel.teamMembers.map { $0.id })
         }
     }
 }
@@ -311,13 +319,40 @@ private var emojiGrid: some View {
         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
     }
 
-    // Background gradient always uses red tones
+    // New background gradient based on team progress
     private func backgroundGradient(for team: [TeamMember]) -> LinearGradient {
-        LinearGradient(
-            gradient: Gradient(colors: [
-                Color(red: 237/255, green: 29/255, blue: 36/255).opacity(0.8),
-                Color(red: 180/255, green: 0, blue: 0).opacity(1.0)
-            ]),
+        var totalActual = 0
+        var totalGoal = 0
+
+        for member in team {
+            totalActual += member.quotesToday + member.salesWTD + member.salesMTD
+            totalGoal += member.quotesGoal + member.salesWTDGoal + member.salesMTDGoal
+        }
+
+        guard totalGoal > 0 else {
+            return LinearGradient(
+                gradient: Gradient(colors: [Color.gray.opacity(0.3), Color.gray]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+
+        let percent = Double(totalActual) / Double(totalGoal)
+
+        let colors: [Color]
+        switch percent {
+        case 0:
+            colors = [Color.gray.opacity(0.3), Color.gray]
+        case 0..<0.25:
+            colors = [Color.red.opacity(0.3), Color.red]
+        case 0.25..<0.75:
+            colors = [Color.yellow.opacity(0.3), Color.yellow]
+        default:
+            colors = [Color.green.opacity(0), Color.green]
+        }
+
+        return LinearGradient(
+            gradient: Gradient(colors: colors),
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
