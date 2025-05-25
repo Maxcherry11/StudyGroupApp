@@ -57,11 +57,10 @@ struct WinTheDayView: View {
 
 
 var body: some View {
-    print("🏁 WinTheDayView body loaded")
     // synced on May 21 to resolve Git conflict
     return contentVStack
         .background(winTheDayBackground)
-        .onAppear { onAppearContent }
+        .onAppear { handleOnAppear() }
         .sheet(isPresented: $emojiPickerVisible) {
             emojiPickerSheet
         }
@@ -143,24 +142,27 @@ private var winTheDayBackground: some View {
 // Removed winTheDayEditingOverlay and editingOverlay
 
 // Split out onAppear logic for clarity and compile speed
-private var onAppearContent: Void {
-    print("🟢 onAppear triggered — calling loadData()")
+private func handleOnAppear() {
+    print("🟢 onAppear triggered")
+#if !DEBUG
     viewModel.loadData()
+#endif
     print("🔍 Selected User: \(selectedUserName)")
     print("🧮 Team Data Count After Load: \(viewModel.teamMembers.count)")
 
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-        // Live-resort based on actual values
         viewModel.teamMembers.sort {
             ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
             ($1.quotesToday + $1.salesWTD + $1.salesMTD)
         }
-        // Force refresh to apply reordered list
         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
     }
 
     withAnimation(Animation.linear(duration: 2.5).repeatForever(autoreverses: false)) {
         shimmerPosition = 1.0
+    }
+    for member in viewModel.teamMembers {
+        print("🪪 TeamMember name: [\(member.name)] — selectedUserName: [\(selectedUserName)] — editable: \(member.name == selectedUserName)")
     }
 }
 
@@ -188,12 +190,14 @@ private var teamCardsList: some View {
         ScrollView {
             VStack(spacing: 10) {
                 ForEach($viewModel.teamMembers) { $member in
+                    let name = member.name
+                    let isEditable = name == selectedUserName
                     TeamMemberCardView(
                         member: $member,
-                        isEditable: member.name == selectedUserName,
+                        isEditable: isEditable,
                         selectedUserName: selectedUserName,
                         onEdit: { field in
-                            if member.name == selectedUserName {
+                            if isEditable {
                                 editingMemberID = member.id
                                 editingField = field
                                 if field == "emoji" {
@@ -307,40 +311,13 @@ private var emojiGrid: some View {
         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
     }
 
-    // Background gradient based on team progress
+    // Background gradient always uses red tones
     private func backgroundGradient(for team: [TeamMember]) -> LinearGradient {
-        var totalActual = 0
-        var totalGoal = 0
-
-        for member in team {
-            totalActual += member.quotesToday + member.salesWTD + member.salesMTD
-            totalGoal += member.quotesGoal + member.salesWTDGoal + member.salesMTDGoal
-        }
-
-        guard totalGoal > 0 else {
-            return LinearGradient(
-                gradient: Gradient(colors: [Color.gray.opacity(0.3), Color.gray]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
-
-        let percent = Double(totalActual) / Double(totalGoal)
-
-        let colors: [Color]
-        switch percent {
-        case 0:
-            colors = [Color.gray.opacity(0.3), Color.gray]
-        case 0..<0.25:
-            colors = [Color.red.opacity(0.3), Color.red]
-        case 0.25..<0.80:
-            colors = [Color.yellow.opacity(0.3), Color.yellow]
-        default:
-            colors = [Color.green.opacity(0), Color.green]
-        }
-
-        return LinearGradient(
-            gradient: Gradient(colors: colors),
+        LinearGradient(
+            gradient: Gradient(colors: [
+                Color(red: 237/255, green: 29/255, blue: 36/255).opacity(0.8),
+                Color(red: 180/255, green: 0, blue: 0).opacity(1.0)
+            ]),
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )

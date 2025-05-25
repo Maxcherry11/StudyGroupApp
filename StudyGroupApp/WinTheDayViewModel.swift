@@ -3,14 +3,14 @@ import CloudKit
 
 class WinTheDayViewModel: ObservableObject {
     @Published var teamData: [TeamMember] = []
-    private var database = CKContainer.default().publicCloudDatabase
 
     init() {
-        fetchTeamMembers()
+        self.teamMembers = TeamMember.testMembers
     }
     @Published var teamMembers: [TeamMember] = []
     @Published var selectedUserName: String = ""
 
+    #if !DEBUG
     func loadData() {
         print("🔄 loadData() called")
         let predicate = NSPredicate(value: true)
@@ -36,34 +36,19 @@ class WinTheDayViewModel: ObservableObject {
             }
         }
 
+        print("📡 Starting loadData CloudKit operation...")
         CKContainer.default().publicCloudDatabase.add(operation)
     }
+    #endif
 
     func fetchTeamMembers() {
         let query = CKQuery(recordType: "TeamMember", predicate: NSPredicate(value: true))
-        database.perform(query, inZoneWith: nil) { records, error in
-            if let records = records {
-                DispatchQueue.main.async {
-                    self.teamData = records.compactMap { TeamMember(record: $0) }
-                }
-            }
-        }
+        // CloudKit code removed for local/debug use
     }
 
     func wipeAndResetCloudKit() {
         let query = CKQuery(recordType: "TeamMember", predicate: NSPredicate(value: true))
-        database.perform(query, inZoneWith: nil) { records, error in
-            if let records = records {
-                let operations = records.map { CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: [$0.recordID]) }
-                let operationQueue = OperationQueue()
-                operationQueue.addOperations(operations, waitUntilFinished: true)
-
-                DispatchQueue.main.async {
-                    self.teamData.removeAll()
-                    // Add any default team members or reset logic here
-                }
-            }
-        }
+        // CloudKit code removed for local/debug use
     }
 
     var filteredMembers: [TeamMember] {

@@ -12,7 +12,7 @@ struct UserSelectorView: View {
     @AppStorage("selectedUserName") private var selectedUserName: String = ""
     @State private var navigate = false
 
-    let users = ["DJ", "Ron", "Deanna", "Dimitri"]
+    let users = ["D.J.", "Ron", "Deanna", "Dimitri"]
 
     var body: some View {
         NavigationView {
@@ -24,19 +24,20 @@ struct UserSelectorView: View {
                 ForEach(users, id: \.self) { user in
                     Button(action: {
                         selectedUserName = user
+                        print("👤 Selected: \(user)")
                         navigate = true
                     }) {
                         Text(user)
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color.blue.opacity(0.8))
+                            .background(Color.red)
                             .foregroundColor(.white)
                             .cornerRadius(10)
                     }
                 }
 
-                NavigationLink(destination: WinTheDayView(viewModel: WinTheDayViewModel()), isActive: $navigate) {
+                NavigationLink(destination: MainTabView(), isActive: $navigate) {
                     EmptyView()
                 }
                 .hidden()
