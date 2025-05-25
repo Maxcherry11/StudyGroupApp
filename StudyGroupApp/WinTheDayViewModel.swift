@@ -80,7 +80,7 @@ class WinTheDayViewModel: ObservableObject {
 
         let membersToUpload = TeamMember.testMembers
 
-        let records = membersToUpload.compactMap { $0.toCKRecord() }
+        let records = membersToUpload.compactMap { $0.toRecord() }
 
         let operation = CKModifyRecordsOperation(recordsToSave: records, recordIDsToDelete: nil)
         operation.modifyRecordsCompletionBlock = { saved, _, error in

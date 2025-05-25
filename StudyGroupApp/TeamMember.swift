@@ -101,9 +101,8 @@ extension TeamMember {
         )
     }
 
-    func toRecord() -> CKRecord {
-        let recordID = CKRecord.ID(recordName: name)
-        let record = CKRecord(recordType: Self.recordType, recordID: recordID)
+    func toRecord(existing: CKRecord? = nil) -> CKRecord {
+        let record = existing ?? CKRecord(recordType: Self.recordType, recordID: CKRecord.ID(recordName: id.uuidString))
         record["name"] = name as CKRecordValue
         record["quotesToday"] = quotesToday as CKRecordValue
         record["salesWTD"] = salesWTD as CKRecordValue
@@ -114,9 +113,5 @@ extension TeamMember {
         record["emoji"] = emoji as CKRecordValue
         record["sortIndex"] = sortIndex as CKRecordValue
         return record
-    }
-
-    func toCKRecord() -> CKRecord {
-        return toRecord()
     }
 }

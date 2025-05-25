@@ -3,49 +3,6 @@ import SwiftUI
 import CloudKit
 import Foundation
 
-struct UserSelectorView: View {
-    @AppStorage("selectedUserName") private var selectedUserName: String = ""
-    @State private var navigateToWin = false
-    @StateObject private var viewModel = WinTheDayViewModel()
-
-    let users = ["D.J.", "Ron", "Deanna", "Dimitri"]
-
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 30) {
-                Text("Welcome Outcast")
-                    .font(.largeTitle.bold())
-                    .padding(.top, 60)
-                ForEach(users, id: \.self) { name in
-                    Button(action: {
-                        selectedUserName = name
-                        navigateToWin = true
-                    }) {
-                        Text(name)
-                            .font(.title2.bold())
-                            .foregroundColor(.white)
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(Color.red)
-                            .cornerRadius(10)
-                    }
-                }
-                Spacer()
-                NavigationLink(
-                    destination: MainTabView(),
-                    isActive: $navigateToWin
-                ) {
-                    EmptyView()
-                    Text("→ Go")
-                        .opacity(0)
-                }
-                Spacer()
-            }
-            .padding(.horizontal)
-            .navigationBarHidden(true)
-        }
-    }
-}
 
 struct DashboardView: View {
     var body: some View {

@@ -69,16 +69,7 @@ class CloudKitManager: ObservableObject {
 
         operation.queryResultBlock = { result in
             DispatchQueue.main.async {
-                let record = matchedRecord ?? CKRecord(recordType: self.recordType, recordID: CKRecord.ID(recordName: member.id.uuidString))
-                record["name"] = member.name as NSString
-                record["quotesToday"] = member.quotesToday as NSNumber
-                record["salesWTD"] = member.salesWTD as NSNumber
-                record["salesMTD"] = member.salesMTD as NSNumber
-                record["quotesGoal"] = member.quotesGoal as NSNumber
-                record["salesWTDGoal"] = member.salesWTDGoal as NSNumber
-                record["salesMTDGoal"] = member.salesMTDGoal as NSNumber
-                record["emoji"] = member.emoji as NSString
-                record["sortIndex"] = member.sortIndex as NSNumber
+                let record = member.toRecord(existing: matchedRecord)
 
                 let modifyOperation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
                 modifyOperation.modifyRecordsCompletionBlock = { savedRecords, _, error in
