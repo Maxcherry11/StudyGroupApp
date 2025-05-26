@@ -53,12 +53,10 @@ class WinTheDayViewModel: ObservableObject {
     }
 
     func fetchTeamMembers() {
-        let query = CKQuery(recordType: "TeamMember", predicate: NSPredicate(value: true))
         // CloudKit code removed for local/debug use
     }
 
     func wipeAndResetCloudKit() {
-        let query = CKQuery(recordType: "TeamMember", predicate: NSPredicate(value: true))
         // CloudKit code removed for local/debug use
     }
 

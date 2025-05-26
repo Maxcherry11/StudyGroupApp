@@ -37,10 +37,11 @@ struct UserSelectorView: View {
                                         navigate = true
                                     }) {
                                         Text(user)
-                                            .font(.system(size: 20, weight: .bold))
+                                            .font(.system(size: 26, weight: .bold))
                                             .foregroundColor(.white)
                                             .frame(maxWidth: .infinity)
                                             .padding()
+                                            .padding(.vertical, 6)
                                             .background(Color.red)
                                             .cornerRadius(12)
                                     }

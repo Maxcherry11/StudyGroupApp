@@ -202,7 +202,7 @@ private var contentVStack: some View {
                                 ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
                                 ($1.quotesToday + $1.salesWTD + $1.salesMTD)
                             }
-                            for (i, member) in viewModel.teamMembers.enumerated() {
+                    for (i, _) in viewModel.teamMembers.enumerated() {
                                 viewModel.teamMembers[i].sortIndex = i
                                 CloudKitManager().save(viewModel.teamMembers[i]) { _ in }
                             }
