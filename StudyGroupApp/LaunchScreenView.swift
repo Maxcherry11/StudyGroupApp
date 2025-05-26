@@ -1,27 +1,33 @@
-//
-//  LaunchScreenView.swift
-//  StudyGroupApp
-//
-//  Created by D.J. Jones on 5/25/25.
-//
-
 import SwiftUI
 
 struct LaunchScreenView: View {
-    var body: some View {
-        Color(.systemBackground)
-            .edgesIgnoringSafeArea(.all)
-            .overlay(
-                Image("Outcast")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 200, height: 200)
-            )
-    }
-}
+    @State private var scale: CGFloat = 0.8
+    @State private var opacity: Double = 0.0
 
-struct LaunchScreenView_Previews: PreviewProvider {
-    static var previews: some View {
-        LaunchScreenView()
+    var body: some View {
+        ZStack {
+            Color(red: 237/255, green: 29/255, blue: 36/255)
+                .ignoresSafeArea()
+
+            Image("SplashLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 200) // Added to control logo size
+                .padding()
+                .scaleEffect(scale)
+                .opacity(opacity)
+                .onAppear {
+                    withAnimation(
+                        Animation.easeInOut(duration: 2)
+                    ) {
+                        scale = 1.2
+                        opacity = 1.0
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                        // This delay keeps the logo visible for 0.5 seconds after the animation
+                        // You can trigger any next action here if needed
+                    }
+                }
+        }
     }
 }

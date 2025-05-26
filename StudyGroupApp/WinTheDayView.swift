@@ -435,16 +435,16 @@ struct StatRow: View {
             }
         }
         .opacity(1.0)
-        // .onChange(of: value) { newValue in
-        //     let oldColor = progressColor(for: title, value: newValue - 1, goal: goal)
-        //     let newColor = progressColor(for: title, value: newValue, goal: goal)
-        //     if oldColor != .green && newColor == .green {
-        //         recentlyCompletedIDs.insert(member.id)
-        //         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-        //             recentlyCompletedIDs.remove(member.id)
-        //         }
-        //     }
-        // }
+        .onChange(of: value) { newValue in
+            let oldColor = progressColor(for: title, value: newValue - 1, goal: goal)
+            let newColor = progressColor(for: title, value: newValue, goal: goal)
+            if oldColor != .green && newColor == .green {
+                recentlyCompletedIDs.insert(member.id)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    recentlyCompletedIDs.remove(member.id)
+                }
+            }
+        }
     }
 
     private func progressColor(for title: String, value: Int, goal: Int) -> Color {

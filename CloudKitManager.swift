@@ -72,21 +72,23 @@ class CloudKitManager: ObservableObject {
                 let record = member.toRecord(existing: matchedRecord)
 
                 let modifyOperation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
-                modifyOperation.modifyRecordsCompletionBlock = { savedRecords, _, error in
+                modifyOperation.modifyRecordsResultBlock = { result in
                     DispatchQueue.main.async {
-                        if let error = error {
+                        switch result {
+                        case .failure(let error):
                             print("❌ Error saving: \(error.localizedDescription)")
                             completion(nil)
-                        } else if let savedRecord = savedRecords?.first {
-                            print("✅ Successfully saved member: \(member.name) with ID: \(savedRecord.recordID.recordName)")
-                            completion(savedRecord.recordID)
-                        } else {
-                            print("⚠️ Save completed but no record returned.")
-                            completion(nil)
+                        case .success(let savedRecords):
+                            if let savedRecord = savedRecords.first {
+                                print("✅ Successfully saved member: \(member.name) with ID: \(savedRecord.recordID.recordName)")
+                                completion(savedRecord.recordID)
+                            } else {
+                                print("⚠️ Save completed but no record returned.")
+                                completion(nil)
+                            }
                         }
                     }
                 }
-
                 self.database.add(modifyOperation)
             }
         }
@@ -160,12 +162,13 @@ class CloudKitManager: ObservableObject {
             }
 
             let deleteOperation = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: recordIDsToDelete)
-            deleteOperation.modifyRecordsCompletionBlock = { _, _, error in
+            deleteOperation.modifyRecordsResultBlock = { result in
                 DispatchQueue.main.async {
-                    if let error = error {
+                    switch result {
+                    case .failure(let error):
                         print("❌ Error deleting records: \(error.localizedDescription)")
                         completion(false)
-                    } else {
+                    case .success:
                         print("🗑️ Deleted \(recordIDsToDelete.count) records from CloudKit.")
                         completion(true)
                     }
