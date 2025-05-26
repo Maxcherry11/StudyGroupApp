@@ -11,6 +11,10 @@ class WinTheDayViewModel: ObservableObject {
     @Published var selectedUserName: String = ""
 
     func loadData() {
+        guard !selectedUserName.trimmingCharacters(in: .whitespaces).isEmpty else {
+            print("⚠️ Skipping loadData: selectedUserName is empty")
+            return
+        }
         print("🔄 loadData() called")
         let predicate = NSPredicate(value: true)
         let query = CKQuery(recordType: "TeamMember", predicate: predicate)
@@ -18,17 +22,23 @@ class WinTheDayViewModel: ObservableObject {
 
         var loadedMembers: [TeamMember] = []
 
-        operation.recordFetchedBlock = { record in
-            if let member = TeamMember(record: record) {
-                loadedMembers.append(member)
+        operation.recordMatchedBlock = { recordID, result in
+            switch result {
+            case .success(let record):
+                if let member = TeamMember(record: record) {
+                    loadedMembers.append(member)
+                }
+            case .failure(let error):
+                print("❌ Failed to match record with ID \(recordID.recordName): \(error.localizedDescription)")
             }
         }
 
-        operation.queryCompletionBlock = { [weak self] (_, error) in
+        operation.queryResultBlock = { [weak self] result in
             DispatchQueue.main.async {
-                if let error = error {
+                switch result {
+                case .failure(let error):
                     print("❌ CloudKit query failed:", error.localizedDescription)
-                } else {
+                case .success:
                     print("✅ Loaded \(loadedMembers.count) records from CloudKit")
                     self?.teamMembers = loadedMembers.sorted {
                         ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
@@ -69,12 +79,13 @@ class WinTheDayViewModel: ObservableObject {
         let records = membersToUpload.compactMap { $0.toRecord() }
 
         let operation = CKModifyRecordsOperation(recordsToSave: records, recordIDsToDelete: nil)
-        operation.modifyRecordsCompletionBlock = { saved, _, error in
+        operation.modifyRecordsResultBlock = { result in
             DispatchQueue.main.async {
-                if let error = error {
+                switch result {
+                case .failure(let error):
                     print("❌ Upload failed: \(error.localizedDescription)")
-                } else {
-                    print("✅ Uploaded \(saved?.count ?? 0) members to CloudKit.")
+                case .success:
+                    print("✅ Uploaded all test members to CloudKit.")
                 }
             }
         }

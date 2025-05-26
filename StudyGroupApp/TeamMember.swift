@@ -43,6 +43,20 @@ class TeamMember: Identifiable, ObservableObject {
         self.sortIndex = sortIndex
     }
 
+    convenience init(name: String) {
+        self.init(
+            name: name,
+            quotesToday: 0,
+            salesWTD: 0,
+            salesMTD: 0,
+            quotesGoal: 1,
+            salesWTDGoal: 1,
+            salesMTDGoal: 1,
+            emoji: "🙂",
+            sortIndex: 0
+        )
+    }
+
     static let dj: TeamMember = TeamMember(
         name: "D.J.",
         quotesToday: 0,

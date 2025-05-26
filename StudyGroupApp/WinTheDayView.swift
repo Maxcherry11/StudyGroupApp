@@ -52,6 +52,16 @@ struct WinTheDayView: View {
     @State private var emojiEditingID: UUID?
     @State private var recentlyCompletedIDs: Set<UUID> = []
     @State private var hasLoaded = false
+    // Production Goal Editor State
+    @State private var showProductionGoalEditor = false
+    @State private var newQuotesGoal = 10
+    @State private var newSalesWTDGoal = 2
+    @State private var newSalesMTDGoal = 6
+    // Added as per instructions
+    @State private var showGoalNameEditor = false
+    @State private var quotesLabel = "Quotes WTD"
+    @State private var salesWTDLabel = "Sales WTD"
+    @State private var salesMTDLabel = "Sales MTD"
 
 var body: some View {
     Group {
@@ -63,13 +73,74 @@ var body: some View {
         }
     }
     .onAppear {
-        viewModel.loadData()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-            hasLoaded = true
+        if !selectedUserName.trimmingCharacters(in: .whitespaces).isEmpty {
+            viewModel.selectedUserName = selectedUserName
+            viewModel.loadData()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                hasLoaded = true
+            }
+        } else {
+            print("⚠️ Skipped loadData in onAppear: selectedUserName is empty")
         }
     }
     .sheet(isPresented: $emojiPickerVisible) {
         emojiPickerSheet
+    }
+    .sheet(isPresented: $showProductionGoalEditor) {
+        VStack(spacing: 20) {
+            Text("Edit Production Goals")
+                .font(.headline)
+
+            Stepper("Quotes Goal: \(newQuotesGoal)", value: $newQuotesGoal, in: 1...100)
+            Stepper("Sales WTD Goal: \(newSalesWTDGoal)", value: $newSalesWTDGoal, in: 1...100)
+            Stepper("Sales MTD Goal: \(newSalesMTDGoal)", value: $newSalesMTDGoal, in: 1...100)
+
+            HStack {
+                Button("Cancel") {
+                    showProductionGoalEditor = false
+                }
+                Spacer()
+                Button("Save") {
+                    for index in viewModel.teamMembers.indices {
+                        viewModel.teamMembers[index].quotesGoal = newQuotesGoal
+                        viewModel.teamMembers[index].salesWTDGoal = newSalesWTDGoal
+                        viewModel.teamMembers[index].salesMTDGoal = newSalesMTDGoal
+                        CloudKitManager().save(viewModel.teamMembers[index]) { _ in }
+                    }
+                    viewModel.teamMembers = viewModel.teamMembers.map { $0 }
+                    showProductionGoalEditor = false
+                }
+            }
+            .padding(.top, 10)
+        }
+        .padding()
+    }
+    .sheet(isPresented: $showGoalNameEditor) {
+        VStack(spacing: 20) {
+            Text("Edit Goal Names")
+                .font(.headline)
+
+            TextField("Quotes Label", text: $quotesLabel)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+
+            TextField("Sales WTD Label", text: $salesWTDLabel)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+
+            TextField("Sales MTD Label", text: $salesMTDLabel)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+
+            HStack {
+                Button("Cancel") {
+                    showGoalNameEditor = false
+                }
+                Spacer()
+                Button("Save") {
+                    showGoalNameEditor = false
+                }
+            }
+            .padding(.top, 10)
+        }
+        .padding()
     }
 }
 
@@ -91,7 +162,7 @@ private func editingSheet(for editingID: UUID) -> some View {
                         ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
                         ($1.quotesToday + $1.salesWTD + $1.salesMTD)
                     }
-                    for (i, member) in viewModel.teamMembers.enumerated() {
+                    for (i, _) in viewModel.teamMembers.enumerated() {
                         viewModel.teamMembers[i].sortIndex = i
                         CloudKitManager().save(viewModel.teamMembers[i]) { _ in }
                     }
@@ -181,6 +252,13 @@ private var header: some View {
             .font(.largeTitle.bold())
             .frame(maxWidth: .infinity, alignment: .leading)
         Menu {
+            Button("Edit Goal Names") {
+                showGoalNameEditor = true
+            }
+            Button("Edit Production Goals") {
+                showProductionGoalEditor = true
+            }
+            Divider()
             Button(role: .destructive, action: resetValues) {
                 Label("Reset", systemImage: "trash.fill")
             }
@@ -221,7 +299,10 @@ private var teamCardsList: some View {
                             }
                         },
                         recentlyCompletedIDs: $recentlyCompletedIDs,
-                        teamData: $viewModel.teamMembers
+                        teamData: $viewModel.teamMembers,
+                        quotesLabel: quotesLabel,
+                        salesWTDLabel: salesWTDLabel,
+                        salesMTDLabel: salesMTDLabel
                     )
                     .id(member.id)
                 }
@@ -455,20 +536,19 @@ struct StatRow: View {
 
         let isOnTrack: Bool
 
-        switch title {
-        case "Quotes Today", "Quotes WTD", "Sales WTD":
+        let normalizedTitle = title.lowercased()
+
+        if normalizedTitle.contains("quotes") || normalizedTitle.contains("wtd") {
             let weekday = calendar.component(.weekday, from: today)
             let dayOfWeek = max(weekday - 1, 1)
             let expected = Double(goal) * Double(dayOfWeek) / 7.0
             isOnTrack = Double(value) >= expected
-
-        case "Sales MTD":
+        } else if normalizedTitle.contains("mtd") {
             let dayOfMonth = calendar.component(.day, from: today)
             let totalDays = calendar.range(of: .day, in: .month, for: today)?.count ?? 30
             let expected = Double(goal) * Double(dayOfMonth) / Double(totalDays)
             isOnTrack = Double(value) >= expected
-
-        default:
+        } else {
             return .gray
         }
 
@@ -589,6 +669,9 @@ private struct TeamMemberCardView: View {
     let onEdit: (String) -> Void
     @Binding var recentlyCompletedIDs: Set<UUID>
     @Binding var teamData: [TeamMember]
+    let quotesLabel: String
+    let salesWTDLabel: String
+    let salesMTDLabel: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -620,7 +703,7 @@ private struct TeamMemberCardView: View {
             .cornerRadius(10, corners: [.topLeft, .topRight])
 
             StatRow(
-                title: "Quotes WTD",
+                title: quotesLabel,
                 value: member.quotesToday,
                 goal: member.quotesGoal,
                 isEditable: isEditable,
@@ -630,7 +713,7 @@ private struct TeamMemberCardView: View {
                 onTap: { if isEditable { onEdit("quotesToday") } }
             )
             StatRow(
-                title: "Sales WTD",
+                title: salesWTDLabel,
                 value: member.salesWTD,
                 goal: member.salesWTDGoal,
                 isEditable: isEditable,
@@ -640,7 +723,7 @@ private struct TeamMemberCardView: View {
                 onTap: { if isEditable { onEdit("salesWTD") } }
             )
             StatRow(
-                title: "Sales MTD",
+                title: salesMTDLabel,
                 value: member.salesMTD,
                 goal: member.salesMTDGoal,
                 isEditable: isEditable,
@@ -656,6 +739,6 @@ private struct TeamMemberCardView: View {
         .shadow(radius: 2)
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 0)
-        }
     }
+}
     

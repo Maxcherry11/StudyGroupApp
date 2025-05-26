@@ -69,31 +69,32 @@ class CloudKitManager: ObservableObject {
 
         operation.queryResultBlock = { result in
             DispatchQueue.main.async {
-                let record = member.toRecord(existing: matchedRecord)
-
-                let modifyOperation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
-                modifyOperation.modifyRecordsResultBlock = { result in
-                    DispatchQueue.main.async {
-                        switch result {
-                        case .failure(let error):
-                            print("❌ Error saving: \(error.localizedDescription)")
-                            completion(nil)
-                        case .success(let savedRecords):
-                            if let savedRecord = savedRecords.first {
-                                print("✅ Successfully saved member: \(member.name) with ID: \(savedRecord.recordID.recordName)")
-                                completion(savedRecord.recordID)
-                            } else {
-                                print("⚠️ Save completed but no record returned.")
-                                completion(nil)
-                            }
-                        }
-                    }
-                }
+                let modifyOperation = self.prepareModifyOperation(for: member, existingRecord: matchedRecord, completion: completion)
                 self.database.add(modifyOperation)
             }
         }
 
         database.add(operation)
+    }
+
+    private func prepareModifyOperation(for member: TeamMember, existingRecord: CKRecord?, completion: @escaping (CKRecord.ID?) -> Void) -> CKModifyRecordsOperation {
+        let record = member.toRecord(existing: existingRecord)
+
+        let modifyOperation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
+        modifyOperation.modifyRecordsResultBlock = { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .failure(let error):
+                    print("❌ Error saving: \(error.localizedDescription)")
+                    completion(nil)
+                case .success:
+                    print("✅ Successfully saved member: \(member.name)")
+                    completion(record.recordID)
+                }
+            }
+        }
+
+        return modifyOperation
     }
 
     func delete(_ member: TeamMember) {
@@ -175,6 +176,49 @@ class CloudKitManager: ObservableObject {
                 }
             }
             self.database.add(deleteOperation)
+        }
+
+        database.add(operation)
+    }
+    
+    func deleteByName(_ name: String, completion: @escaping (Bool) -> Void) {
+        let predicate = NSPredicate(format: "name == %@", name)
+        let query = CKQuery(recordType: recordType, predicate: predicate)
+
+        let operation = CKQueryOperation(query: query)
+        operation.resultsLimit = 1
+
+        var matchedID: CKRecord.ID?
+
+        operation.recordMatchedBlock = { recordID, result in
+            switch result {
+            case .success:
+                matchedID = recordID
+            case .failure(let error):
+                print("❌ Failed to find record to delete: \(error.localizedDescription)")
+            }
+        }
+
+        operation.queryResultBlock = { result in
+            DispatchQueue.main.async {
+                guard let recordID = matchedID else {
+                    print("⚠️ No matching record ID found for name: \(name)")
+                    completion(false)
+                    return
+                }
+
+                self.database.delete(withRecordID: recordID) { _, error in
+                    DispatchQueue.main.async {
+                        if let error = error {
+                            print("❌ Error deleting record by name: \(error.localizedDescription)")
+                            completion(false)
+                        } else {
+                            print("🗑️ Deleted record with name: \(name)")
+                            completion(true)
+                        }
+                    }
+                }
+            }
         }
 
         database.add(operation)
