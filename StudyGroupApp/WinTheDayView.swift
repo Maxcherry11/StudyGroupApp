@@ -76,8 +76,10 @@ var body: some View {
         if !selectedUserName.trimmingCharacters(in: .whitespaces).isEmpty {
             viewModel.selectedUserName = selectedUserName
             viewModel.loadData()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-                hasLoaded = true
+            hasLoaded = true
+            shimmerPosition = -1.0
+            withAnimation(Animation.linear(duration: 2.5).repeatForever(autoreverses: false)) {
+                shimmerPosition = 1.5
             }
         } else {
             print("⚠️ Skipped loadData in onAppear: selectedUserName is empty")
@@ -325,6 +327,8 @@ private var fallbackMessage: some View {
 private var backgroundLayer: some View {
     ZStack {
         backgroundGradient(for: viewModel.teamMembers).ignoresSafeArea()
+
+        // Existing shimmer overlay
         LinearGradient(
             gradient: Gradient(colors: [
                 Color.white.opacity(0.0),
@@ -338,6 +342,22 @@ private var backgroundLayer: some View {
         .rotationEffect(.degrees(30))
         .offset(x: shimmerPosition * 600)
         .blendMode(.overlay)
+        .ignoresSafeArea()
+
+        // Restored true shimmer beam overlay (diagonal, plusLighter blend)
+        LinearGradient(
+            gradient: Gradient(colors: [
+                Color.white.opacity(0.0),
+                Color.white.opacity(0.4),
+                Color.white.opacity(0.0)
+            ]),
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(width: 300)
+        .offset(x: shimmerPosition * UIScreen.main.bounds.width)
+        .rotationEffect(.degrees(25))
+        .blendMode(.plusLighter)
         .ignoresSafeArea()
     }
 }
@@ -635,7 +655,6 @@ private struct EditingOverlayView: View {
             }
             Spacer()
             Button("Save") {
-                let capturedID = editingMemberID
                 let capturedField = field
                 editingMemberID = nil // ✅ Dismiss immediately
 

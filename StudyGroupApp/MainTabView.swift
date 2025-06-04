@@ -20,26 +20,20 @@ struct MainTabView: View {
                     Text("Win the Day")
                 }
 
-            ScoreboardView()
+            LifeScoreboardView()
                 .tabItem {
                     Image(systemName: "briefcase.fill")
-                    Text("Life Scoreboard")
+                    Text("Scoreboard")
                 }
 
+            /*
             Week12View()
                 .tabItem {
                     Image(systemName: "calendar")
                     Text("12 Week Year")
                 }
+            */
         }
-    }
-}
-
-struct ScoreboardView: View {
-    var body: some View {
-        Text("Scoreboard Placeholder")
-            .font(.largeTitle)
-            .padding()
     }
 }
 
