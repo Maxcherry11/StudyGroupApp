@@ -20,7 +20,7 @@ struct MainTabView: View {
                     Text("Win the Day")
                 }
 
-            LifeScoreboardView()
+            LifeScoreboardView(viewModel: LifeScoreboardViewModel())
                 .tabItem {
                     Image(systemName: "briefcase.fill")
                     Text("Scoreboard")

@@ -5,14 +5,7 @@ class LifeScoreboardViewModel: ObservableObject {
         let id = UUID()
         let name: String
         @Published var score: Int
-
-        var color: Color {
-            switch score {
-            case 40...: return .green
-            case 20..<40: return .yellow
-            default: return .gray
-            }
-        }
+        @Published var color: Color = .gray
 
         init(name: String, score: Int) {
             self.name = name
@@ -25,6 +18,7 @@ class LifeScoreboardViewModel: ObservableObject {
         let name: String
         @Published var pending: Int
         @Published var projected: Double
+        @Published var entries: [ScoreEntry] = []
 
         init(name: String, pending: Int, projected: Double) {
             self.name = name
@@ -45,10 +39,26 @@ class LifeScoreboardViewModel: ObservableObject {
     let travel: Double = 31.0
 
     @Published var activity: [ActivityRow] = [
-        ActivityRow(name: "Deanna", pending: 3, projected: 28083),
-        ActivityRow(name: "D.J.", pending: 6, projected: 19315),
-        ActivityRow(name: "Dimitri", pending: 0, projected: 51856),
-        ActivityRow(name: "Greg", pending: 3, projected: 0)
+        {
+            let row = ActivityRow(name: "Deanna", pending: 3, projected: 28083)
+            row.entries = [ScoreEntry(name: "Deanna", score: 38)]
+            return row
+        }(),
+        {
+            let row = ActivityRow(name: "D.J.", pending: 6, projected: 19315)
+            row.entries = [ScoreEntry(name: "D.J.", score: 16)]
+            return row
+        }(),
+        {
+            let row = ActivityRow(name: "Dimitri", pending: 0, projected: 51856)
+            row.entries = [ScoreEntry(name: "Dimitri", score: 47)]
+            return row
+        }(),
+        {
+            let row = ActivityRow(name: "Greg", pending: 3, projected: 0)
+            row.entries = [ScoreEntry(name: "Greg", score: 7)]
+            return row
+        }()
     ]
     @Published var selectedScoreEntry: ScoreEntry?
     @Published var selectedActivityRow: ActivityRow?
