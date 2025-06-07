@@ -33,6 +33,7 @@ struct UserSelectorView: View {
                                 ForEach(users, id: \.self) { user in
                                     Button(action: {
                                         selectedUserName = user
+                                        UserManager.shared.selectUser(user)
                                         print("👤 Selected: \(user)")
                                         navigate = true
                                     }) {
@@ -84,6 +85,7 @@ struct UserSelectorView: View {
                                         )
                                         CloudKitManager().save(newMember) { _ in
                                             print("✅ Saved new TeamMember to CloudKit: \(trimmed)")
+                                            UserManager.shared.refresh()
                                         }
                                     }
 
@@ -122,6 +124,7 @@ struct UserSelectorView: View {
                         switch result {
                         case .success:
                             users = loadedNames.sorted()
+                            UserManager.shared.refresh()
                             print("✅ Loaded names from CloudKit: \(users)")
                         case .failure(let error):
                             print("❌ Failed to load names: \(error.localizedDescription)")
@@ -167,6 +170,7 @@ struct UserSelectorView: View {
                 switch result {
                 case .success:
                     users = loadedNames.sorted()
+                    UserManager.shared.refresh()
                     print("✅ Reloaded names after delete: \(users)")
                 case .failure(let error):
                     print("❌ Failed to reload names: \(error.localizedDescription)")

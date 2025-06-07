@@ -59,6 +59,7 @@ struct ScoreboardEditorOverlay: View {
 
 struct LifeScoreboardView: View {
     @StateObject var viewModel = LifeScoreboardViewModel()
+    @ObservedObject var userManager = UserManager.shared
     @State private var selectedEntry: LifeScoreboardViewModel.ScoreEntry?
     @State private var selectedRow: LifeScoreboardViewModel.ActivityRow?
 
@@ -104,9 +105,12 @@ struct LifeScoreboardView: View {
                 // Team Members section
                 TeamMembersCard()
                     .environmentObject(viewModel)
+                    .environmentObject(userManager)
 
                 // Activity Table
                 ActivityCard(activity: $viewModel.activity)
+                    .environmentObject(viewModel)
+                    .environmentObject(userManager)
             }
             .padding()
         }
@@ -207,6 +211,7 @@ private struct OnTimeCard: View {
 }
 private struct TeamMembersCard: View {
     @EnvironmentObject var viewModel: LifeScoreboardViewModel
+    @EnvironmentObject var userManager: UserManager
 
     var body: some View {
         ScoreTile(verticalPadding: 8) {
@@ -215,7 +220,7 @@ private struct TeamMembersCard: View {
                     .font(.system(size: 20, weight: .bold))
                     .frame(maxWidth: .infinity, alignment: .center)
 
-                ForEach(Array(zip(viewModel.scores.indices, viewModel.scores)), id: \.0) { index, entry in
+                ForEach(Array(userManager.allUsers.enumerated()), id: \.1) { index, name in
                     let color: Color = {
                         switch index {
                         case 0, 1:
@@ -229,7 +234,9 @@ private struct TeamMembersCard: View {
                         }
                     }()
 
-                    TeamMemberRow(name: entry.name, score: entry.score, color: color)
+                    let score = viewModel.score(for: name)
+                    let isCurrent = name == userManager.currentUserName
+                    TeamMemberRow(name: name, score: score, color: color, isCurrentUser: isCurrent)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -243,11 +250,17 @@ private struct TeamMemberRow: View {
     let name: String
     let score: Int
     let color: Color
+    let isCurrentUser: Bool
 
     var body: some View {
         HStack {
-            Text(name)
-                .font(.system(size: 17, weight: .regular))
+            HStack(spacing: 4) {
+                Text(name)
+                    .font(.system(size: 17, weight: .regular))
+                if isCurrentUser {
+                    Image(systemName: "pencil")
+                }
+            }
             Spacer()
             ScoreBadge(text: "\(score)", color: color)
         }
@@ -257,6 +270,8 @@ private struct TeamMemberRow: View {
 
 private struct ActivityCard: View {
     @Binding var activity: [LifeScoreboardViewModel.ActivityRow]
+    @EnvironmentObject var viewModel: LifeScoreboardViewModel
+    @EnvironmentObject var userManager: UserManager
 
     var body: some View {
         ScoreTile(verticalPadding: 8) {
@@ -276,10 +291,12 @@ private struct ActivityCard: View {
                         .frame(minWidth: 100, alignment: .trailing)
                 }
 
-                ForEach(activity) { row in
-                    ActivityRowView(row: row)
-                        .background(Color(.systemGray6))
-                        .cornerRadius(6)
+                ForEach(userManager.allUsers, id: \.self) { name in
+                    if let row = viewModel.row(for: name) {
+                        ActivityRowView(row: row)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(6)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
