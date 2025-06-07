@@ -135,10 +135,14 @@ struct LifeScoreboardView: View {
             .padding()
         }
         .onAppear {
-            viewModel.load()
+            viewModel.load(for: userManager.allUsers)
+        }
+        .onReceive(userManager.$allUsers) { names in
+            viewModel.load(for: names)
         }
         .refreshable {
             userManager.refresh()
+            viewModel.load(for: userManager.allUsers)
         }
         .background(
             LinearGradient(
