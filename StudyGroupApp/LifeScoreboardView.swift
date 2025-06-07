@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ScoreboardEditorOverlay: View {
-    @Binding var entry: LifeScoreboardViewModel.ScoreEntry
+    @ObservedObject var entry: LifeScoreboardViewModel.ScoreEntry
     @ObservedObject var row: LifeScoreboardViewModel.ActivityRow
     var onDismiss: () -> Void
 
@@ -103,12 +103,18 @@ struct LifeScoreboardView: View {
                 OnTimeCard(onTime: viewModel.onTime, travel: viewModel.travel)
 
                 // Team Members section
-                TeamMembersCard()
+                TeamMembersCard { entry, row in
+                    selectedEntry = entry
+                    selectedRow = row
+                }
                     .environmentObject(viewModel)
                     .environmentObject(userManager)
 
                 // Activity Table
-                ActivityCard(activity: $viewModel.activity)
+                ActivityCard(activity: $viewModel.activity) { entry, row in
+                    selectedEntry = entry
+                    selectedRow = row
+                }
                     .environmentObject(viewModel)
                     .environmentObject(userManager)
             }
@@ -132,7 +138,7 @@ struct LifeScoreboardView: View {
             if let entry = selectedEntry,
                let row = selectedRow {
                 ScoreboardEditorOverlay(
-                    entry: .constant(entry),
+                    entry: entry,
                     row: row
                 ) {
                     selectedEntry = nil
@@ -212,6 +218,7 @@ private struct OnTimeCard: View {
 private struct TeamMembersCard: View {
     @EnvironmentObject var viewModel: LifeScoreboardViewModel
     @EnvironmentObject var userManager: UserManager
+    var onSelect: (LifeScoreboardViewModel.ScoreEntry, LifeScoreboardViewModel.ActivityRow) -> Void
 
     var body: some View {
         ScoreTile(verticalPadding: 8) {
@@ -243,9 +250,13 @@ private struct TeamMembersCard: View {
                         }
                     }()
 
-                    let score = viewModel.score(for: name)
-                    let isCurrent = name == userManager.currentUserName
-                    TeamMemberRow(name: name, score: score, color: color, isCurrentUser: isCurrent)
+                    if let entry = viewModel.scores.first(where: { $0.name == name }),
+                       let row = viewModel.row(for: name) {
+                        let isCurrent = name == userManager.currentUserName
+                        TeamMemberRow(entry: entry, color: color, isCurrentUser: isCurrent) {
+                            onSelect(entry, row)
+                        }
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -256,24 +267,26 @@ private struct TeamMembersCard: View {
 
 
 private struct TeamMemberRow: View {
-    let name: String
-    let score: Int
+    @ObservedObject var entry: LifeScoreboardViewModel.ScoreEntry
     let color: Color
     let isCurrentUser: Bool
+    var onEdit: () -> Void
 
     var body: some View {
         HStack {
             HStack(spacing: 4) {
-                Text(name)
+                Text(entry.name)
                     .font(.system(size: 17, weight: .regular))
                 if isCurrentUser {
                     Image(systemName: "pencil")
                 }
             }
             Spacer()
-            ScoreBadge(text: "\(score)", color: color)
+            ScoreBadge(text: "\(entry.score)", color: color)
         }
         .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .onTapGesture { onEdit() }
     }
 }
 
@@ -281,6 +294,7 @@ private struct ActivityCard: View {
     @Binding var activity: [LifeScoreboardViewModel.ActivityRow]
     @EnvironmentObject var viewModel: LifeScoreboardViewModel
     @EnvironmentObject var userManager: UserManager
+    var onSelect: (LifeScoreboardViewModel.ScoreEntry, LifeScoreboardViewModel.ActivityRow) -> Void
 
     var body: some View {
         ScoreTile(verticalPadding: 8) {
@@ -305,9 +319,13 @@ private struct ActivityCard: View {
                     .sorted { $0.projected > $1.projected }
 
                 ForEach(sortedRows) { row in
-                    ActivityRowView(row: row)
-                        .background(Color(.systemGray6))
-                        .cornerRadius(6)
+                    ActivityRowView(row: row) {
+                        if let entry = row.entries.first {
+                            onSelect(entry, row)
+                        }
+                    }
+                    .background(Color(.systemGray6))
+                    .cornerRadius(6)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -317,6 +335,7 @@ private struct ActivityCard: View {
 
 private struct ActivityRowView: View {
     @ObservedObject var row: LifeScoreboardViewModel.ActivityRow
+    var onEdit: () -> Void
 
     var body: some View {
         if let entry = row.entries.first {
@@ -335,6 +354,8 @@ private struct ActivityRowView: View {
                     .monospacedDigit()
             }
             .padding(.vertical, 6)
+            .contentShape(Rectangle())
+            .onTapGesture { onEdit() }
         }
     }
 }
