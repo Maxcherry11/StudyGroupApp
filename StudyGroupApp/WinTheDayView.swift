@@ -79,9 +79,8 @@ var body: some View {
         }
     }
     .onAppear {
-        if !userManager.currentUser.trimmingCharacters(in: .whitespaces).isEmpty {
-            viewModel.selectedUserName = userManager.currentUser
-            viewModel.loadData()
+        if !userManager.userList.isEmpty {
+            viewModel.load(names: userManager.userList)
             hasLoaded = true
             shimmerPosition = -1.0
             withAnimation(Animation.linear(duration: 2.5).repeatForever(autoreverses: false)) {
@@ -91,14 +90,10 @@ var body: some View {
             print("⚠️ Skipped loadData in onAppear: currentUser is empty")
         }
     }
-    .onChange(of: userManager.currentUser) { newUser in
-        guard hasLoaded, !newUser.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        viewModel.selectedUserName = newUser
-        viewModel.loadData()
-    }
-    .onChange(of: userManager.userList) { _ in
+    .onChange(of: userManager.currentUser) { _ in }
+    .onChange(of: userManager.userList) { newList in
         if hasLoaded {
-            viewModel.loadData()
+            viewModel.load(names: newList)
         }
     }
     .sheet(isPresented: $emojiPickerVisible) {
@@ -123,7 +118,7 @@ var body: some View {
                         viewModel.teamMembers[index].quotesGoal = newQuotesGoal
                         viewModel.teamMembers[index].salesWTDGoal = newSalesWTDGoal
                         viewModel.teamMembers[index].salesMTDGoal = newSalesMTDGoal
-                        CloudKitManager().save(viewModel.teamMembers[index]) { _ in }
+                        viewModel.saveMember(viewModel.teamMembers[index])
                     }
                     viewModel.teamMembers = viewModel.teamMembers.map { $0 }
                     showProductionGoalEditor = false
@@ -182,7 +177,7 @@ private func editingSheet(for editingID: UUID) -> some View {
                     }
                     for (i, _) in viewModel.teamMembers.enumerated() {
                         viewModel.teamMembers[i].sortIndex = i
-                        CloudKitManager().save(viewModel.teamMembers[i]) { _ in }
+                        viewModel.saveMember(viewModel.teamMembers[i])
                     }
                     viewModel.teamMembers = viewModel.teamMembers.map { $0 }
                 }
@@ -221,9 +216,9 @@ private var contentVStack: some View {
                                 ($1.quotesToday + $1.salesWTD + $1.salesMTD)
                             }
                     for (i, _) in viewModel.teamMembers.enumerated() {
-                                viewModel.teamMembers[i].sortIndex = i
-                                CloudKitManager().save(viewModel.teamMembers[i]) { _ in }
-                            }
+                        viewModel.teamMembers[i].sortIndex = i
+                        viewModel.saveMember(viewModel.teamMembers[i])
+                    }
                             viewModel.teamMembers = viewModel.teamMembers.map { $0 }
                         }
                     }
@@ -244,7 +239,7 @@ private var winTheDayBackground: some View {
 // Split out onAppear logic for clarity and compile speed
 private func handleOnAppear() {
     print("🟢 onAppear triggered")
-    viewModel.loadData()
+    viewModel.load(names: userManager.userList)
     print("🔍 Selected User: \(userManager.currentUser)")
     print("🧮 Team Data Count After Load: \(viewModel.teamMembers.count)")
 
@@ -294,41 +289,42 @@ private var teamCardsList: some View {
     ScrollViewReader { scrollProxy in
         ScrollView {
             VStack(spacing: 10) {
-                ForEach($viewModel.teamMembers.filter { $0.name == userManager.currentUser }) { $member in
-                    let name = member.name
-                    let isEditable = name == userManager.currentUser
-                    TeamMemberCardView(
-                        member: $member,
-                        isEditable: isEditable,
-                        selectedUserName: userManager.currentUser,
-                        onEdit: { field in
-                            if isEditable {
-                                editingMemberID = member.id
-                                editingField = field
-                                if field == "emoji" {
-                                    emojiPickerVisible = true
-                                    emojiEditingID = member.id
-                                    editingMemberID = nil
-                                } else {
-                                    withAnimation {
-                                        scrollProxy.scrollTo(member.id, anchor: .center)
+                ForEach(userManager.userList, id: \.self) { name in
+                    if let index = viewModel.teamMembers.firstIndex(where: { $0.name == name }) {
+                        let isEditable = name == userManager.currentUser
+                        TeamMemberCardView(
+                            member: $viewModel.teamMembers[index],
+                            isEditable: isEditable,
+                            selectedUserName: userManager.currentUser,
+                            onEdit: { field in
+                                if isEditable {
+                                    editingMemberID = viewModel.teamMembers[index].id
+                                    editingField = field
+                                    if field == "emoji" {
+                                        emojiPickerVisible = true
+                                        emojiEditingID = viewModel.teamMembers[index].id
+                                        editingMemberID = nil
+                                    } else {
+                                        withAnimation {
+                                            scrollProxy.scrollTo(viewModel.teamMembers[index].id, anchor: .center)
+                                        }
                                     }
                                 }
-                            }
-                        },
-                        recentlyCompletedIDs: $recentlyCompletedIDs,
-                        teamData: $viewModel.teamMembers,
-                        quotesLabel: quotesLabel,
-                        salesWTDLabel: salesWTDLabel,
-                        salesMTDLabel: salesMTDLabel
-                    )
-                    .id(member.id)
+                            },
+                            recentlyCompletedIDs: $recentlyCompletedIDs,
+                            teamData: $viewModel.teamMembers,
+                            quotesLabel: quotesLabel,
+                            salesWTDLabel: salesWTDLabel,
+                            salesMTDLabel: salesMTDLabel
+                        )
+                        .id(viewModel.teamMembers[index].id)
+                    }
                 }
             }
             .padding(.horizontal, 20)
         }
         .refreshable {
-            viewModel.fetchFromCloudKit()
+            viewModel.load(names: userManager.userList)
         }
     }
 }
@@ -405,7 +401,7 @@ private var emojiGrid: some View {
                             if let id = emojiEditingID,
                                let index = viewModel.teamMembers.firstIndex(where: { $0.id == id }) {
                                 viewModel.teamMembers[index].emoji = emoji
-                                CloudKitManager().save(viewModel.teamMembers[index]) { _ in }
+                                viewModel.saveMember(viewModel.teamMembers[index])
                                 viewModel.teamMembers = viewModel.teamMembers.map { $0 }
                             }
                             emojiPickerVisible = false
@@ -433,7 +429,7 @@ private var emojiGrid: some View {
             viewModel.teamMembers[index].salesWTDGoal = 2
             viewModel.teamMembers[index].salesMTDGoal = 6
             print("🔁 Resetting \(viewModel.teamMembers[index].name): Quotes Goal = \(viewModel.teamMembers[index].quotesGoal), WTD Goal = \(viewModel.teamMembers[index].salesWTDGoal), MTD Goal = \(viewModel.teamMembers[index].salesMTDGoal)")
-            CloudKitManager().save(viewModel.teamMembers[index]) { _ in }
+            viewModel.saveMember(viewModel.teamMembers[index])
         }
         // Force update to trigger SwiftUI redraw
         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
@@ -671,7 +667,7 @@ private struct EditingOverlayView: View {
                 let capturedField = field
                 editingMemberID = nil // ✅ Dismiss immediately
 
-                CloudKitManager().save(member) { newRecordID in
+                viewModel.saveMember(member) { newRecordID in
                     if let newRecordID = newRecordID {
                         member.id = UUID(uuidString: newRecordID.recordName) ?? member.id
                     }
