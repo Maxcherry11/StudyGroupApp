@@ -1,8 +1,9 @@
 import SwiftUI
 
 struct ScoreboardEditorOverlay: View {
-    @ObservedObject var entry: LifeScoreboardViewModel.ScoreEntry
+    @State var entry: LifeScoreboardViewModel.ScoreEntry
     @ObservedObject var row: LifeScoreboardViewModel.ActivityRow
+    @EnvironmentObject var viewModel: LifeScoreboardViewModel
     var onDismiss: () -> Void
 
     var body: some View {
@@ -35,6 +36,7 @@ struct ScoreboardEditorOverlay: View {
                 Spacer()
                 Button("Save") {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    viewModel.save(entry, pending: row.pending, projected: row.projected)
                     onDismiss()
                 }
             }
@@ -132,6 +134,9 @@ struct LifeScoreboardView: View {
             }
             .padding()
         }
+        .onAppear {
+            viewModel.load()
+        }
         .refreshable {
             userManager.refresh()
         }
@@ -159,6 +164,7 @@ struct LifeScoreboardView: View {
                     selectedEntry = nil
                     selectedRow = nil
                 }
+                .environmentObject(viewModel)
             }
         }
     }
@@ -275,7 +281,7 @@ private struct TeamMembersCard: View {
 
 
 private struct TeamMemberRow: View {
-    @ObservedObject var entry: LifeScoreboardViewModel.ScoreEntry
+    var entry: LifeScoreboardViewModel.ScoreEntry
     let color: Color
     let isCurrentUser: Bool
     var onEdit: () -> Void
