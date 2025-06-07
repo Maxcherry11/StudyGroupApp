@@ -7,6 +7,13 @@ class CloudKitManager: ObservableObject {
 
     @Published var team: [TeamMember] = []
 
+    private func isValid(_ member: TeamMember) -> Bool {
+        !member.name.trimmingCharacters(in: .whitespaces).isEmpty &&
+        member.quotesGoal > 0 &&
+        member.salesWTDGoal > 0 &&
+        member.salesMTDGoal > 0
+    }
+
     func fetchTeam(completion: @escaping ([TeamMember]) -> Void) {
         // Explicitly use NSPredicate(value: true) to avoid relying on implicit queryable fields
         let predicate = NSPredicate(value: true)
@@ -36,8 +43,9 @@ class CloudKitManager: ObservableObject {
                     for member in fetchedMembers {
                         print("   • \(member.name)")
                     }
-                    self.team = fetchedMembers
-                    completion(fetchedMembers)
+                    let valid = fetchedMembers.filter { self.isValid($0) }
+                    self.team = valid
+                    completion(valid)
                 case .failure(let error):
                     print("❌ CloudKit query failed: \(error.localizedDescription)")
                     completion([])
@@ -49,6 +57,11 @@ class CloudKitManager: ObservableObject {
     }
 
     func save(_ member: TeamMember, completion: @escaping (CKRecord.ID?) -> Void) {
+        guard isValid(member) else {
+            print("⚠️ Skipping save for invalid member: \(member.name)")
+            completion(nil)
+            return
+        }
         let predicate = NSPredicate(format: "name == %@", member.name)
         let query = CKQuery(recordType: recordType, predicate: predicate)
 
@@ -131,7 +144,8 @@ class CloudKitManager: ObservableObject {
 
         operation.queryResultBlock = { _ in
             DispatchQueue.main.async {
-                completion(results)
+                let valid = results.filter { self.isValid($0) }
+                completion(valid)
             }
         }
 
