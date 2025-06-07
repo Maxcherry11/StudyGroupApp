@@ -228,34 +228,31 @@ private struct TeamMembersCard: View {
     let travelThreshold: Double
     var onSelect: (LifeScoreboardViewModel.ScoreEntry, LifeScoreboardViewModel.ActivityRow) -> Void
 
+    private func color(for score: Double) -> Color {
+        if score >= travelThreshold { return .green }
+        if score >= honorThreshold { return .yellow }
+        return .gray
+    }
+
     var body: some View {
-        ScoreTile(verticalPadding: 8) {
+        let sortedNames = userManager.allUsers.sorted { lhs, rhs in
+            viewModel.score(for: lhs) > viewModel.score(for: rhs)
+        }
+
+        return ScoreTile(verticalPadding: 8) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Team")
                     .font(.system(size: 20, weight: .bold))
                     .frame(maxWidth: .infinity, alignment: .center)
 
-                ForEach(
-                    userManager.allUsers
-                        .sorted { lhs, rhs in
-                            viewModel.score(for: lhs) > viewModel.score(for: rhs)
-                        },
-                    id: \.self
-                ) { name in
+                ForEach(sortedNames, id: \.self) { name in
                     if let entry = viewModel.scores.first(where: { $0.name == name }),
                        let row = viewModel.row(for: name) {
-                        let score = Double(entry.score)
-                        let color: Color
-                        if score >= travelThreshold {
-                            color = .green
-                        } else if score >= honorThreshold {
-                            color = .yellow
-                        } else {
-                            color = .gray
-                        }
-
-                        let isCurrent = name == userManager.currentUserName
-                        TeamMemberRow(entry: entry, color: color, isCurrentUser: isCurrent) {
+                        TeamMemberRow(
+                            entry: entry,
+                            color: color(for: Double(entry.score)),
+                            isCurrentUser: name == userManager.currentUserName
+                        ) {
                             onSelect(entry, row)
                         }
                     }
@@ -299,7 +296,11 @@ private struct ActivityCard: View {
     var onSelect: (LifeScoreboardViewModel.ScoreEntry, LifeScoreboardViewModel.ActivityRow) -> Void
 
     var body: some View {
-        ScoreTile(verticalPadding: 8) {
+        let sortedRows = userManager.allUsers
+            .compactMap { viewModel.row(for: $0) }
+            .sorted { $0.projected > $1.projected }
+
+        return ScoreTile(verticalPadding: 8) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Activity")
                     .font(.system(size: 20, weight: .bold))
@@ -315,10 +316,6 @@ private struct ActivityCard: View {
                         .font(.system(size: 16, weight: .bold))
                         .frame(minWidth: 100, alignment: .trailing)
                 }
-
-                let sortedRows = userManager.allUsers
-                    .compactMap { viewModel.row(for: $0) }
-                    .sorted { $0.projected > $1.projected }
 
                 ForEach(sortedRows) { row in
                     ActivityRowView(row: row) {
