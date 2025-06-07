@@ -96,6 +96,14 @@ struct LifeScoreboardView: View {
             }
             .padding()
         }
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [Color.gray.opacity(0.3), Color.gray]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+        )
         .sheet(isPresented: Binding<Bool>(
             get: { selectedEntry != nil && selectedRow != nil },
             set: { if !$0 {
@@ -156,27 +164,27 @@ private struct OnTimeCard: View {
 
     var body: some View {
         ScoreTile {
-            VStack(spacing: 16) {
+            HStack(alignment: .center) {
+                VStack(spacing: 2) {
+                    Text("Honor")
+                        .font(.headline)
+                    ScoreBadge(text: String(format: "%.1f", onTime), color: .yellow)
+                }
+
+                Spacer()
+
                 Text("On Time")
                     .font(.title3.bold())
-                    .frame(maxWidth: .infinity)
 
-                HStack {
-                    VStack(spacing: 4) {
-                        Text("Honor")
-                            .font(.headline)
-                        ScoreBadge(text: String(format: "%.1f", onTime), color: .yellow)
-                    }
-                    .frame(maxWidth: .infinity)
+                Spacer()
 
-                    VStack(spacing: 4) {
-                        Text("Travel")
-                            .font(.headline)
-                        ScoreBadge(text: String(format: "%.1f", travel), color: .green)
-                    }
-                    .frame(maxWidth: .infinity)
+                VStack(spacing: 2) {
+                    Text("Travel")
+                        .font(.headline)
+                    ScoreBadge(text: String(format: "%.1f", travel), color: .green)
                 }
             }
+            .frame(maxWidth: .infinity)
         }
     }
 }
