@@ -81,6 +81,51 @@ class TeamMember: Identifiable, ObservableObject {
     )
 }
 
+extension TeamMember {
+    struct CodableModel: Codable {
+        var id: UUID
+        var name: String
+        var quotesToday: Int
+        var salesWTD: Int
+        var salesMTD: Int
+        var quotesGoal: Int
+        var salesWTDGoal: Int
+        var salesMTDGoal: Int
+        var emoji: String
+        var sortIndex: Int
+    }
+
+    var codable: CodableModel {
+        CodableModel(
+            id: id,
+            name: name,
+            quotesToday: quotesToday,
+            salesWTD: salesWTD,
+            salesMTD: salesMTD,
+            quotesGoal: quotesGoal,
+            salesWTDGoal: salesWTDGoal,
+            salesMTDGoal: salesMTDGoal,
+            emoji: emoji,
+            sortIndex: sortIndex
+        )
+    }
+
+    convenience init(codable: CodableModel) {
+        self.init(
+            id: codable.id,
+            name: codable.name,
+            quotesToday: codable.quotesToday,
+            salesWTD: codable.salesWTD,
+            salesMTD: codable.salesMTD,
+            quotesGoal: codable.quotesGoal,
+            salesWTDGoal: codable.salesWTDGoal,
+            salesMTDGoal: codable.salesMTDGoal,
+            emoji: codable.emoji,
+            sortIndex: codable.sortIndex
+        )
+    }
+}
+
 import CloudKit
 
 extension TeamMember {

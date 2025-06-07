@@ -68,6 +68,8 @@ struct UserSelectorView: View {
                                     guard !trimmed.isEmpty, !userManager.userList.contains(trimmed) else { return }
                                     userManager.addUser(trimmed)
                                     CloudKitManager.shared.createScoreRecord(for: trimmed)
+                                    let member = TeamMember(name: trimmed)
+                                    CloudKitManager.shared.save(member) { _ in }
                                     newUserName = ""
                                 })
                                 Button("Cancel", role: .cancel) { }
@@ -95,6 +97,7 @@ struct UserSelectorView: View {
             let nameToDelete = userManager.userList[index]
             userManager.deleteUser(nameToDelete)
             CloudKitManager.shared.deleteScoreRecord(for: nameToDelete)
+            CloudKitManager.shared.deleteByName(nameToDelete) { _ in }
         }
     }
 }

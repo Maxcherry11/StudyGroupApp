@@ -5,77 +5,72 @@ class WinTheDayViewModel: ObservableObject {
     @Published var teamData: [TeamMember] = []
 
     init() {
-        self.teamMembers = TeamMember.testMembers
+        self.teamMembers = []
     }
     @Published var teamMembers: [TeamMember] = []
     @Published var selectedUserName: String = ""
+    private let storageKey = "WTDMemberStorage"
 
-    func loadData() {
-        guard !selectedUserName.trimmingCharacters(in: .whitespaces).isEmpty else {
-            print("⚠️ Skipping loadData: selectedUserName is empty")
-            return
+    private func saveLocal() {
+        let codable = teamMembers.map { $0.codable }
+        if let data = try? JSONEncoder().encode(codable) {
+            UserDefaults.standard.set(data, forKey: storageKey)
         }
-        print("🔄 loadData() called")
-        let predicate = NSPredicate(value: true)
-        let query = CKQuery(recordType: "TeamMember", predicate: predicate)
-        let operation = CKQueryOperation(query: query)
+    }
 
-        var loadedMembers: [TeamMember] = []
+    private func loadLocalMembers() -> [TeamMember] {
+        guard let data = UserDefaults.standard.data(forKey: storageKey),
+              let decoded = try? JSONDecoder().decode([TeamMember.CodableModel].self, from: data) else {
+            return []
+        }
+        return decoded.map { TeamMember(codable: $0) }
+    }
 
-        operation.recordMatchedBlock = { recordID, result in
-            switch result {
-            case .success(let record):
-                if let member = TeamMember(record: record) {
-                    loadedMembers.append(member)
-                }
-            case .failure(let error):
-                print("❌ Failed to match record with ID \(recordID.recordName): \(error.localizedDescription)")
+    private func updateLocalEntries(names: [String]) {
+        teamMembers.removeAll { !names.contains($0.name) }
+        let stored = loadLocalMembers()
+        for name in names where !teamMembers.contains(where: { $0.name == name }) {
+            if let saved = stored.first(where: { $0.name == name }) {
+                teamMembers.append(saved)
+            } else {
+                teamMembers.append(TeamMember(name: name))
             }
         }
+        for (index, _) in teamMembers.enumerated() {
+            teamMembers[index].sortIndex = index
+        }
+    }
 
-        operation.queryResultBlock = { [weak self] result in
-            DispatchQueue.main.async {
-                switch result {
-                case .failure(let error):
-                    print("❌ CloudKit query failed:", error.localizedDescription)
-                case .success:
-                    print("✅ Loaded \(loadedMembers.count) records from CloudKit")
-                    self?.teamMembers = loadedMembers.sorted {
-                        ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-                        ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+    func load(names: [String]) {
+        updateLocalEntries(names: names)
+        CloudKitManager.shared.fetchTeam { [weak self] members in
+            guard let self = self else { return }
+            if members.isEmpty {
+                DispatchQueue.main.async {
+                    self.saveLocal()
+                }
+                return
+            }
+
+            for (index, name) in names.enumerated() {
+                if let m = members.first(where: { $0.name == name }) {
+                    if index < self.teamMembers.count {
+                        self.teamMembers[index] = m
+                        self.teamMembers[index].sortIndex = index
                     }
                 }
             }
-        }
-
-        print("📡 Starting loadData CloudKit operation...")
-        CKContainer(identifier: "iCloud.com.dj.Outcast").publicCloudDatabase.add(operation)
-    }
-
-    func fetchFromCloudKit() {
-        CloudKitManager().fetchTeam { [weak self] members in
-            let valid = members.filter {
-                !$0.name.trimmingCharacters(in: .whitespaces).isEmpty &&
-                $0.quotesGoal > 0 &&
-                $0.salesWTDGoal > 0 &&
-                $0.salesMTDGoal > 0
-            }
-            guard !valid.isEmpty else {
-                print("⚠️ Fetched data invalid or empty; keeping existing data")
-                return
-            }
             DispatchQueue.main.async {
-                self?.teamMembers = valid.sorted { $0.sortIndex < $1.sortIndex }
+                self.saveLocal()
             }
         }
     }
 
-    func fetchTeamMembers() {
-        // CloudKit code removed for local/debug use
-    }
-
-    func wipeAndResetCloudKit() {
-        // CloudKit code removed for local/debug use
+    func saveMember(_ member: TeamMember, completion: ((CKRecord.ID?) -> Void)? = nil) {
+        CloudKitManager.shared.save(member) { id in
+            completion?(id)
+        }
+        saveLocal()
     }
 
     var filteredMembers: [TeamMember] {
