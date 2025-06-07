@@ -52,6 +52,24 @@ class WinTheDayViewModel: ObservableObject {
         CKContainer(identifier: "iCloud.com.dj.Outcast").publicCloudDatabase.add(operation)
     }
 
+    func fetchFromCloudKit() {
+        CloudKitManager().fetchTeam { [weak self] members in
+            let valid = members.filter {
+                !$0.name.trimmingCharacters(in: .whitespaces).isEmpty &&
+                $0.quotesGoal > 0 &&
+                $0.salesWTDGoal > 0 &&
+                $0.salesMTDGoal > 0
+            }
+            guard !valid.isEmpty else {
+                print("⚠️ Fetched data invalid or empty; keeping existing data")
+                return
+            }
+            DispatchQueue.main.async {
+                self?.teamMembers = valid.sorted { $0.sortIndex < $1.sortIndex }
+            }
+        }
+    }
+
     func fetchTeamMembers() {
         // CloudKit code removed for local/debug use
     }

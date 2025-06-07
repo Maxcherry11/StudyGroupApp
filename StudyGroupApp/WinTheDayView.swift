@@ -317,6 +317,9 @@ private var teamCardsList: some View {
             }
             .padding(.horizontal, 20)
         }
+        .refreshable {
+            viewModel.fetchFromCloudKit()
+        }
     }
 }
 

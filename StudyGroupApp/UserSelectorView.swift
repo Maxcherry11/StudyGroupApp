@@ -69,9 +69,22 @@ struct UserSelectorView: View {
                                     guard !trimmed.isEmpty, !users.contains(trimmed) else { return }
                                     users.append(trimmed)
 
-                                    let newMember = TeamMember(name: trimmed)
-                                    CloudKitManager().save(newMember) { _ in
-                                        print("✅ Saved new TeamMember to CloudKit: \(trimmed)")
+                                    CloudKitManager().fetchTeam { members in
+                                        let base = members.first
+                                        let newMember = TeamMember(
+                                            name: trimmed,
+                                            quotesToday: 0,
+                                            salesWTD: 0,
+                                            salesMTD: 0,
+                                            quotesGoal: base?.quotesGoal ?? 10,
+                                            salesWTDGoal: base?.salesWTDGoal ?? 2,
+                                            salesMTDGoal: base?.salesMTDGoal ?? 6,
+                                            emoji: base?.emoji ?? "🙂",
+                                            sortIndex: (members.map { $0.sortIndex }.max() ?? -1) + 1
+                                        )
+                                        CloudKitManager().save(newMember) { _ in
+                                            print("✅ Saved new TeamMember to CloudKit: \(trimmed)")
+                                        }
                                     }
 
                                     newUserName = ""
