@@ -179,17 +179,19 @@ private struct TeamMembersCard: View {
                 .font(.title3.bold())
 
             ForEach(Array(zip(viewModel.scores.indices, viewModel.scores)), id: \.0) { index, entry in
-                let color: Color
-                switch index {
-                case 0, 1:
-                    color = .green
-                case 2:
-                    color = .yellow
-                case 3:
-                    color = Color.gray.opacity(0.3)
-                default:
-                    color = Color.gray.opacity(0.2)
-                }
+                let color: Color = {
+                    switch index {
+                    case 0, 1:
+                        return .green
+                    case 2:
+                        return .yellow
+                    case 3:
+                        return Color.gray.opacity(0.3)
+                    default:
+                        return Color.gray.opacity(0.2)
+                    }
+                }()
+
                 TeamMemberRow(name: entry.name, score: entry.score, color: color)
             }
         }
