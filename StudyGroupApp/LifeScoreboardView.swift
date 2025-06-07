@@ -12,18 +12,22 @@ struct ScoreboardEditorOverlay: View {
 
             VStack(spacing: 16) {
                 IntStepperRow(label: "Score", value: $entry.score)
+                    .frame(maxWidth: .infinity)
                 IntStepperRow(label: "Pending Apps", value: $row.pending)
+                    .frame(maxWidth: .infinity)
 
                 HStack {
                     Text("Projected Premium")
+                    Spacer()
                     TextField("0", value: $row.projected, format: .currency(code: "USD"))
+                        .multilineTextAlignment(.trailing)
                         .keyboardType(.decimalPad)
                         .padding(6)
                         .background(Color.gray.opacity(0.2))
                         .cornerRadius(6)
                         .frame(width: 100)
-                    Spacer()
                 }
+                .frame(maxWidth: .infinity)
             }
 
             HStack {
@@ -51,11 +55,12 @@ private struct IntStepperRow: View {
     var body: some View {
         HStack {
             Text(label)
+            Spacer()
             Text("\(value)")
                 .frame(width: 40, alignment: .trailing)
-            Spacer()
             Stepper("", value: $value, in: 0...1000)
         }
+        .frame(maxWidth: .infinity)
     }
 }
 
