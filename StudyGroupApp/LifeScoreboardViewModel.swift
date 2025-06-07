@@ -46,35 +46,30 @@ class LifeScoreboardViewModel: ObservableObject {
         activity.first(where: { $0.name == name })
     }
 
-    func load() {
-        print("🔄 Fetching from CloudKit...")
-        let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
-        container.publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
-            guard let records = records else {
-                DispatchQueue.main.async {
-                    print("❌ Load error: \(error?.localizedDescription ?? "Unknown error")")
+    private func updateLocalEntries(names: [String]) {
+        // Remove entries for deleted users
+        scores.removeAll { entry in !names.contains(entry.name) }
+        activity.removeAll { row in !names.contains(row.name) }
+
+        // Add entries for new users
+        for name in names where !scores.contains(where: { $0.name == name }) {
+            let entry = ScoreEntry(name: name, score: 0)
+            scores.append(entry)
+            activity.append(ActivityRow(entry: entry))
+        }
+    }
+
+    func load(for names: [String]) {
+        updateLocalEntries(names: names)
+        CloudKitManager.shared.fetchScores(for: names) { records in
+            for (name, values) in records {
+                if let index = self.scores.firstIndex(where: { $0.name == name }) {
+                    self.scores[index].score = values.score
                 }
-                return
-            }
-
-            let loadedEntries = records.map { record -> ScoreEntry in
-                ScoreEntry(
-                    name: record["name"] as? String ?? "",
-                    score: record["score"] as? Int ?? 0
-                )
-            }
-            let loadedActivity = records.map { record -> ActivityRow in
-                ActivityRow(
-                    name: record["name"] as? String ?? "",
-                    pending: record["pending"] as? Int ?? 0,
-                    projected: record["projected"] as? Double ?? 0.0
-                )
-            }
-
-            DispatchQueue.main.async {
-                self.scores = loadedEntries
-                self.activity = loadedActivity
-                print("✅ Loaded \(loadedEntries.count) scores from CloudKit")
+                if let row = self.activity.first(where: { $0.name == name }) {
+                    row.pending = values.pending
+                    row.projected = values.projected
+                }
             }
         }
     }

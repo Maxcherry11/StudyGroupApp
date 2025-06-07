@@ -69,26 +69,8 @@ struct UserSelectorView: View {
                                     let trimmed = newUserName.trimmingCharacters(in: .whitespacesAndNewlines)
                                     guard !trimmed.isEmpty, !users.contains(trimmed) else { return }
                                     users.append(trimmed)
-
-                                    CloudKitManager().fetchTeam { members in
-                                        let base = members.first
-                                        let newMember = TeamMember(
-                                            name: trimmed,
-                                            quotesToday: 0,
-                                            salesWTD: 0,
-                                            salesMTD: 0,
-                                            quotesGoal: base?.quotesGoal ?? 10,
-                                            salesWTDGoal: base?.salesWTDGoal ?? 2,
-                                            salesMTDGoal: base?.salesMTDGoal ?? 6,
-                                            emoji: base?.emoji ?? "🙂",
-                                            sortIndex: (members.map { $0.sortIndex }.max() ?? -1) + 1
-                                        )
-                                        CloudKitManager().save(newMember) { _ in
-                                            print("✅ Saved new TeamMember to CloudKit: \(trimmed)")
-                                            UserManager.shared.refresh()
-                                        }
-                                    }
-
+                                    UserManager.shared.addUser(trimmed)
+                                    CloudKitManager.shared.createScoreRecord(for: trimmed)
                                     newUserName = ""
                                 })
                                 Button("Cancel", role: .cancel) { }
@@ -106,33 +88,7 @@ struct UserSelectorView: View {
                 }
             }
             .onAppear {
-                let predicate = NSPredicate(value: true)
-                let query = CKQuery(recordType: "TeamMember", predicate: predicate)
-                let operation = CKQueryOperation(query: query)
-
-                var loadedNames: [String] = []
-
-                operation.recordMatchedBlock = { _, result in
-                    if case .success(let record) = result,
-                       let name = record["name"] as? String {
-                        loadedNames.append(name)
-                    }
-                }
-
-                operation.queryResultBlock = { result in
-                    DispatchQueue.main.async {
-                        switch result {
-                        case .success:
-                            users = loadedNames.sorted()
-                            UserManager.shared.refresh()
-                            print("✅ Loaded names from CloudKit: \(users)")
-                        case .failure(let error):
-                            print("❌ Failed to load names: \(error.localizedDescription)")
-                        }
-                    }
-                }
-
-                CKContainer(identifier: "iCloud.com.dj.Outcast").publicCloudDatabase.add(operation)
+                users = UserManager.shared.allUsers
             }
         }
     }
@@ -141,44 +97,9 @@ struct UserSelectorView: View {
         for index in offsets {
             let nameToDelete = users[index]
             users.remove(at: index)
-
-            CloudKitManager().deleteByName(nameToDelete) { success in
-                if success {
-                    print("🗑️ Deleted \(nameToDelete) from CloudKit")
-                } else {
-                    print("⚠️ Failed to delete \(nameToDelete) from CloudKit")
-                }
-            }
+            UserManager.shared.deleteUser(nameToDelete)
+            CloudKitManager.shared.deleteScoreRecord(for: nameToDelete)
         }
-
-        // Reload names from CloudKit to reflect changes
-        let predicate = NSPredicate(value: true)
-        let query = CKQuery(recordType: "TeamMember", predicate: predicate)
-        let operation = CKQueryOperation(query: query)
-
-        var loadedNames: [String] = []
-
-        operation.recordMatchedBlock = { _, result in
-            if case .success(let record) = result,
-               let name = record["name"] as? String {
-                loadedNames.append(name)
-            }
-        }
-
-        operation.queryResultBlock = { result in
-            DispatchQueue.main.async {
-                switch result {
-                case .success:
-                    users = loadedNames.sorted()
-                    UserManager.shared.refresh()
-                    print("✅ Reloaded names after delete: \(users)")
-                case .failure(let error):
-                    print("❌ Failed to reload names: \(error.localizedDescription)")
-                }
-            }
-        }
-
-        CKContainer(identifier: "iCloud.com.dj.Outcast").publicCloudDatabase.add(operation)
     }
 }
 
