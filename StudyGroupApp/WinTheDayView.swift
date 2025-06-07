@@ -40,6 +40,12 @@ extension View {
     }
 }
 
+enum StatType {
+    case quotes
+    case salesWTD
+    case salesMTD
+}
+
 struct WinTheDayView: View {
     @StateObject var viewModel: WinTheDayViewModel
     @AppStorage("selectedUserName") private var selectedUserName: String = ""
@@ -459,7 +465,7 @@ private var emojiGrid: some View {
         )
     }
 
-    private func progressColor(for title: String, value: Int, goal: Int) -> Color {
+    private func progressColor(for type: StatType, value: Int, goal: Int) -> Color {
         guard goal > 0 else { return .gray }
 
         let calendar = Calendar.current
@@ -467,21 +473,18 @@ private var emojiGrid: some View {
 
         let isOnTrack: Bool
 
-        switch title {
-        case "Quotes Today", "Quotes WTD", "Sales WTD":
+        switch type {
+        case .quotes, .salesWTD:
             let weekday = calendar.component(.weekday, from: today)
             let dayOfWeek = max(weekday - 1, 1)
             let expected = Double(goal) * Double(dayOfWeek) / 7.0
             isOnTrack = Double(value) >= expected
 
-        case "Sales MTD":
+        case .salesMTD:
             let dayOfMonth = calendar.component(.day, from: today)
             let totalDays = calendar.range(of: .day, in: .month, for: today)?.count ?? 30
             let expected = Double(goal) * Double(dayOfMonth) / Double(totalDays)
             isOnTrack = Double(value) >= expected
-
-        default:
-            return .gray
         }
 
         return isOnTrack ? .green : .yellow
@@ -493,6 +496,7 @@ struct StatRow: View {
     let title: String
     let value: Int
     let goal: Int
+    let type: StatType
     let isEditable: Bool
     @Binding var member: TeamMember
     @Binding var recentlyCompletedIDs: Set<UUID>
@@ -514,7 +518,7 @@ struct StatRow: View {
                     .frame(width: 140, height: 10)
                     .padding(.leading, 10)
                 Capsule()
-                    .fill(progressColor(for: title, value: value, goal: goal))
+                    .fill(progressColor(for: type, value: value, goal: goal))
                     .frame(
                         width: goal > 0 ? min(CGFloat(value) / CGFloat(goal), 1.0) * 140 : 0,
                         height: 10
@@ -537,8 +541,8 @@ struct StatRow: View {
         }
         .opacity(1.0)
         .onChange(of: value) { newValue in
-            let oldColor = progressColor(for: title, value: newValue - 1, goal: goal)
-            let newColor = progressColor(for: title, value: newValue, goal: goal)
+            let oldColor = progressColor(for: type, value: newValue - 1, goal: goal)
+            let newColor = progressColor(for: type, value: newValue, goal: goal)
             if oldColor != .green && newColor == .green {
                 recentlyCompletedIDs.insert(member.id)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -548,28 +552,24 @@ struct StatRow: View {
         }
     }
 
-    private func progressColor(for title: String, value: Int, goal: Int) -> Color {
+    private func progressColor(for type: StatType, value: Int, goal: Int) -> Color {
         guard goal > 0 else { return .gray }
 
         let calendar = Calendar.current
         let today = Date()
 
         let isOnTrack: Bool
-
-        let normalizedTitle = title.lowercased()
-
-        if normalizedTitle.contains("quotes") || normalizedTitle.contains("wtd") {
+        switch type {
+        case .quotes, .salesWTD:
             let weekday = calendar.component(.weekday, from: today)
             let dayOfWeek = max(weekday - 1, 1)
             let expected = Double(goal) * Double(dayOfWeek) / 7.0
             isOnTrack = Double(value) >= expected
-        } else if normalizedTitle.contains("mtd") {
+        case .salesMTD:
             let dayOfMonth = calendar.component(.day, from: today)
             let totalDays = calendar.range(of: .day, in: .month, for: today)?.count ?? 30
             let expected = Double(goal) * Double(dayOfMonth) / Double(totalDays)
             isOnTrack = Double(value) >= expected
-        } else {
-            return .gray
         }
 
         return isOnTrack ? .green : .yellow
@@ -725,6 +725,7 @@ private struct TeamMemberCardView: View {
                 title: quotesLabel,
                 value: member.quotesToday,
                 goal: member.quotesGoal,
+                type: .quotes,
                 isEditable: isEditable,
                 member: $member,
                 recentlyCompletedIDs: $recentlyCompletedIDs,
@@ -735,6 +736,7 @@ private struct TeamMemberCardView: View {
                 title: salesWTDLabel,
                 value: member.salesWTD,
                 goal: member.salesWTDGoal,
+                type: .salesWTD,
                 isEditable: isEditable,
                 member: $member,
                 recentlyCompletedIDs: $recentlyCompletedIDs,
@@ -745,6 +747,7 @@ private struct TeamMemberCardView: View {
                 title: salesMTDLabel,
                 value: member.salesMTD,
                 goal: member.salesMTDGoal,
+                type: .salesMTD,
                 isEditable: isEditable,
                 member: $member,
                 recentlyCompletedIDs: $recentlyCompletedIDs,
