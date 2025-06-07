@@ -3,45 +3,74 @@ import Foundation
 class UserManager: ObservableObject {
     static let shared = UserManager()
 
-    @Published var allUsers: [String] = []
-    @Published var currentUserName: String {
+    // Primary properties used throughout the app
+    @Published var userList: [String] = [] {
         didSet {
-            UserDefaults.standard.set(currentUserName, forKey: "selectedUserName")
+            if allUsers != userList { allUsers = userList }
+            UserDefaults.standard.set(userList, forKey: userDefaultsKey)
+        }
+    }
+    @Published var currentUser: String = "" {
+        didSet {
+            if currentUserName != currentUser { currentUserName = currentUser }
+            UserDefaults.standard.set(currentUser, forKey: "currentUser")
+        }
+    }
+
+    // Backwards compatibility for existing views like LifeScoreboardView
+    @Published var allUsers: [String] = [] {
+        didSet {
+            if userList != allUsers { userList = allUsers }
+        }
+    }
+    @Published var currentUserName: String = "" {
+        didSet {
+            if currentUser != currentUserName { currentUser = currentUserName }
         }
     }
 
     private let userDefaultsKey = "allUsers"
 
     private init() {
-        self.currentUserName = UserDefaults.standard.string(forKey: "selectedUserName") ?? ""
+        let storedUser = UserDefaults.standard.string(forKey: "currentUser") ?? ""
+        self.currentUser = storedUser
+        self.currentUserName = storedUser
+
         if let stored = UserDefaults.standard.array(forKey: userDefaultsKey) as? [String] {
+            self.userList = stored
             self.allUsers = stored
         } else {
-            self.allUsers = ["D.J.", "Ron", "Deanna", "Dimitri"]
+            let defaults = ["D.J.", "Ron", "Deanna", "Dimitri"]
+            self.userList = defaults
+            self.allUsers = defaults
             saveUsers()
         }
     }
 
     private func saveUsers() {
-        UserDefaults.standard.set(allUsers, forKey: userDefaultsKey)
+        UserDefaults.standard.set(userList, forKey: userDefaultsKey)
     }
 
     func addUser(_ name: String) {
-        guard !allUsers.contains(name) else { return }
-        allUsers.append(name)
+        guard !userList.contains(name) else { return }
+        userList.append(name)
         saveUsers()
     }
 
     func deleteUser(_ name: String) {
-        allUsers.removeAll { $0 == name }
+        userList.removeAll { $0 == name }
         saveUsers()
+        if currentUser == name {
+            currentUser = userList.first ?? ""
+        }
     }
 
     func selectUser(_ name: String) {
-        currentUserName = name
+        currentUser = name
     }
 
     func refresh() {
-        allUsers = UserDefaults.standard.array(forKey: userDefaultsKey) as? [String] ?? []
+        let stored = UserDefaults.standard.array(forKey: userDefaultsKey) as? [String] ?? []
+        userList = stored
     }
 }
