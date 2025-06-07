@@ -246,7 +246,7 @@ private func handleOnAppear() {
         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
     }
 
-    withAnimation(Animation.linear(duration: 2.5).repeatForever(autoreverses: false)) {
+    withAnimation(Animation.linear(duration: 8).repeatForever(autoreverses: false)) {
         shimmerPosition = 1.0
     }
     for member in viewModel.teamMembers {
