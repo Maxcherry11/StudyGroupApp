@@ -2,8 +2,10 @@ import CloudKit
 import Foundation
 
 class CloudKitManager: ObservableObject {
+    static let shared = CloudKitManager()
     private let database = CKContainer(identifier: "iCloud.com.dj.Outcast").publicCloudDatabase
     private let recordType = "TeamMember"
+    private let scoreRecordType = "ScoreRecord"
 
     @Published var team: [TeamMember] = []
 
@@ -236,5 +238,24 @@ class CloudKitManager: ObservableObject {
         }
 
         database.add(operation)
+    }
+
+    func saveScore(entry: LifeScoreboardViewModel.ScoreEntry, pending: Int, projected: Double) {
+        let predicate = NSPredicate(format: "name == %@", entry.name)
+        let query = CKQuery(recordType: scoreRecordType, predicate: predicate)
+        database.perform(query, inZoneWith: nil) { records, error in
+            let record = records?.first ?? CKRecord(recordType: self.scoreRecordType)
+            record["name"] = entry.name as CKRecordValue
+            record["score"] = entry.score as CKRecordValue
+            record["pending"] = pending as CKRecordValue
+            record["projected"] = projected as CKRecordValue
+            self.database.save(record) { _, error in
+                if let error = error {
+                    print("❌ Error saving score: \(error.localizedDescription)\")
+                } else {
+                    print("✅ Saved score for \(entry.name)")
+                }
+            }
+        }
     }
 }

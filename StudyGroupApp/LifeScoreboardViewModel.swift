@@ -29,6 +29,13 @@ class LifeScoreboardViewModel: ObservableObject {
             self.pending = 0
             self.projected = 0.0
         }
+
+        init(name: String, pending: Int, projected: Double) {
+            self.name = name
+            self.entries = [ScoreEntry(name: name, score: 0)]
+            self.pending = pending
+            self.projected = projected
+        }
     }
 
     func score(for name: String) -> Int {
@@ -43,56 +50,44 @@ class LifeScoreboardViewModel: ObservableObject {
         print("🔄 Fetching from CloudKit...")
         let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
         container.publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
+            guard let records = records else {
+                DispatchQueue.main.async {
+                    print("❌ Load error: \(error?.localizedDescription ?? \"Unknown error\")")
+                }
+                return
+            }
+
+            let loadedEntries = records.map { record -> ScoreEntry in
+                ScoreEntry(
+                    name: record["name"] as? String ?? "",
+                    score: record["score"] as? Int ?? 0
+                )
+            }
+            let loadedActivity = records.map { record -> ActivityRow in
+                ActivityRow(
+                    name: record["name"] as? String ?? "",
+                    pending: record["pending"] as? Int ?? 0,
+                    projected: record["projected"] as? Double ?? 0.0
+                )
+            }
+
             DispatchQueue.main.async {
-                guard let records = records else {
-                    print("❌ Load error: \(error?.localizedDescription ?? "Unknown error")")
-                    return
-                }
-
-                let loadedEntries = records.map { record -> ScoreEntry in
-                    ScoreEntry(
-                        name: record["name"] as? String ?? "",
-                        score: record["score"] as? Int ?? 0
-                    )
-                }
                 self.scores = loadedEntries
-
-                let rows = loadedEntries.map { entry in
-                    let row = ActivityRow(entry: entry)
-                    if let record = records.first(where: { $0["name"] as? String == entry.name }) {
-                        row.pending = record["pending"] as? Int ?? 0
-                        row.projected = record["projected"] as? Double ?? 0.0
-                    }
-                    return row
-                }
-                self.activity = rows
-                print("✅ Loaded \(rows.count) records from CloudKit")
+                self.activity = loadedActivity
             }
         }
     }
-
-    func save(_ entry: ScoreEntry, pending: Int, projected: Double) {
-        let predicate = NSPredicate(format: "name == %@", entry.name)
-        let query = CKQuery(recordType: recordType, predicate: predicate)
-
-        container.publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
-            let record = records?.first ?? CKRecord(recordType: self.recordType)
-            record["name"] = entry.name as CKRecordValue
-            record["score"] = entry.score as CKRecordValue
-            record["pending"] = pending as CKRecordValue
-            record["projected"] = projected as CKRecordValue
-
-            self.container.publicCloudDatabase.save(record) { _, error in
-                DispatchQueue.main.async {
-                    if let error = error {
-                        print("❌ Save error: \(error.localizedDescription)")
-                    } else {
-                        print("✅ Saved \(entry.name)")
-                        self.load()
-                    }
-                }
-            }
         }
+    func save(_ entry: ScoreEntry, pending: Int, projected: Double) {
+        guard let index = scores.firstIndex(where: { $0.name == entry.name }) else { return }
+        scores[index].score = entry.score
+
+        if let rowIndex = activity.firstIndex(where: { $0.name == entry.name }) {
+            activity[rowIndex].pending = pending
+            activity[rowIndex].projected = projected
+        }
+
+        CloudKitManager.shared.saveScore(entry: entry, pending: pending, projected: projected)
     }
 }
 
