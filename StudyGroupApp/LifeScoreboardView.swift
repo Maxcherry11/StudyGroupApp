@@ -6,11 +6,11 @@ struct ScoreboardEditorOverlay: View {
     var onDismiss: () -> Void
 
     var body: some View {
-        VStack(spacing: 15) {
+        VStack(spacing: 16) {
             Text(entry.name)
                 .font(.headline)
 
-            VStack(spacing: 12) {
+            VStack(spacing: 16) {
                 IntStepperRow(label: "Score", value: $entry.score)
                 IntStepperRow(label: "Pending Apps", value: $row.pending)
 
@@ -19,11 +19,10 @@ struct ScoreboardEditorOverlay: View {
                     TextField("0", value: $row.projected, format: .currency(code: "USD"))
                         .keyboardType(.decimalPad)
                         .padding(6)
-                        .background(Color.white)
+                        .background(Color.gray.opacity(0.2))
                         .cornerRadius(6)
-                        .frame(width: 90)
+                        .frame(width: 100)
                     Spacer()
-                    Stepper("", value: $row.projected, in: 0...1_000_000, step: 50)
                 }
             }
 
@@ -37,11 +36,11 @@ struct ScoreboardEditorOverlay: View {
             }
         }
         .padding()
-        .frame(width: 280)
+        .frame(maxWidth: .infinity)
         .background(Color.white)
         .cornerRadius(12)
         .shadow(radius: 8)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.4)))
+        .padding(.horizontal)
     }
 }
 
