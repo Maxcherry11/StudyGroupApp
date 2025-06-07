@@ -667,15 +667,8 @@ private struct EditingOverlayView: View {
             Button("Save") {
                 let capturedField = field
                 editingMemberID = nil // ✅ Dismiss immediately
-
-                viewModel.saveMember(member) { newRecordID in
-                    if let newRecordID = newRecordID {
-                        member.id = UUID(uuidString: newRecordID.recordName) ?? member.id
-                    }
-                    let finalID = member.id
-                    DispatchQueue.main.async {
-                        onSave?(finalID, capturedField)
-                    }
+                if let onSave = onSave {
+                    onSave(member.id, capturedField)
                 }
             }
         }
