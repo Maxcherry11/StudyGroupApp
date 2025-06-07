@@ -43,7 +43,7 @@ struct ScoreboardEditorOverlay: View {
         }
         .padding()
         .frame(maxWidth: .infinity)
-        .background(Color.white)
+        .background(Color(uiColor: .systemBackground))
         .cornerRadius(12)
         .shadow(radius: 8)
         .padding(.horizontal)
@@ -199,7 +199,7 @@ private struct ScoreTile<Content: View>: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white)
+                .fill(Color(uiColor: .secondarySystemBackground))
                 .shadow(radius: 4)
 
             content()

@@ -18,7 +18,7 @@ struct UserSelectorView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Color.white.ignoresSafeArea()
+                Color(.systemBackground).ignoresSafeArea()
 
                 GeometryReader { geometry in
                     VStack {
