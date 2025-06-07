@@ -327,13 +327,14 @@ private struct ActivityCard: View {
                     .font(.system(size: 20, weight: .bold))
                     .frame(maxWidth: .infinity, alignment: .center)
 
-                HStack {
+                HStack(spacing: 6) {
                     Text("Name")
                         .font(.system(size: 16, weight: .bold))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text("Pending")
                         .font(.system(size: 16, weight: .bold))
-                        .frame(width: 60, alignment: .center)
+                        .frame(width: 70, alignment: .center)
+                        .layoutPriority(1)
                     Text("Projected")
                         .font(.system(size: 17, weight: .bold))
                         .frame(minWidth: 110, alignment: .trailing)
@@ -361,14 +362,15 @@ private struct ActivityRowView: View {
     var onEdit: () -> Void
 
     var body: some View {
-        HStack {
+        HStack(spacing: 6) {
             Text(row.name)
                 .font(.system(size: 21, weight: .regular))
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text("\(row.pending)")
 
                 .font(.system(size: 15, weight: .regular))
-                .frame(width: 60, alignment: .center)
+                .frame(width: 70, alignment: .center)
+                .layoutPriority(1)
                 .monospacedDigit()
             Text(row.projected, format: .currency(code: "USD").precision(.fractionLength(0)))
                 .font(.system(size: 17, weight: .regular))                .foregroundColor(.green)
