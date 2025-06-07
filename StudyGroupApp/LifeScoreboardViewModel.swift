@@ -1,76 +1,33 @@
-import SwiftUI
-import Combine
 import CloudKit
+import SwiftUI
 
 class LifeScoreboardViewModel: ObservableObject {
-    class ScoreEntry: ObservableObject, Identifiable {
-        let id = UUID()
-        let name: String
-        @Published var score: Int
-        @Published var color: Color = .gray
+    @Published var scores: [ScoreEntry] = []
+    @Published var activity: [ActivityRow] = []
+    @Published var onTime: Double = 17.7
+    @Published var travel: Double = 31.0
 
-        init(name: String, score: Int) {
-            self.name = name
-            self.score = score
-        }
+    private let container = CKContainer.default()
+    private let recordType = "LifeScoreEntry"
+
+    struct ScoreEntry: Identifiable, Hashable {
+        var id = UUID()
+        var name: String
+        var score: Int
     }
 
     class ActivityRow: ObservableObject, Identifiable {
         let id = UUID()
         let name: String
+        var entries: [ScoreEntry]
         @Published var pending: Int
         @Published var projected: Double
-        @Published var entries: [ScoreEntry] = []
 
-        init(name: String, pending: Int, projected: Double) {
-            self.name = name
-            self.pending = pending
-            self.projected = projected
-        }
-    }
-
-    @Published var scores: [ScoreEntry] = []
-
-    let onTime: Double = 17.7
-    let travel: Double = 31.0
-
-    @Published var activity: [ActivityRow] = []
-    @Published var selectedScoreEntry: ScoreEntry?
-    @Published var selectedActivityRow: ActivityRow?
-
-    private var cancellables: Set<AnyCancellable> = []
-
-    init() {
-        updateFromUsers(UserManager.shared.allUsers)
-
-        UserManager.shared.$allUsers
-            .sink { [weak self] names in
-                self?.updateFromUsers(names)
-            }
-            .store(in: &cancellables)
-    }
-
-    private func updateFromUsers(_ names: [String]) {
-        var newScores: [ScoreEntry] = []
-        var newActivity: [ActivityRow] = []
-
-        for name in names {
-            let score = scores.first(where: { $0.name == name })?.score ?? 0
-            let scoreEntry = ScoreEntry(name: name, score: score)
-
-            let existingRow = activity.first(where: { $0.name == name })
-            let pending = existingRow?.pending ?? 0
-            let projected = existingRow?.projected ?? 0
-            let row = ActivityRow(name: name, pending: pending, projected: projected)
-            row.entries = [scoreEntry]
-
-            newScores.append(scoreEntry)
-            newActivity.append(row)
-        }
-
-        DispatchQueue.main.async {
-            self.scores = newScores
-            self.activity = newActivity
+        init(entry: ScoreEntry) {
+            self.name = entry.name
+            self.entries = [entry]
+            self.pending = 0
+            self.projected = 0.0
         }
     }
 
@@ -82,148 +39,60 @@ class LifeScoreboardViewModel: ObservableObject {
         activity.first(where: { $0.name == name })
     }
 
-    // MARK: - CloudKit Sync
-
-    private var database: CKDatabase {
-        CKContainer(identifier: "iCloud.com.dj.Outcast").publicCloudDatabase
-    }
-
-    /// Load CloudKit data for the current user and update local models
     func load() {
-        let current = UserManager.shared.currentUserName
-        guard !current.isEmpty else { return }
-
-        // Fetch ScoreEntry
-        let scorePredicate = NSPredicate(format: "name == %@", current)
-        let scoreQuery = CKQuery(recordType: ScoreEntry.recordType, predicate: scorePredicate)
-        let scoreOperation = CKQueryOperation(query: scoreQuery)
-
-        var fetchedScore: Int?
-        scoreOperation.recordMatchedBlock = { _, result in
-            if case .success(let record) = result {
-                fetchedScore = record["score"] as? Int
-            }
-        }
-
-        scoreOperation.queryResultBlock = { [weak self] _ in
-            guard let self = self else { return }
+        print("🔄 Fetching from CloudKit...")
+        let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
+        container.publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
             DispatchQueue.main.async {
-                if let scoreValue = fetchedScore,
-                   let entry = self.scores.first(where: { $0.name == current }) {
-                    entry.score = scoreValue
+                guard let records = records else {
+                    print("❌ Load error: \(error?.localizedDescription ?? \"Unknown error\")")
+                    return
                 }
-            }
-        }
-        database.add(scoreOperation)
 
-        // Fetch ActivityRow
-        let activityPredicate = NSPredicate(format: "name == %@", current)
-        let activityQuery = CKQuery(recordType: ActivityRow.recordType, predicate: activityPredicate)
-        let activityOperation = CKQueryOperation(query: activityQuery)
-
-        var fetchedPending: Int?
-        var fetchedProjected: Double?
-        activityOperation.recordMatchedBlock = { _, result in
-            if case .success(let record) = result {
-                fetchedPending = record["pending"] as? Int
-                fetchedProjected = record["projected"] as? Double
-            }
-        }
-
-        activityOperation.queryResultBlock = { [weak self] _ in
-            guard let self = self else { return }
-            DispatchQueue.main.async {
-                if let row = self.activity.first(where: { $0.name == current }) {
-                    if let p = fetchedPending { row.pending = p }
-                    if let proj = fetchedProjected { row.projected = proj }
+                let loadedEntries = records.map { record -> ScoreEntry in
+                    ScoreEntry(
+                        name: record["name"] as? String ?? "",
+                        score: record["score"] as? Int ?? 0
+                    )
                 }
+                self.scores = loadedEntries
+
+                let rows = loadedEntries.map { entry in
+                    let row = ActivityRow(entry: entry)
+                    if let record = records.first(where: { $0["name"] as? String == entry.name }) {
+                        row.pending = record["pending"] as? Int ?? 0
+                        row.projected = record["projected"] as? Double ?? 0.0
+                    }
+                    return row
+                }
+                self.activity = rows
+                print("✅ Loaded \(rows.count) records from CloudKit")
             }
         }
-        database.add(activityOperation)
     }
 
-    /// Save changes for the current user to CloudKit
-    func save(_ updated: ScoreEntry, for activityRow: ActivityRow) {
-        let current = UserManager.shared.currentUserName
-        guard updated.name == current && activityRow.name == current else { return }
+    func save(_ entry: ScoreEntry, pending: Int, projected: Double) {
+        let predicate = NSPredicate(format: "name == %@", entry.name)
+        let query = CKQuery(recordType: recordType, predicate: predicate)
 
-        // Query for existing ScoreEntry
-        let scorePredicate = NSPredicate(format: "name == %@", current)
-        let scoreQuery = CKQuery(recordType: ScoreEntry.recordType, predicate: scorePredicate)
-        let scoreOperation = CKQueryOperation(query: scoreQuery)
-        scoreOperation.resultsLimit = 1
+        container.publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
+            let record = records?.first ?? CKRecord(recordType: self.recordType)
+            record["name"] = entry.name as CKRecordValue
+            record["score"] = entry.score as CKRecordValue
+            record["pending"] = pending as CKRecordValue
+            record["projected"] = projected as CKRecordValue
 
-        var matchedScore: CKRecord?
-        scoreOperation.recordMatchedBlock = { _, result in
-            if case .success(let record) = result { matchedScore = record }
-        }
-
-        scoreOperation.queryResultBlock = { [weak self] _ in
-            guard let self = self else { return }
-            // Query for existing ActivityRow
-            let activityPredicate = NSPredicate(format: "name == %@", current)
-            let activityQuery = CKQuery(recordType: ActivityRow.recordType, predicate: activityPredicate)
-            let activityOperation = CKQueryOperation(query: activityQuery)
-            activityOperation.resultsLimit = 1
-
-            var matchedActivity: CKRecord?
-            activityOperation.recordMatchedBlock = { _, result in
-                if case .success(let record) = result { matchedActivity = record }
-            }
-
-            activityOperation.queryResultBlock = { _ in
-                let scoreRecord = updated.toRecord(existing: matchedScore)
-                let activityRecord = activityRow.toRecord(existing: matchedActivity)
-
-                let modify = CKModifyRecordsOperation(recordsToSave: [scoreRecord, activityRecord], recordIDsToDelete: nil)
-                modify.modifyRecordsResultBlock = { result in
-                    if case .failure(let error) = result {
-                        print("❌ Failed to save scoreboard: \(error.localizedDescription)")
+            self.container.publicCloudDatabase.save(record) { _, error in
+                DispatchQueue.main.async {
+                    if let error = error {
+                        print("❌ Save error: \(error.localizedDescription)")
+                    } else {
+                        print("✅ Saved \(entry.name)")
+                        self.load()
                     }
                 }
-                self.database.add(modify)
             }
-            self.database.add(activityOperation)
         }
-
-        database.add(scoreOperation)
     }
 }
 
-// MARK: - CloudKit Helpers
-
-extension LifeScoreboardViewModel.ScoreEntry {
-    static let recordType = "ScoreEntry"
-
-    convenience init?(record: CKRecord) {
-        guard let name = record["name"] as? String,
-              let score = record["score"] as? Int else { return nil }
-        self.init(name: name, score: score)
-    }
-
-    func toRecord(existing: CKRecord? = nil) -> CKRecord {
-        let record = existing ?? CKRecord(recordType: Self.recordType, recordID: CKRecord.ID(recordName: name))
-        record["name"] = name as CKRecordValue
-        record["score"] = score as CKRecordValue
-        return record
-    }
-}
-
-extension LifeScoreboardViewModel.ActivityRow {
-    static let recordType = "ActivityRow"
-
-    convenience init?(record: CKRecord) {
-        guard let name = record["name"] as? String,
-              let pending = record["pending"] as? Int,
-              let projected = record["projected"] as? Double else { return nil }
-        self.init(name: name, pending: pending, projected: projected)
-    }
-
-    func toRecord(existing: CKRecord? = nil) -> CKRecord {
-        let record = existing ?? CKRecord(recordType: Self.recordType, recordID: CKRecord.ID(recordName: name))
-        record["name"] = name as CKRecordValue
-        record["pending"] = pending as CKRecordValue
-        record["projected"] = projected as CKRecordValue
-        return record
-    }
-}
