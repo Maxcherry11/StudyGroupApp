@@ -251,7 +251,7 @@ class CloudKitManager: ObservableObject {
             record["projected"] = projected as CKRecordValue
             self.database.save(record) { _, error in
                 if let error = error {
-                    print("❌ Error saving score: \(error.localizedDescription)\")
+                    print("❌ Error saving score: \(error.localizedDescription)")
                 } else {
                     print("✅ Saved score for \(entry.name)")
                 }

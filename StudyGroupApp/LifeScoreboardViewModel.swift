@@ -2,13 +2,13 @@ import CloudKit
 import Foundation
 
 class LifeScoreboardViewModel: ObservableObject {
+    private let container = CKContainer.default()
+    private let recordType = "ScoreRecord"
+
     @Published var scores: [ScoreEntry] = []
     @Published var activity: [ActivityRow] = []
     @Published var onTime: Double = 17.7
     @Published var travel: Double = 31.0
-
-    private let container = CKContainer.default()
-    private let recordType = "ScoreRecord"
 
     struct ScoreEntry: Identifiable, Hashable {
         var id = UUID()
@@ -52,7 +52,7 @@ class LifeScoreboardViewModel: ObservableObject {
         container.publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
             guard let records = records else {
                 DispatchQueue.main.async {
-                    print("❌ Load error: \(error?.localizedDescription ?? \"Unknown error\")")
+                    print("❌ Load error: \(error?.localizedDescription ?? "Unknown error")")
                 }
                 return
             }
@@ -89,5 +89,20 @@ class LifeScoreboardViewModel: ObservableObject {
 
         CloudKitManager.shared.saveScore(entry: entry, pending: pending, projected: projected)
     }
-}
 
+    func createTestScoreRecord() {
+        let record = CKRecord(recordType: recordType)
+        record["name"] = "D.J." as CKRecordValue
+        record["score"] = 5 as CKRecordValue
+        record["pending"] = 2 as CKRecordValue
+        record["projected"] = 100.0 as CKRecordValue
+
+        container.publicCloudDatabase.save(record) { _, error in
+            if let error = error {
+                print("❌ Error saving test record: \(error.localizedDescription)")
+            } else {
+                print("✅ Test record saved to CloudKit")
+            }
+        }
+    }
+}
