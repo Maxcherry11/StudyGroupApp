@@ -62,6 +62,20 @@ struct LifeScoreboardView: View {
     @State private var selectedEntry: LifeScoreboardViewModel.ScoreEntry?
     @State private var selectedRow: LifeScoreboardViewModel.ActivityRow?
 
+    private func yearLabel() -> String {
+        let month = Calendar.current.component(.month, from: Date())
+        switch month {
+        case 1...3:
+            return "First Year"
+        case 4...6:
+            return "Second Year"
+        case 7...9:
+            return "Third Year"
+        default:
+            return "Fourth Year"
+        }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .center, spacing: 24) {
@@ -79,8 +93,8 @@ struct LifeScoreboardView: View {
                         .background(Color.green)
                         .cornerRadius(20)
                     
-                    Text("First Year")
-                        .font(.subheadline)
+                    Text(yearLabel())
+                        .font(.system(size: 15, weight: .regular))
                     
                 }
                 .padding(.bottom, 4)
@@ -133,16 +147,18 @@ private struct ScoreBadge: View {
 
     var body: some View {
         Text(text)
-            .font(.subheadline.bold())
+            .font(.system(size: 15, weight: .bold))
             .foregroundColor(.white)
             .padding(.horizontal, 12)
-            .padding(.vertical, 4)
+            .padding(.vertical, 3)
             .background(color)
             .cornerRadius(8)
     }
 }
 
 private struct ScoreTile<Content: View>: View {
+    var verticalPadding: CGFloat = 16
+    var horizontalPadding: CGFloat = 16
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -152,7 +168,8 @@ private struct ScoreTile<Content: View>: View {
                 .shadow(radius: 4)
 
             content()
-                .padding()
+                .padding(.vertical, verticalPadding)
+                .padding(.horizontal, horizontalPadding)
         }
         .frame(maxWidth: .infinity)
     }
@@ -167,20 +184,20 @@ private struct OnTimeCard: View {
             HStack(alignment: .center) {
                 VStack(spacing: 2) {
                     Text("Honor")
-                        .font(.headline)
+                        .font(.system(size: 17, weight: .semibold))
                     ScoreBadge(text: String(format: "%.1f", onTime), color: .yellow)
                 }
 
                 Spacer()
 
                 Text("On Time")
-                    .font(.title3.bold())
+                    .font(.system(size: 20, weight: .bold))
 
                 Spacer()
 
                 VStack(spacing: 2) {
                     Text("Travel")
-                        .font(.headline)
+                        .font(.system(size: 17, weight: .semibold))
                     ScoreBadge(text: String(format: "%.1f", travel), color: .green)
                 }
             }
@@ -192,10 +209,11 @@ private struct TeamMembersCard: View {
     @EnvironmentObject var viewModel: LifeScoreboardViewModel
 
     var body: some View {
-        ScoreTile {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Team Members")
-                    .font(.title3.bold())
+        ScoreTile(verticalPadding: 8) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Team")
+                    .font(.system(size: 20, weight: .bold))
+                    .frame(maxWidth: .infinity, alignment: .center)
 
                 ForEach(Array(zip(viewModel.scores.indices, viewModel.scores)), id: \.0) { index, entry in
                     let color: Color = {
@@ -229,9 +247,11 @@ private struct TeamMemberRow: View {
     var body: some View {
         HStack {
             Text(name)
+                .font(.system(size: 17, weight: .regular))
             Spacer()
             ScoreBadge(text: "\(score)", color: color)
         }
+        .padding(.vertical, 2)
     }
 }
 
@@ -239,17 +259,20 @@ private struct ActivityCard: View {
     @Binding var activity: [LifeScoreboardViewModel.ActivityRow]
 
     var body: some View {
-        ScoreTile {
-            VStack(alignment: .leading, spacing: 8) {
+        ScoreTile(verticalPadding: 8) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text("Activity")
-                    .font(.title3.bold())
+                    .font(.system(size: 20, weight: .bold))
 
                 HStack {
-                    Text("Name").bold()
+                    Text("Name")
+                        .font(.system(size: 16, weight: .bold))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text("Pending").bold()
+                    Text("Pending")
+                        .font(.system(size: 16, weight: .bold))
                         .frame(width: 70, alignment: .center)
-                    Text("Projected").bold()
+                    Text("Projected")
+                        .font(.system(size: 16, weight: .bold))
                         .frame(minWidth: 100, alignment: .trailing)
                 }
 
@@ -271,16 +294,19 @@ private struct ActivityRowView: View {
         if let entry = row.entries.first {
             HStack {
                 Text(entry.name)
+                    .font(.system(size: 15, weight: .regular))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text("\(row.pending)")
+                    .font(.system(size: 15, weight: .regular))
                     .frame(width: 70, alignment: .center)
                     .monospacedDigit()
                 Text(row.projected, format: .currency(code: "USD"))
+                    .font(.system(size: 15, weight: .regular))
                     .foregroundColor(.green)
                     .frame(minWidth: 100, alignment: .trailing)
                     .monospacedDigit()
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
         }
     }
 }
