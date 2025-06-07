@@ -20,6 +20,7 @@
 		B6C560C02DEFC75800F64256 /* LifeScoreboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C560BF2DEFC75800F64256 /* LifeScoreboardViewModel.swift */; };
 		B6C560C62DEFCC0E00F64256 /* ActivityEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C560C52DEFCC0E00F64256 /* ActivityEditorView.swift */; };
 		B6CB206A2DE3D90A00CE7A18 /* LaunchScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6CB20692DE3D90A00CE7A18 /* LaunchScreenView.swift */; };
+                F24CB4DF149A4B09974A1B6C /* CodexNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B75D2389F8474FB89FF01B /* CodexNotes.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,6 +42,7 @@
 		B6C560C52DEFCC0E00F64256 /* ActivityEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityEditorView.swift; sourceTree = "<group>"; };
 		B6CB20682DE3B35B00CE7A18 /* StudyGroupApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StudyGroupApp.entitlements; sourceTree = "<group>"; };
 		B6CB20692DE3D90A00CE7A18 /* LaunchScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScreenView.swift; sourceTree = "<group>"; };
+                12B75D2389F8474FB89FF01B /* CodexNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexNotes.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,6 +77,7 @@
 				B653C53B2DE2400B001B905F /* Outcast IOs.entitlements */,
 				B653C5402DE2409D001B905F /* StudyGroupApp.swift */,
 				B653C53C2DE2403E001B905F /* WinTheDayView.swift */,
+                                12B75D2389F8474FB89FF01B /* CodexNotes.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -178,6 +181,7 @@
 				B6C560BE2DEFC65500F64256 /* LifeScoreboardView.swift in Sources */,
 				B6C560C62DEFCC0E00F64256 /* ActivityEditorView.swift in Sources */,
 				B6CB206A2DE3D90A00CE7A18 /* LaunchScreenView.swift in Sources */,
+                                F24CB4DF149A4B09974A1B6C /* CodexNotes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
