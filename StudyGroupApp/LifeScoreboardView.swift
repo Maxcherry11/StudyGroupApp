@@ -88,94 +88,14 @@ struct LifeScoreboardView: View {
                 }
                 .padding(.bottom, 4)
                 
-                // On Time section
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("On Time")
-                            .font(.title3.bold())
-                        Text("LOH")
-                            .font(.subheadline)
-                        Text("17.7")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.yellow)
-                            .cornerRadius(8)
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("Travel")
-                            .font(.subheadline)
-                        Text("31.0")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.green)
-                            .cornerRadius(8)
-                    }
-                }
-                
+                OnTimeCard(onTime: viewModel.onTime, travel: viewModel.travel)
+
                 // Team Members section
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Team Members")
-                        .font(.title3.bold())
-                    let teamScores: [(String, Int, Color)] = [
-                        ("Dimitri", 60, .green),
-                        ("Deanna", 41, .green),
-                        ("D.J.", 19, .yellow),
-                        ("Ron", 12, Color.gray.opacity(0.3)),
-                        ("Greg", 7, Color.gray.opacity(0.2))
-                    ]
-                    ForEach(teamScores, id: \.0) { name, score, color in
-                        HStack {
-                            Text(name)
-                            Spacer()
-                            Text("\(score)")
-                                .font(.subheadline.bold())
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 4)
-                                .background(color)
-                                .cornerRadius(8)
-                        }
-                    }
-                }
-                
+                TeamMembersCard()
+                    .environmentObject(viewModel)
+
                 // Activity Table
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Activity")
-                        .font(.title3.bold())
-                    
-                    HStack {
-                        Text("Name").bold()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Text("Pending").bold()
-                            .frame(width: 70, alignment: .center)
-                        Text("Projected").bold()
-                            .frame(minWidth: 100, alignment: .trailing)
-                    }
-                    
-                    ForEach($viewModel.activity) { $row in
-                        if let entry = row.entries.first {
-                            HStack {
-                                Text(entry.name)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                Text("\(row.pending)")
-                                    .frame(width: 70, alignment: .center)
-                                    .monospacedDigit()
-                                Text(row.projected, format: .currency(code: "USD"))
-                                    .foregroundColor(.green)
-                                    .frame(minWidth: 100, alignment: .trailing)
-                                    .monospacedDigit()
-                            }
-                            .padding(.vertical, 8)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(6)
-                        }
-                    }
-                }
+                ActivityCard(activity: $viewModel.activity)
             }
             .padding()
         }
@@ -199,3 +119,151 @@ struct LifeScoreboardView: View {
         }
     }
 }
+
+// MARK: - Subviews
+
+private struct ScoreBadge: View {
+    let text: String
+    let color: Color
+
+    var body: some View {
+        Text(text)
+            .font(.subheadline.bold())
+            .foregroundColor(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            .background(color)
+            .cornerRadius(8)
+    }
+}
+
+private struct OnTimeCard: View {
+    let onTime: Double
+    let travel: Double
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("On Time")
+                .font(.title3.bold())
+
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("LOH")
+                        .font(.subheadline)
+                    ScoreBadge(text: String(format: "%.1f", onTime), color: .yellow)
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("Travel")
+                        .font(.subheadline)
+                    ScoreBadge(text: String(format: "%.1f", travel), color: .green)
+                }
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(radius: 2)
+    }
+}
+
+private struct TeamMembersCard: View {
+    @EnvironmentObject var viewModel: LifeScoreboardViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Team Members")
+                .font(.title3.bold())
+
+            ForEach(Array(zip(viewModel.scores.indices, viewModel.scores)), id: \.0) { index, entry in
+                let color: Color
+                switch index {
+                case 0, 1:
+                    color = .green
+                case 2:
+                    color = .yellow
+                case 3:
+                    color = Color.gray.opacity(0.3)
+                default:
+                    color = Color.gray.opacity(0.2)
+                }
+                TeamMemberRow(name: entry.name, score: entry.score, color: color)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(radius: 2)
+    }
+}
+
+private struct TeamMemberRow: View {
+    let name: String
+    let score: Int
+    let color: Color
+
+    var body: some View {
+        HStack {
+            Text(name)
+            Spacer()
+            ScoreBadge(text: "\(score)", color: color)
+        }
+    }
+}
+
+private struct ActivityCard: View {
+    @Binding var activity: [LifeScoreboardViewModel.ActivityRow]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Activity")
+                .font(.title3.bold())
+
+            HStack {
+                Text("Name").bold()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("Pending").bold()
+                    .frame(width: 70, alignment: .center)
+                Text("Projected").bold()
+                    .frame(minWidth: 100, alignment: .trailing)
+            }
+
+            ForEach(activity) { row in
+                ActivityRowView(row: row)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(6)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(radius: 2)
+    }
+}
+
+private struct ActivityRowView: View {
+    @ObservedObject var row: LifeScoreboardViewModel.ActivityRow
+
+    var body: some View {
+        if let entry = row.entries.first {
+            HStack {
+                Text(entry.name)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("\(row.pending)")
+                    .frame(width: 70, alignment: .center)
+                    .monospacedDigit()
+                Text(row.projected, format: .currency(code: "USD"))
+                    .foregroundColor(.green)
+                    .frame(minWidth: 100, alignment: .trailing)
+                    .monospacedDigit()
+            }
+            .padding(.vertical, 8)
+        }
+    }
+}
+
