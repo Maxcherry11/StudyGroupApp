@@ -294,7 +294,7 @@ private var teamCardsList: some View {
     ScrollViewReader { scrollProxy in
         ScrollView {
             VStack(spacing: 10) {
-                ForEach($viewModel.teamMembers.filter { $0.name == userManager.currentUser }) { $member in
+                ForEach($viewModel.teamMembers.filter { $0.name.wrappedValue == userManager.currentUser }) { $member in
                     let name = member.name
                     let isEditable = name == userManager.currentUser
                     TeamMemberCardView(
