@@ -333,10 +333,10 @@ private struct ActivityCard: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text("Pending")
                         .font(.system(size: 16, weight: .bold))
-                        .frame(width: 70, alignment: .center)
+                        .frame(width: 60, alignment: .center)
                     Text("Projected")
-                        .font(.system(size: 16, weight: .bold))
-                        .frame(minWidth: 100, alignment: .trailing)
+                        .font(.system(size: 17, weight: .bold))
+                        .frame(minWidth: 110, alignment: .trailing)
                 }
 
                 ForEach(sortedRows) { row in
@@ -366,13 +366,13 @@ private struct ActivityRowView: View {
                 .font(.system(size: 21, weight: .regular))
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text("\(row.pending)")
-                .font(.system(size: 21, weight: .regular))
-                .frame(width: 70, alignment: .center)
+
+                .font(.system(size: 15, weight: .regular))
+                .frame(width: 60, alignment: .center)
                 .monospacedDigit()
-            Text(row.projected, format: .currency(code: "USD"))
-                .font(.system(size: 21, weight: .regular))
-                .foregroundColor(.green)
-                .frame(minWidth: 100, alignment: .trailing)
+            Text(row.projected, format: .currency(code: "USD").precision(.fractionLength(0)))
+                .font(.system(size: 17, weight: .regular))                .foregroundColor(.green)
+                .frame(minWidth: 110, alignment: .trailing)
                 .monospacedDigit()
         }
         .padding(.vertical, 6)
