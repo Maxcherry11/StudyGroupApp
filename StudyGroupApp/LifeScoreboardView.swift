@@ -135,14 +135,14 @@ struct LifeScoreboardView: View {
             .padding()
         }
         .onAppear {
-            viewModel.load(for: userManager.allUsers)
+            viewModel.load(for: userManager.userList)
         }
-        .onReceive(userManager.$allUsers) { names in
+        .onReceive(userManager.$userList) { names in
             viewModel.load(for: names)
         }
         .refreshable {
             userManager.refresh()
-            viewModel.load(for: userManager.allUsers)
+            viewModel.load(for: userManager.userList)
         }
         .background(
             LinearGradient(
@@ -254,7 +254,7 @@ private struct TeamMembersCard: View {
     }
 
     var body: some View {
-        let sortedNames = userManager.allUsers.sorted { lhs, rhs in
+        let sortedNames = userManager.userList.sorted { lhs, rhs in
             viewModel.score(for: lhs) > viewModel.score(for: rhs)
         }
 
@@ -270,7 +270,7 @@ private struct TeamMembersCard: View {
                         TeamMemberRow(
                             entry: entry,
                             color: color(for: Double(entry.score)),
-                            isCurrentUser: name == userManager.currentUserName
+                            isCurrentUser: name == userManager.currentUser
                         ) {
                             onSelect(entry, row)
                         }
@@ -317,7 +317,7 @@ private struct ActivityCard: View {
     var onSelect: (LifeScoreboardViewModel.ScoreEntry, LifeScoreboardViewModel.ActivityRow) -> Void
 
     var body: some View {
-        let sortedRows = userManager.allUsers
+        let sortedRows = userManager.userList
             .compactMap { viewModel.row(for: $0) }
             .sorted { $0.projected > $1.projected }
 
@@ -340,7 +340,7 @@ private struct ActivityCard: View {
                 }
 
                 ForEach(sortedRows) { row in
-                    let isCurrent = row.name == userManager.currentUserName
+                    let isCurrent = row.name == userManager.currentUser
                     ActivityRowView(row: row, isCurrentUser: isCurrent) {
                         if let entry = viewModel.scores.first(where: { $0.name == row.name }) {
                             onSelect(entry, row)

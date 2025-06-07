@@ -48,7 +48,7 @@ enum StatType {
 
 struct WinTheDayView: View {
     @StateObject var viewModel: WinTheDayViewModel
-    @AppStorage("selectedUserName") private var selectedUserName: String = ""
+    @EnvironmentObject var userManager: UserManager
     @State private var selectedMember: TeamMember?
     @State private var shimmerPosition: CGFloat = 0
     @State private var editingMemberID: UUID?
@@ -79,8 +79,8 @@ var body: some View {
         }
     }
     .onAppear {
-        if !selectedUserName.trimmingCharacters(in: .whitespaces).isEmpty {
-            viewModel.selectedUserName = selectedUserName
+        if !userManager.currentUser.trimmingCharacters(in: .whitespaces).isEmpty {
+            viewModel.selectedUserName = userManager.currentUser
             viewModel.loadData()
             hasLoaded = true
             shimmerPosition = -1.0
@@ -88,7 +88,17 @@ var body: some View {
                 shimmerPosition = 1.5
             }
         } else {
-            print("⚠️ Skipped loadData in onAppear: selectedUserName is empty")
+            print("⚠️ Skipped loadData in onAppear: currentUser is empty")
+        }
+    }
+    .onChange(of: userManager.currentUser) { newUser in
+        guard hasLoaded, !newUser.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        viewModel.selectedUserName = newUser
+        viewModel.loadData()
+    }
+    .onChange(of: userManager.userList) { _ in
+        if hasLoaded {
+            viewModel.loadData()
         }
     }
     .sheet(isPresented: $emojiPickerVisible) {
@@ -235,7 +245,7 @@ private var winTheDayBackground: some View {
 private func handleOnAppear() {
     print("🟢 onAppear triggered")
     viewModel.loadData()
-    print("🔍 Selected User: \(selectedUserName)")
+    print("🔍 Selected User: \(userManager.currentUser)")
     print("🧮 Team Data Count After Load: \(viewModel.teamMembers.count)")
 
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -250,7 +260,7 @@ private func handleOnAppear() {
         shimmerPosition = 1.0
     }
     for member in viewModel.teamMembers {
-        print("🪪 TeamMember name: [\(member.name)] — selectedUserName: [\(selectedUserName)] — editable: \(member.name == selectedUserName)")
+        print("🪪 TeamMember name: [\(member.name)] — selectedUser: [\(userManager.currentUser)] — editable: \(member.name == userManager.currentUser)")
     }
 }
 
@@ -284,13 +294,13 @@ private var teamCardsList: some View {
     ScrollViewReader { scrollProxy in
         ScrollView {
             VStack(spacing: 10) {
-                ForEach($viewModel.teamMembers) { $member in
+                ForEach($viewModel.teamMembers.filter { $0.name == userManager.currentUser }) { $member in
                     let name = member.name
-                    let isEditable = name == selectedUserName
+                    let isEditable = name == userManager.currentUser
                     TeamMemberCardView(
                         member: $member,
                         isEditable: isEditable,
-                        selectedUserName: selectedUserName,
+                        selectedUserName: userManager.currentUser,
                         onEdit: { field in
                             if isEditable {
                                 editingMemberID = member.id
