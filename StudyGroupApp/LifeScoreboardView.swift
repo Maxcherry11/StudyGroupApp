@@ -82,9 +82,6 @@ struct LifeScoreboardView: View {
                     Text("First Year")
                         .font(.subheadline)
                     
-                    Text("6/3/2025")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
                 .padding(.bottom, 4)
                 
@@ -137,71 +134,84 @@ private struct ScoreBadge: View {
     }
 }
 
+private struct ScoreTile<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white)
+                .shadow(radius: 4)
+
+            content()
+                .padding()
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
 private struct OnTimeCard: View {
     let onTime: Double
     let travel: Double
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("On Time")
-                .font(.title3.bold())
+        ScoreTile {
+            VStack(spacing: 16) {
+                Text("On Time")
+                    .font(.title3.bold())
+                    .frame(maxWidth: .infinity)
 
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("LOH")
-                        .font(.subheadline)
-                    ScoreBadge(text: String(format: "%.1f", onTime), color: .yellow)
-                }
+                HStack {
+                    VStack(spacing: 4) {
+                        Text("Honor")
+                            .font(.headline)
+                        ScoreBadge(text: String(format: "%.1f", onTime), color: .yellow)
+                    }
+                    .frame(maxWidth: .infinity)
 
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("Travel")
-                        .font(.subheadline)
-                    ScoreBadge(text: String(format: "%.1f", travel), color: .green)
+                    VStack(spacing: 4) {
+                        Text("Travel")
+                            .font(.headline)
+                        ScoreBadge(text: String(format: "%.1f", travel), color: .green)
+                    }
+                    .frame(maxWidth: .infinity)
                 }
             }
         }
-        .padding()
-        .frame(maxWidth: .infinity)
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(radius: 2)
     }
 }
-
 private struct TeamMembersCard: View {
     @EnvironmentObject var viewModel: LifeScoreboardViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Team Members")
-                .font(.title3.bold())
+        ScoreTile {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Team Members")
+                    .font(.title3.bold())
 
-            ForEach(Array(zip(viewModel.scores.indices, viewModel.scores)), id: \.0) { index, entry in
-                let color: Color = {
-                    switch index {
-                    case 0, 1:
-                        return .green
-                    case 2:
-                        return .yellow
-                    case 3:
-                        return Color.gray.opacity(0.3)
-                    default:
-                        return Color.gray.opacity(0.2)
-                    }
-                }()
+                ForEach(Array(zip(viewModel.scores.indices, viewModel.scores)), id: \.0) { index, entry in
+                    let color: Color = {
+                        switch index {
+                        case 0, 1:
+                            return .green
+                        case 2:
+                            return .yellow
+                        case 3:
+                            return Color.gray.opacity(0.3)
+                        default:
+                            return Color.gray.opacity(0.2)
+                        }
+                    }()
 
-                TeamMemberRow(name: entry.name, score: entry.score, color: color)
+                    TeamMemberRow(name: entry.name, score: entry.score, color: color)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(radius: 2)
     }
 }
+
+
 
 private struct TeamMemberRow: View {
     let name: String
@@ -221,30 +231,28 @@ private struct ActivityCard: View {
     @Binding var activity: [LifeScoreboardViewModel.ActivityRow]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Activity")
-                .font(.title3.bold())
+        ScoreTile {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Activity")
+                    .font(.title3.bold())
 
-            HStack {
-                Text("Name").bold()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text("Pending").bold()
-                    .frame(width: 70, alignment: .center)
-                Text("Projected").bold()
-                    .frame(minWidth: 100, alignment: .trailing)
-            }
+                HStack {
+                    Text("Name").bold()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text("Pending").bold()
+                        .frame(width: 70, alignment: .center)
+                    Text("Projected").bold()
+                        .frame(minWidth: 100, alignment: .trailing)
+                }
 
-            ForEach(activity) { row in
-                ActivityRowView(row: row)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(6)
+                ForEach(activity) { row in
+                    ActivityRowView(row: row)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(6)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(radius: 2)
     }
 }
 
