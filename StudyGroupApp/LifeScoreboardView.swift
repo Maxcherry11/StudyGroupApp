@@ -220,7 +220,16 @@ private struct TeamMembersCard: View {
                     .font(.system(size: 20, weight: .bold))
                     .frame(maxWidth: .infinity, alignment: .center)
 
-                ForEach(Array(userManager.allUsers.enumerated()), id: \.1) { index, name in
+                ForEach(
+                    Array(
+                        userManager.allUsers
+                            .sorted { lhs, rhs in
+                                viewModel.score(for: lhs) > viewModel.score(for: rhs)
+                            }
+                            .enumerated()
+                    ),
+                    id: \.1
+                ) { index, name in
                     let color: Color = {
                         switch index {
                         case 0, 1:
@@ -291,12 +300,14 @@ private struct ActivityCard: View {
                         .frame(minWidth: 100, alignment: .trailing)
                 }
 
-                ForEach(userManager.allUsers, id: \.self) { name in
-                    if let row = viewModel.row(for: name) {
-                        ActivityRowView(row: row)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(6)
-                    }
+                let sortedRows = userManager.allUsers
+                    .compactMap { viewModel.row(for: $0) }
+                    .sorted { $0.projected > $1.projected }
+
+                ForEach(sortedRows) { row in
+                    ActivityRowView(row: row)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(6)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
