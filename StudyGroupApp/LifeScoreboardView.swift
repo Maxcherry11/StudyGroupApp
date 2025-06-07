@@ -294,7 +294,7 @@ private struct TeamMemberRow: View {
         HStack {
             HStack(spacing: 4) {
                 Text(entry.name)
-                    .font(.system(size: 17, weight: .regular))
+                    .font(.system(size: 21, weight: .regular))
                 if isCurrentUser {
                     Image(systemName: "pencil")
                 }
@@ -363,14 +363,14 @@ private struct ActivityRowView: View {
     var body: some View {
         HStack {
             Text(row.name)
-                .font(.system(size: 15, weight: .regular))
+                .font(.system(size: 21, weight: .regular))
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text("\(row.pending)")
-                .font(.system(size: 15, weight: .regular))
+                .font(.system(size: 21, weight: .regular))
                 .frame(width: 70, alignment: .center)
                 .monospacedDigit()
             Text(row.projected, format: .currency(code: "USD"))
-                .font(.system(size: 15, weight: .regular))
+                .font(.system(size: 21, weight: .regular))
                 .foregroundColor(.green)
                 .frame(minWidth: 100, alignment: .trailing)
                 .monospacedDigit()
