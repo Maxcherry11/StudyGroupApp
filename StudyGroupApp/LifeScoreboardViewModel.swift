@@ -30,16 +30,23 @@ class LifeScoreboardViewModel: ObservableObject {
             self.projected = 0.0
         }
 
-        init(name: String, pending: Int, projected: Double) {
+        init(name: String, score: Int, pending: Int, projected: Double) {
             self.name = name
-            self.entries = [ScoreEntry(name: name, score: 0)]
+            self.entries = [ScoreEntry(name: name, score: score)]
             self.pending = pending
             self.projected = projected
         }
     }
 
     func score(for name: String) -> Int {
-        scores.first(where: { $0.name == name })?.score ?? 0
+        if let entry = entry(for: name) {
+            return entry.score
+        }
+        return 0
+    }
+
+    func entry(for name: String) -> ScoreEntry? {
+        return scores.first(where: { $0.name == name })
     }
 
     func row(for name: String) -> ActivityRow? {
@@ -55,7 +62,9 @@ class LifeScoreboardViewModel: ObservableObject {
         for name in names where !scores.contains(where: { $0.name == name }) {
             let entry = ScoreEntry(name: name, score: 0)
             scores.append(entry)
-            activity.append(ActivityRow(entry: entry))
+            let row = ActivityRow(name: name, score: 0, pending: 0, projected: 0)
+            row.entries = [entry]
+            activity.append(row)
         }
     }
 
