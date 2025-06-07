@@ -392,27 +392,45 @@ private var emojiPickerSheet: some View {
 }
 
 private var emojiGrid: some View {
-    let emojis = ["😀", "🎯", "🏆", "🎓", "💯", "🔥", "🎉", "💡", "📈", "📅"]
+    let emojis = [
+        "👨🏽‍🦲", "👨🏾‍🦲", "👨🏿‍🦲",
+        "😐", "🙂", "😊", "😌", "😎", "🤓",
+        "😏", "😶", "🙃", "😬", "🤔", "😯",
+        "🤨", "😄", "😅", "😇", "😍", "🤩",
+        "🏃🏽‍♀️", "🏃🏾‍♀️", "🏃🏿‍♀️",
+        "🏃🏽‍♂️", "🏃🏾‍♂️", "🏃🏿‍♂️",
+        "🧔🏽", "🧔🏾", "🧔🏿",
+        "👩🏽", "👩🏾", "👩🏿",
+        "🧑🏽", "🧑🏾", "🧑🏿",
+        "👨🏽", "👨🏾", "👨🏿",
+        "👩🏽‍🦱", "👩🏾‍🦱", "👩🏿‍🦱",
+        "👨🏽‍🦱", "👨🏾‍🦱", "👨🏿‍🦱",
+        "👦🏾", "👧🏾", "👴🏾",
+        "🤗", "🤝", "🫶🏾", "🙏🏾", "🤜🏾", "🤛🏾",
+        "😤", "😠", "😡", "🥹", "😢", "😭"
+    ]
+
+    let columns = Array(repeating: GridItem(.flexible()), count: 6)
+
     return ScrollView {
-        LazyVStack(alignment: .leading, spacing: 12) {
-            ForEach(emojis.chunked(into: 5), id: \.self) { row in
-                HStack {
-                    ForEach(row, id: \.self) { emoji in
-                        Button(action: {
-                            if let id = emojiEditingID,
-                               let index = viewModel.teamMembers.firstIndex(where: { $0.id == id }) {
-                                viewModel.teamMembers[index].emoji = emoji
-                                viewModel.saveMember(viewModel.teamMembers[index])
-                                viewModel.teamMembers = viewModel.teamMembers.map { $0 }
-                            }
-                            emojiPickerVisible = false
-                        }) {
-                            Text(emoji).font(.largeTitle)
-                        }
+        LazyVGrid(columns: columns, spacing: 12) {
+            ForEach(emojis, id: \.self) { emoji in
+                Button(action: {
+                    if let id = emojiEditingID,
+                       let index = viewModel.teamMembers.firstIndex(where: { $0.id == id }) {
+                        viewModel.teamMembers[index].emoji = emoji
+                        viewModel.saveMember(viewModel.teamMembers[index])
+                        viewModel.teamMembers = viewModel.teamMembers.map { $0 }
                     }
+                    emojiPickerVisible = false
+                }) {
+                    Text(emoji)
+                        .font(.system(size: 32))
+                        .frame(maxWidth: .infinity)
                 }
             }
         }
+        .padding(.vertical, 10)
     }
 }
 
@@ -538,7 +556,7 @@ struct StatRow: View {
 
             Text("\(value) / \(goal)")
                 .font(.subheadline.bold())
-                .foregroundColor(.black)
+                .foregroundColor(.primary)
                 .lineLimit(1)
                 .frame(width: 90, alignment: .trailing)
         }
@@ -652,7 +670,7 @@ private struct EditingOverlayView: View {
         }
         .padding()
         .frame(width: 280)
-        .background(Color.white)
+        .background(Color(uiColor: .systemBackground))
         .cornerRadius(12)
         .shadow(radius: 8)
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.4)))
@@ -766,7 +784,7 @@ private struct TeamMemberCardView: View {
             )
         }
         .padding(6)
-        .background(Color.white)
+        .background(Color(uiColor: .secondarySystemBackground))
         .cornerRadius(12)
         .shadow(radius: 2)
         .frame(maxWidth: .infinity)
