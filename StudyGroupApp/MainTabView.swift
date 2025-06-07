@@ -9,6 +9,7 @@
 import SwiftUI
 
 struct MainTabView: View {
+    @EnvironmentObject var userManager: UserManager
     init() {
         UITabBar.appearance().backgroundColor = UIColor.systemGray6
     }

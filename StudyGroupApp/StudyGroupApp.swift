@@ -4,6 +4,7 @@ import SwiftUI
 @main
 struct StudyGroupApp: App {
     @State private var isShowingLaunchScreen = true
+    @StateObject private var userManager = UserManager.shared
 
     var body: some Scene {
         WindowGroup {
@@ -13,6 +14,7 @@ struct StudyGroupApp: App {
                         .transition(.opacity)
                 } else {
                     UserSelectorView()
+                        .environmentObject(userManager)
                         .transition(.opacity)
                 }
             }
@@ -24,6 +26,7 @@ struct StudyGroupApp: App {
                     }
                 }
             }
+            .environmentObject(userManager)
         }
     }
 }

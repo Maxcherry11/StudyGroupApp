@@ -9,10 +9,9 @@ import SwiftUI
 import CloudKit
 
 struct UserSelectorView: View {
-    @AppStorage("selectedUserName") private var selectedUserName: String = ""
+    @EnvironmentObject var userManager: UserManager
     @State private var navigate = false
 
-    @State private var users: [String] = []
     @State private var newUserName = ""
     @State private var showAddUserAlert = false
 
@@ -30,10 +29,9 @@ struct UserSelectorView: View {
                                 .fontWeight(.bold)
 
                             List {
-                                ForEach(users, id: \.self) { user in
+                                ForEach(userManager.userList, id: \.self) { user in
                                     Button(action: {
-                                        selectedUserName = user
-                                        UserManager.shared.selectUser(user)
+                                        userManager.selectUser(user)
                                         print("👤 Selected: \(user)")
                                         navigate = true
                                     }) {
@@ -67,16 +65,15 @@ struct UserSelectorView: View {
                                 TextField("Name", text: $newUserName)
                                 Button("Add", action: {
                                     let trimmed = newUserName.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    guard !trimmed.isEmpty, !users.contains(trimmed) else { return }
-                                    users.append(trimmed)
-                                    UserManager.shared.addUser(trimmed)
+                                    guard !trimmed.isEmpty, !userManager.userList.contains(trimmed) else { return }
+                                    userManager.addUser(trimmed)
                                     CloudKitManager.shared.createScoreRecord(for: trimmed)
                                     newUserName = ""
                                 })
                                 Button("Cancel", role: .cancel) { }
                             }
 
-                            NavigationLink(destination: MainTabView(), isActive: $navigate) {
+                            NavigationLink(destination: MainTabView().environmentObject(userManager), isActive: $navigate) {
                                 EmptyView()
                             }
                             .hidden()
@@ -88,16 +85,15 @@ struct UserSelectorView: View {
                 }
             }
             .onAppear {
-                users = UserManager.shared.allUsers
+                userManager.refresh()
             }
         }
     }
 
     private func deleteUser(at offsets: IndexSet) {
         for index in offsets {
-            let nameToDelete = users[index]
-            users.remove(at: index)
-            UserManager.shared.deleteUser(nameToDelete)
+            let nameToDelete = userManager.userList[index]
+            userManager.deleteUser(nameToDelete)
             CloudKitManager.shared.deleteScoreRecord(for: nameToDelete)
         }
     }
