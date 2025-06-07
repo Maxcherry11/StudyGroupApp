@@ -45,7 +45,7 @@ class LifeScoreboardViewModel: ObservableObject {
         container.publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
             DispatchQueue.main.async {
                 guard let records = records else {
-                    print("❌ Load error: \(error?.localizedDescription ?? \"Unknown error\")")
+                    print("❌ Load error: \(error?.localizedDescription ?? "Unknown error")")
                     return
                 }
 
