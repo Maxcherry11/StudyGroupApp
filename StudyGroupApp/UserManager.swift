@@ -1,5 +1,4 @@
 import Foundation
-import CloudKit
 
 class UserManager: ObservableObject {
     static let shared = UserManager()
@@ -11,19 +10,31 @@ class UserManager: ObservableObject {
         }
     }
 
-    private let cloudKit = CloudKitManager()
+    private let userDefaultsKey = "allUsers"
+
     private init() {
         self.currentUserName = UserDefaults.standard.string(forKey: "selectedUserName") ?? ""
-        loadUsers()
+        if let stored = UserDefaults.standard.array(forKey: userDefaultsKey) as? [String] {
+            self.allUsers = stored
+        } else {
+            self.allUsers = ["D.J.", "Ron", "Deanna", "Dimitri"]
+            saveUsers()
+        }
     }
 
-    func loadUsers() {
-        cloudKit.fetchTeam { members in
-            let names = members.map { $0.name }.sorted()
-            DispatchQueue.main.async {
-                self.allUsers = names
-            }
-        }
+    private func saveUsers() {
+        UserDefaults.standard.set(allUsers, forKey: userDefaultsKey)
+    }
+
+    func addUser(_ name: String) {
+        guard !allUsers.contains(name) else { return }
+        allUsers.append(name)
+        saveUsers()
+    }
+
+    func deleteUser(_ name: String) {
+        allUsers.removeAll { $0 == name }
+        saveUsers()
     }
 
     func selectUser(_ name: String) {
@@ -31,6 +42,6 @@ class UserManager: ObservableObject {
     }
 
     func refresh() {
-        loadUsers()
+        allUsers = UserDefaults.standard.array(forKey: userDefaultsKey) as? [String] ?? []
     }
 }
