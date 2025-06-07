@@ -57,8 +57,10 @@ private struct IntStepperRow: View {
             Text(label)
             Spacer()
             Text("\(value)")
-                .frame(width: 40, alignment: .trailing)
+                .monospacedDigit()
+                .frame(width: 30, alignment: .trailing)
             Stepper("", value: $value, in: 0...1000)
+                .labelsHidden()
         }
         .frame(maxWidth: .infinity)
     }
