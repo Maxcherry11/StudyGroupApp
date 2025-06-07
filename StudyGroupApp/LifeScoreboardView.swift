@@ -103,7 +103,10 @@ struct LifeScoreboardView: View {
                 OnTimeCard(onTime: viewModel.onTime, travel: viewModel.travel)
 
                 // Team Members section
-                TeamMembersCard { entry, row in
+                TeamMembersCard(
+                    honorThreshold: viewModel.onTime,
+                    travelThreshold: viewModel.travel
+                ) { entry, row in
                     selectedEntry = entry
                     selectedRow = row
                 }
@@ -119,6 +122,9 @@ struct LifeScoreboardView: View {
                     .environmentObject(userManager)
             }
             .padding()
+        }
+        .refreshable {
+            userManager.refresh()
         }
         .background(
             LinearGradient(
@@ -218,6 +224,8 @@ private struct OnTimeCard: View {
 private struct TeamMembersCard: View {
     @EnvironmentObject var viewModel: LifeScoreboardViewModel
     @EnvironmentObject var userManager: UserManager
+    let honorThreshold: Double
+    let travelThreshold: Double
     var onSelect: (LifeScoreboardViewModel.ScoreEntry, LifeScoreboardViewModel.ActivityRow) -> Void
 
     var body: some View {
@@ -228,30 +236,24 @@ private struct TeamMembersCard: View {
                     .frame(maxWidth: .infinity, alignment: .center)
 
                 ForEach(
-                    Array(
-                        userManager.allUsers
-                            .sorted { lhs, rhs in
-                                viewModel.score(for: lhs) > viewModel.score(for: rhs)
-                            }
-                            .enumerated()
-                    ),
-                    id: \.1
-                ) { index, name in
-                    let color: Color = {
-                        switch index {
-                        case 0, 1:
-                            return .green
-                        case 2:
-                            return .yellow
-                        case 3:
-                            return Color.gray.opacity(0.3)
-                        default:
-                            return Color.gray.opacity(0.2)
-                        }
-                    }()
-
+                    userManager.allUsers
+                        .sorted { lhs, rhs in
+                            viewModel.score(for: lhs) > viewModel.score(for: rhs)
+                        },
+                    id: \.self
+                ) { name in
                     if let entry = viewModel.scores.first(where: { $0.name == name }),
                        let row = viewModel.row(for: name) {
+                        let score = Double(entry.score)
+                        let color: Color
+                        if score >= travelThreshold {
+                            color = .green
+                        } else if score >= honorThreshold {
+                            color = .yellow
+                        } else {
+                            color = .gray
+                        }
+
                         let isCurrent = name == userManager.currentUserName
                         TeamMemberRow(entry: entry, color: color, isCurrentUser: isCurrent) {
                             onSelect(entry, row)
