@@ -325,6 +325,7 @@ private struct ActivityCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Activity")
                     .font(.system(size: 20, weight: .bold))
+                    .frame(maxWidth: .infinity, alignment: .center)
 
                 HStack {
                     Text("Name")
@@ -341,7 +342,7 @@ private struct ActivityCard: View {
                 ForEach(sortedRows) { row in
                     let isCurrent = row.name == userManager.currentUserName
                     ActivityRowView(row: row, isCurrentUser: isCurrent) {
-                        if let entry = row.entries.first {
+                        if let entry = viewModel.scores.first(where: { $0.name == row.name }) {
                             onSelect(entry, row)
                         }
                     }
@@ -360,26 +361,24 @@ private struct ActivityRowView: View {
     var onEdit: () -> Void
 
     var body: some View {
-        if let entry = row.entries.first {
-            HStack {
-                Text(entry.name)
-                    .font(.system(size: 15, weight: .regular))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text("\(row.pending)")
-                    .font(.system(size: 15, weight: .regular))
-                    .frame(width: 70, alignment: .center)
-                    .monospacedDigit()
-                Text(row.projected, format: .currency(code: "USD"))
-                    .font(.system(size: 15, weight: .regular))
-                    .foregroundColor(.green)
-                    .frame(minWidth: 100, alignment: .trailing)
-                    .monospacedDigit()
-            }
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                if isCurrentUser { onEdit() }
-            }
+        HStack {
+            Text(row.name)
+                .font(.system(size: 15, weight: .regular))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("\(row.pending)")
+                .font(.system(size: 15, weight: .regular))
+                .frame(width: 70, alignment: .center)
+                .monospacedDigit()
+            Text(row.projected, format: .currency(code: "USD"))
+                .font(.system(size: 15, weight: .regular))
+                .foregroundColor(.green)
+                .frame(minWidth: 100, alignment: .trailing)
+                .monospacedDigit()
+        }
+        .padding(.vertical, 6)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if isCurrentUser { onEdit() }
         }
     }
 }
