@@ -1,5 +1,5 @@
 import CloudKit
-import SwiftUI
+import Foundation
 
 class LifeScoreboardViewModel: ObservableObject {
     @Published var scores: [ScoreEntry] = []
@@ -8,7 +8,7 @@ class LifeScoreboardViewModel: ObservableObject {
     @Published var travel: Double = 31.0
 
     private let container = CKContainer.default()
-    private let recordType = "LifeScoreEntry"
+    private let recordType = "ScoreRecord"
 
     struct ScoreEntry: Identifiable, Hashable {
         var id = UUID()
@@ -74,10 +74,10 @@ class LifeScoreboardViewModel: ObservableObject {
             DispatchQueue.main.async {
                 self.scores = loadedEntries
                 self.activity = loadedActivity
+                print("✅ Loaded \(loadedEntries.count) scores from CloudKit")
             }
         }
     }
-        }
     func save(_ entry: ScoreEntry, pending: Int, projected: Double) {
         guard let index = scores.firstIndex(where: { $0.name == entry.name }) else { return }
         scores[index].score = entry.score
