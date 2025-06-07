@@ -6,54 +6,57 @@ struct ScoreboardEditorOverlay: View {
     var onDismiss: () -> Void
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 15) {
             Text(entry.name)
-                .font(.title.bold())
+                .font(.headline)
 
             VStack(spacing: 12) {
-                HStack {
-                    Text("Score:")
-                    Spacer()
-                    Stepper("", value: $entry.score, in: 0...100)
-                }
-
-                Divider()
+                IntStepperRow(label: "Score", value: $entry.score)
+                IntStepperRow(label: "Pending Apps", value: $row.pending)
 
                 HStack {
-                    Text("Pending Apps:")
-                    Spacer()
-                    Stepper("", value: $row.pending, in: 0...100)
-                }
-
-                HStack {
-                    Text("Projected Premium:")
-                    Spacer()
-                    TextField("Projected Premium", value: $row.projected, format: .currency(code: "USD"))
+                    Text("Projected Premium")
+                    TextField("0", value: $row.projected, format: .currency(code: "USD"))
                         .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                        .submitLabel(.done)
+                        .padding(6)
+                        .background(Color.white)
+                        .cornerRadius(6)
+                        .frame(width: 90)
+                    Spacer()
+                    Stepper("", value: $row.projected, in: 0...1_000_000, step: 50)
                 }
             }
 
-            HStack(spacing: 16) {
-                Button("Cancel") {
-                    onDismiss()
-                }
-                .buttonStyle(.bordered)
-
+            HStack {
+                Button("Cancel") { onDismiss() }
+                Spacer()
                 Button("Save") {
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     onDismiss()
                 }
-                .buttonStyle(.borderedProminent)
             }
         }
         .padding()
-        .frame(maxWidth: 400)
-        .background(.ultraThinMaterial)
+        .frame(width: 280)
+        .background(Color.white)
         .cornerRadius(12)
-        .shadow(radius: 10)
-        .padding()
+        .shadow(radius: 8)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.4)))
+    }
+}
+
+private struct IntStepperRow: View {
+    let label: String
+    @Binding var value: Int
+
+    var body: some View {
+        HStack {
+            Text(label)
+            Text("\(value)")
+                .frame(width: 40, alignment: .trailing)
+            Spacer()
+            Stepper("", value: $value, in: 0...1000)
+        }
     }
 }
 
@@ -285,7 +288,9 @@ private struct TeamMemberRow: View {
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
-        .onTapGesture { onEdit() }
+        .onTapGesture {
+            if isCurrentUser { onEdit() }
+        }
     }
 }
 
@@ -318,7 +323,8 @@ private struct ActivityCard: View {
                 }
 
                 ForEach(sortedRows) { row in
-                    ActivityRowView(row: row) {
+                    let isCurrent = row.name == userManager.currentUserName
+                    ActivityRowView(row: row, isCurrentUser: isCurrent) {
                         if let entry = row.entries.first {
                             onSelect(entry, row)
                         }
@@ -334,6 +340,7 @@ private struct ActivityCard: View {
 
 private struct ActivityRowView: View {
     @ObservedObject var row: LifeScoreboardViewModel.ActivityRow
+    let isCurrentUser: Bool
     var onEdit: () -> Void
 
     var body: some View {
@@ -354,7 +361,9 @@ private struct ActivityRowView: View {
             }
             .padding(.vertical, 6)
             .contentShape(Rectangle())
-            .onTapGesture { onEdit() }
+            .onTapGesture {
+                if isCurrentUser { onEdit() }
+            }
         }
     }
 }
