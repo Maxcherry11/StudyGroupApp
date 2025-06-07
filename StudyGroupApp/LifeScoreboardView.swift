@@ -174,7 +174,7 @@ private struct OnTimeCard: View {
                 Spacer()
 
                 Text("On Time")
-                    .font(.title3.bold())
+                    .font(.system(size: 30, weight: .bold))
 
                 Spacer()
 
