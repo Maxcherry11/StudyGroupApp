@@ -6,6 +6,7 @@ class CloudKitManager: ObservableObject {
     private let database = CKContainer(identifier: "iCloud.com.dj.Outcast").publicCloudDatabase
     private let recordType = "TeamMember"
     private let scoreRecordType = "ScoreRecord"
+    private let cardOrderRecordType = "CardOrder"
 
     @Published var team: [TeamMember] = []
 
@@ -334,6 +335,55 @@ class CloudKitManager: ObservableObject {
             DispatchQueue.main.async {
                 completion(results)
             }
+        }
+
+        database.add(operation)
+    }
+
+    // MARK: - Card Order
+    func fetchCardOrder(for user: String, completion: @escaping ([String]?) -> Void) {
+        let predicate = NSPredicate(format: "userName == %@", user)
+        let query = CKQuery(recordType: cardOrderRecordType, predicate: predicate)
+        let operation = CKQueryOperation(query: query)
+        operation.resultsLimit = 1
+
+        var savedOrder: [String]?
+        operation.recordMatchedBlock = { _, result in
+            if case .success(let record) = result {
+                savedOrder = record["cardOrder"] as? [String]
+            }
+        }
+
+        operation.queryResultBlock = { _ in
+            DispatchQueue.main.async {
+                completion(savedOrder)
+            }
+        }
+
+        database.add(operation)
+    }
+
+    func saveCardOrder(for user: String, order: [String]) {
+        let predicate = NSPredicate(format: "userName == %@", user)
+        let query = CKQuery(recordType: cardOrderRecordType, predicate: predicate)
+        let operation = CKQueryOperation(query: query)
+        operation.resultsLimit = 1
+
+        var matchedRecord: CKRecord?
+        operation.recordMatchedBlock = { _, result in
+            if case .success(let record) = result {
+                matchedRecord = record
+            }
+        }
+
+        operation.queryResultBlock = { _ in
+            let record = matchedRecord ?? CKRecord(recordType: self.cardOrderRecordType)
+            record["userName"] = user as CKRecordValue
+            record["cardOrder"] = order as CKRecordValue
+
+            let modify = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
+            modify.modifyRecordsResultBlock = { _ in }
+            self.database.add(modify)
         }
 
         database.add(operation)
