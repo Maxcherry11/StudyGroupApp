@@ -21,7 +21,8 @@ B6C560BE2DEFC65500F64256 /* LifeScoreboardView.swift in Sources */ = {isa = PBXB
 		B6C560C02DEFC75800F64256 /* LifeScoreboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C560BF2DEFC75800F64256 /* LifeScoreboardViewModel.swift */; };
 		B6C560C62DEFCC0E00F64256 /* ActivityEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C560C52DEFCC0E00F64256 /* ActivityEditorView.swift */; };
 		B6CB206A2DE3D90A00CE7A18 /* LaunchScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6CB20692DE3D90A00CE7A18 /* LaunchScreenView.swift */; };
-                F24CB4DF149A4B09974A1B6C /* CodexNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B75D2389F8474FB89FF01B /* CodexNotes.swift */; };
+               F24CB4DF149A4B09974A1B6C /* CodexNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B75D2389F8474FB89FF01B /* CodexNotes.swift */; };
+               4DC20FA6D8614B33B40C5DB3 /* TempScoreRowShowcase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EADEA15A39A4A2E911AD6C8 /* TempScoreRowShowcase.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -44,7 +45,8 @@ B6C560BD2DEFC65500F64256 /* LifeScoreboardView.swift */ = {isa = PBXFileReferenc
 		B6C560C52DEFCC0E00F64256 /* ActivityEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityEditorView.swift; sourceTree = "<group>"; };
 		B6CB20682DE3B35B00CE7A18 /* StudyGroupApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StudyGroupApp.entitlements; sourceTree = "<group>"; };
 		B6CB20692DE3D90A00CE7A18 /* LaunchScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScreenView.swift; sourceTree = "<group>"; };
-                12B75D2389F8474FB89FF01B /* CodexNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexNotes.swift; sourceTree = "<group>"; };
+               12B75D2389F8474FB89FF01B /* CodexNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexNotes.swift; sourceTree = "<group>"; };
+               2EADEA15A39A4A2E911AD6C8 /* TempScoreRowShowcase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempScoreRowShowcase.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -79,11 +81,12 @@ B653C5282DE23D36001B905F /* MainTabView.swift */,
 				B653C5352DE23DAD001B905F /* Outcast.entitlements */,
 				B653C53B2DE2400B001B905F /* Outcast IOs.entitlements */,
 				B653C5402DE2409D001B905F /* StudyGroupApp.swift */,
-				B653C53C2DE2403E001B905F /* WinTheDayView.swift */,
-                                12B75D2389F8474FB89FF01B /* CodexNotes.swift */,
-			);
-			sourceTree = "<group>";
-		};
+                               B653C53C2DE2403E001B905F /* WinTheDayView.swift */,
+                               12B75D2389F8474FB89FF01B /* CodexNotes.swift */,
+                               2EADEA15A39A4A2E911AD6C8 /* TempScoreRowShowcase.swift */,
+                       );
+                       sourceTree = "<group>";
+               };
 		B653C4F32DE22D8D001B905F /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -184,11 +187,12 @@ B653C5412DE2409D001B905F /* StudyGroupApp.swift in Sources */,
 				B653C54D2DE270A5001B905F /* UserSelectorView.swift in Sources */,
 				B6C560BE2DEFC65500F64256 /* LifeScoreboardView.swift in Sources */,
 				B6C560C62DEFCC0E00F64256 /* ActivityEditorView.swift in Sources */,
-				B6CB206A2DE3D90A00CE7A18 /* LaunchScreenView.swift in Sources */,
-                                F24CB4DF149A4B09974A1B6C /* CodexNotes.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
+                               B6CB206A2DE3D90A00CE7A18 /* LaunchScreenView.swift in Sources */,
+                               F24CB4DF149A4B09974A1B6C /* CodexNotes.swift in Sources */,
+                               4DC20FA6D8614B33B40C5DB3 /* TempScoreRowShowcase.swift in Sources */,
+                       );
+                       runOnlyForDeploymentPostprocessing = 0;
+               };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
