@@ -69,31 +69,43 @@ struct WinTheDayView: View {
     @State private var salesWTDLabel = "Sales WTD"
     @State private var salesMTDLabel = "Sales MTD"
 
-var body: some View {
-    Group {
-        if hasLoaded {
-            contentVStack
-                .background(winTheDayBackground)
-        } else {
-            Color.clear
-        }
-    }
-    .onAppear {
-        if !userManager.userList.isEmpty {
-            viewModel.load(names: userManager.userList)
-            hasLoaded = true
-            shimmerPosition = -1.0
-            withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
-                shimmerPosition = 1.5
+    var body: some View {
+        Group {
+            if hasLoaded {
+                contentVStack
+                    .background(winTheDayBackground)
+            } else {
+                Color.clear
             }
-        } else {
-            print("⚠️ Skipped loadData in onAppear: currentUser is empty")
         }
-    }
+        .onAppear {
+            if !userManager.userList.isEmpty {
+                viewModel.load(names: userManager.userList)
+                hasLoaded = true
+                shimmerPosition = -1.0
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    withAnimation(.none) {
+                        sortMembersByProgress()
+                        viewModel.teamMembers = viewModel.teamMembers.map { $0 }
+                    }
+                }
+                withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
+                    shimmerPosition = 1.5
+                }
+            } else {
+                print("⚠️ Skipped loadData in onAppear: currentUser is empty")
+            }
+        }
     .onChange(of: userManager.currentUser) { _ in }
     .onChange(of: userManager.userList) { newList in
         if hasLoaded {
             viewModel.load(names: newList)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                withAnimation(.none) {
+                    sortMembersByProgress()
+                    viewModel.teamMembers = viewModel.teamMembers.map { $0 }
+                }
+            }
         }
     }
     .sheet(isPresented: $emojiPickerVisible) {
@@ -252,6 +264,16 @@ private func handleOnAppear() {
     }
     for member in viewModel.teamMembers {
         print("🪪 TeamMember name: [\(member.name)] — selectedUser: [\(userManager.currentUser)] — editable: \(member.name == userManager.currentUser)")
+    }
+}
+
+private func sortMembersByProgress() {
+    viewModel.teamMembers.sort {
+        ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
+        ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+    }
+    for index in viewModel.teamMembers.indices {
+        viewModel.teamMembers[index].sortIndex = index
     }
 }
 
