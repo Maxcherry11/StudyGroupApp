@@ -309,17 +309,17 @@ private struct TeamMemberRow: View {
                 ZStack(alignment: .leading) {
                     Capsule()
                         .fill(Color.gray.opacity(0.2))
-                        .frame(width: 130, height: 8)
+                        .frame(width: 200, height: 8)
 
                     Capsule()
                         .fill(color)
                         .frame(
-                            width: min(CGFloat(entry.score) / 70, 1.0) * 140,
+                            width: min(CGFloat(entry.score) / 70, 1.0) * 200,
                             height: 8
                         )
                         .animation(.easeInOut(duration: 0.4), value: entry.score)
                 }
-                .frame(width: 130, alignment: .center)
+                .frame(width: 200, alignment: .center)
             }
             .frame(maxWidth: .infinity, alignment: .center)
 
