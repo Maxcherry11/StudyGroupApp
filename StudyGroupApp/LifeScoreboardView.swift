@@ -20,13 +20,13 @@ struct ScoreboardEditorOverlay: View {
                 HStack {
                     Text("Projected Premium")
                     Spacer()
-                    TextField("0", value: $row.projected, format: .currency(code: "USD"))
+                    TextField("0", value: $row.projected, format: .currency(code: "USD").precision(.fractionLength(0)))
                         .multilineTextAlignment(.trailing)
                         .keyboardType(.decimalPad)
                         .padding(6)
                         .background(Color.gray.opacity(0.2))
                         .cornerRadius(6)
-                        .frame(width: 100)
+                        .frame(minWidth: 120, maxWidth: 160)
                 }
                 .frame(maxWidth: .infinity)
             }
