@@ -464,7 +464,7 @@ struct StatRow: View {
                 Capsule()
                     .fill(progressColor(for: title, value: value, goal: goal))
                     .frame(
-                        width: min(CGFloat(value) / 70, 1.0) * 140,
+                        width: min(CGFloat(value) / CGFloat(goal), 1.0) * 140,
                         height: 10
                     )
                     .padding(.leading, 10)
