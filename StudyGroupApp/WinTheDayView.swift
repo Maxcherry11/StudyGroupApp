@@ -242,10 +242,8 @@ private func handleOnAppear() {
     print("🧮 Team Data Count After Load: \(viewModel.teamMembers.count)")
 
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-        withTransaction(Transaction(animation: nil)) {
-            viewModel.reorderCards()
-            viewModel.teamMembers = viewModel.teamMembers.map { $0 }
-        }
+        viewModel.reorderCards()
+        viewModel.teamMembers = viewModel.teamMembers.map { $0 }
     }
 
     withAnimation(Animation.linear(duration: 8).repeatForever(autoreverses: false)) {
