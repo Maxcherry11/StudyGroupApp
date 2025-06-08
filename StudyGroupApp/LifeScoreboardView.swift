@@ -294,11 +294,12 @@ private struct TeamMemberRow: View {
         HStack(spacing: 12) {
             HStack(spacing: 4) {
                 Text(entry.name)
+                    .font(.system(size: 17, weight: .regular, design: .rounded))
+                    .monospacedDigit()
                 if isCurrentUser {
                     Image(systemName: "pencil")
                 }
             }
-            .font(.system(size: 16, weight: .medium, design: .rounded))
             .frame(width: 80, alignment: .leading)
 
             GeometryReader { geo in
@@ -318,7 +319,7 @@ private struct TeamMemberRow: View {
             .frame(maxWidth: .infinity)
 
             Text("\(entry.score)")
-                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .font(.system(size: 17, weight: .regular, design: .rounded))
                 .monospacedDigit()
                 .frame(width: 40, alignment: .trailing)
         }
@@ -351,10 +352,7 @@ private struct ActivityCard: View {
                     Text("Name")
                         .font(.system(size: 16, weight: .bold))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text("Pending")
-                        .font(.system(size: 16, weight: .bold))
-                        .frame(width: 70, alignment: .center)
-                        .layoutPriority(1)
+                    Text("Pending").frame(width: 70, alignment: .center)
                     Text("Projected")
                         .font(.system(size: 17, weight: .bold))
                         .frame(minWidth: 110, alignment: .trailing)
@@ -384,20 +382,21 @@ private struct ActivityRowView: View {
     var body: some View {
         HStack(spacing: 6) {
             Text(row.name)
-                .font(.system(size: 21, weight: .regular))
+                .font(.system(size: 17, weight: .regular, design: .rounded))
+                .monospacedDigit()
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text("\(row.pending)")
-
-                .font(.system(size: 15, weight: .regular))
+                .font(.system(size: 17, weight: .regular, design: .rounded))
                 .frame(width: 70, alignment: .center)
                 .layoutPriority(1)
                 .monospacedDigit()
             Text(row.projected, format: .currency(code: "USD").precision(.fractionLength(0)))
-                .font(.system(size: 17, weight: .regular))                .foregroundColor(.green)
+                .font(.system(size: 17, weight: .regular, design: .rounded))
+                .foregroundColor(.green)
                 .frame(minWidth: 110, alignment: .trailing)
                 .monospacedDigit()
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 2)
         .contentShape(Rectangle())
         .onTapGesture {
             if isCurrentUser { onEdit() }
