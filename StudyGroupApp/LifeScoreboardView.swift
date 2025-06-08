@@ -399,7 +399,7 @@ private struct ActivityRowView: View {
             Text(row.projected, format: .currency(code: "USD").precision(.fractionLength(0)))
                 .font(.system(size: 17, weight: .regular, design: .rounded))
 
-                .foregroundColor(.green)
+                .foregroundColor(.black)
                 .frame(minWidth: 110, alignment: .trailing)
                 .monospacedDigit()
         }
