@@ -304,20 +304,23 @@ private struct TeamMemberRow: View {
             }
             .frame(width: 80, alignment: .leading)
 
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: 120, height: 8)
+            HStack {
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: 130, height: 8)
 
-                Capsule()
-                    .fill(color)
-                    .frame(
-                        width: min(CGFloat(entry.score) / 70, 1.0) * 140,
-                        height: 8
-                    )
-                    .animation(.easeInOut(duration: 0.4), value: entry.score)
+                    Capsule()
+                        .fill(color)
+                        .frame(
+                            width: min(CGFloat(entry.score) / 70, 1.0) * 130,
+                            height: 8
+                        )
+                        .animation(.easeInOut(duration: 0.4), value: entry.score)
+                }
+                .frame(width: 130, alignment: .center)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
 
             Text("\(entry.score)")
                 .font(.system(size: 19, weight: .regular, design: .rounded))
