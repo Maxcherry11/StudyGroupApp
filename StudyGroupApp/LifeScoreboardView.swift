@@ -291,16 +291,24 @@ private struct TeamMemberRow: View {
     var onEdit: () -> Void
 
     var body: some View {
-        HStack {
+        HStack(spacing: 8) {
             HStack(spacing: 4) {
                 Text(entry.name)
-                    .font(.system(size: 21, weight: .regular))
+                    .font(.system(size: 20, weight: .regular, design: .rounded))
                 if isCurrentUser {
                     Image(systemName: "pencil")
                 }
             }
-            Spacer()
-            ScoreBadge(text: "\(entry.score)", color: color)
+
+            ProgressView(value: Double(entry.score) / 100)
+                .tint(color)
+                .animation(.easeInOut(duration: 0.4), value: entry.score)
+                .frame(height: 8)
+                .frame(maxWidth: .infinity)
+
+            Text("\(entry.score)")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .frame(width: 35, alignment: .trailing)
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
