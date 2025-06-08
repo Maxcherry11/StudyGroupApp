@@ -291,26 +291,36 @@ private struct TeamMemberRow: View {
     var onEdit: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 12) {
             HStack(spacing: 4) {
                 Text(entry.name)
-                    .font(.system(size: 20, weight: .regular, design: .rounded))
                 if isCurrentUser {
                     Image(systemName: "pencil")
                 }
             }
-            .frame(width: 100, alignment: .leading)
+            .font(.system(size: 16, weight: .medium, design: .rounded))
+            .frame(width: 80, alignment: .leading)
 
-            ProgressView(value: Double(entry.score) / 100)
-                .tint(color)
-                .animation(.easeInOut(duration: 0.4), value: entry.score)
-                .frame(height: 8)
-                .frame(maxWidth: .infinity)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(height: 8)
+
+                    Capsule()
+                        .fill(color)
+                        .frame(width: geo.size.width * CGFloat(entry.score) / 100,
+                               height: 8)
+                        .animation(.easeInOut(duration: 0.4), value: entry.score)
+                }
+            }
+            .frame(height: 8)
+            .frame(maxWidth: .infinity)
 
             Text("\(entry.score)")
-                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .font(.system(size: 16, weight: .bold, design: .rounded))
                 .monospacedDigit()
-                .frame(width: 35, alignment: .trailing)
+                .frame(width: 40, alignment: .trailing)
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
