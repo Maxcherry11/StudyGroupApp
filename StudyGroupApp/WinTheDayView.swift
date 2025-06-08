@@ -83,7 +83,7 @@ var body: some View {
             viewModel.load(names: userManager.userList)
             hasLoaded = true
             shimmerPosition = -1.0
-            withAnimation(Animation.linear(duration: 2.5).repeatForever(autoreverses: false)) {
+            withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
                 shimmerPosition = 1.5
             }
         } else {
@@ -348,7 +348,7 @@ private var backgroundLayer: some View {
         LinearGradient(
             gradient: Gradient(colors: [
                 Color.white.opacity(0.0),
-                Color.white.opacity(0.25),
+                Color.white.opacity(0.10),
                 Color.white.opacity(0.0)
             ]),
             startPoint: .topLeading,
@@ -364,7 +364,7 @@ private var backgroundLayer: some View {
         LinearGradient(
             gradient: Gradient(colors: [
                 Color.white.opacity(0.0),
-                Color.white.opacity(0.4),
+                Color.white.opacity(0.18),
                 Color.white.opacity(0.0)
             ]),
             startPoint: .top,
