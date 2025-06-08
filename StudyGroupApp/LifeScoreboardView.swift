@@ -352,13 +352,19 @@ private struct ActivityCard: View {
 
                 HStack(spacing: 6) {
                     Text("Name")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .font(.system(size: 17, weight: .regular, design: .rounded))
+                        .monospacedDigit()
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Text("Pending").frame(width: 70, alignment: .center)
+                    Text("Pending")
+                        .font(.system(size: 17, weight: .regular, design: .rounded))
+                        .monospacedDigit()
+                        .frame(minWidth: 80, alignment: .center)
+                        .lineLimit(1)
 
                     Text("Projected")
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .font(.system(size: 17, weight: .regular, design: .rounded))
+                        .monospacedDigit()
                         .frame(minWidth: 110, alignment: .trailing)
                 }
 
@@ -392,10 +398,9 @@ private struct ActivityRowView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text("\(row.pending)")
                 .font(.system(size: 17, weight: .regular, design: .rounded))
-
-                .frame(width: 70, alignment: .center)
-                .layoutPriority(1)
                 .monospacedDigit()
+                .frame(minWidth: 80, alignment: .center)
+                .layoutPriority(1)
             Text(row.projected, format: .currency(code: "USD").precision(.fractionLength(0)))
                 .font(.system(size: 17, weight: .regular, design: .rounded))
 
