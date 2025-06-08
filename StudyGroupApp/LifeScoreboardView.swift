@@ -312,8 +312,10 @@ private struct TeamMemberRow: View {
 
                     Capsule()
                         .fill(color)
-                        .frame(width: geo.size.width * CGFloat(entry.score) / 100,
-                               height: 8)
+                        .frame(
+                            width: min(CGFloat(entry.score) / 70, 1.0) * geo.size.width,
+                            height: 8
+                        )
                         .animation(.easeInOut(duration: 0.4), value: entry.score)
                 }
             }
