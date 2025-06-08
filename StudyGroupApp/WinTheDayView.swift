@@ -85,9 +85,7 @@ struct WinTheDayView: View {
                 }
                 hasLoaded = true
                 shimmerPosition = -1.0
-                if viewModel.displayedCards.isEmpty {
-                    viewModel.displayedCards = viewModel.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
-                }
+                viewModel.initializeDisplayedCardsIfNeeded()
                 withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
                     shimmerPosition = 1.5
                 }
@@ -101,9 +99,7 @@ struct WinTheDayView: View {
             viewModel.load(names: newList) {
                 viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
             }
-            if viewModel.displayedCards.isEmpty {
-                viewModel.displayedCards = viewModel.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
-            }
+            viewModel.initializeDisplayedCardsIfNeeded()
         }
     }
     .sheet(isPresented: $emojiPickerVisible) {
@@ -179,11 +175,8 @@ private func editingSheet(for editingID: UUID) -> some View {
             field: editingField,
             editingMemberID: $editingMemberID,
             recentlyCompletedIDs: $recentlyCompletedIDs,
-            onSave: { capturedID, capturedField in
-                withAnimation {
-                    viewModel.reorderCards()
-                    viewModel.saveCardOrderToCloud(for: userManager.currentUser)
-                }
+            onSave: { _, _ in
+                handleSaveAndReorder()
                 viewModel.teamMembers = viewModel.teamMembers.map { $0 }
             }
         )
@@ -213,11 +206,8 @@ private var contentVStack: some View {
                     field: editingField,
                     editingMemberID: $editingMemberID,
                     recentlyCompletedIDs: $recentlyCompletedIDs,
-                    onSave: { capturedID, capturedField in
-                        withAnimation {
-                            viewModel.reorderCards()
-                            viewModel.saveCardOrderToCloud(for: userManager.currentUser)
-                        }
+                    onSave: { _, _ in
+                        handleSaveAndReorder()
                         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
                     }
                 )
@@ -320,7 +310,6 @@ private var teamCardsList: some View {
                 }
             }
             .padding(.horizontal, 20)
-            .animation(.easeInOut, value: viewModel.displayedCards.map { $0.id })
         }
         .refreshable {
             viewModel.load(names: userManager.userList) {
@@ -389,6 +378,14 @@ private var emojiPickerSheet: some View {
         }
     }
     .padding()
+}
+
+/// Handles saving edits and reordering cards with animation.
+private func handleSaveAndReorder() {
+    withAnimation {
+        viewModel.reorderAfterSave()
+        viewModel.saveCardOrderToCloud(for: userManager.currentUser)
+    }
 }
 
 private var emojiGrid: some View {

@@ -12,6 +12,23 @@ class WinTheDayViewModel: ObservableObject {
     @Published var selectedUserName: String = ""
     private let storageKey = "WTDMemberStorage"
 
+    /// Initializes ``displayedCards`` only once using the current
+    /// `teamMembers` order. This is used when the view first loads or
+    /// when navigating back from the splash screen so that card order
+    /// remains stable.
+    func initializeDisplayedCardsIfNeeded() {
+        if displayedCards.isEmpty {
+            displayedCards = teamMembers.sorted { $0.sortIndex < $1.sortIndex }
+        }
+    }
+
+    /// Reorders ``displayedCards`` after a user saves edits. The reordering is
+    /// based on the current production metrics and mirrors `reorderCards()`
+    /// without being triggered on every appearance.
+    func reorderAfterSave() {
+        reorderCards()
+    }
+
     private func saveLocal() {
         let codable = teamMembers.map { $0.codable }
         if let data = try? JSONEncoder().encode(codable) {
