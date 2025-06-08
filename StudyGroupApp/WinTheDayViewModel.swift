@@ -82,6 +82,21 @@ class WinTheDayViewModel: ObservableObject {
         }
     }
 
+    /// Reorders team members by current production (quotes + sales) and updates
+    /// their persisted `sortIndex`. This mirrors the stable ordering logic used
+    /// in LifeScoreboardViewModel.
+    func reorderCards() {
+        teamMembers.sort {
+            ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
+            ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+        }
+
+        for index in teamMembers.indices {
+            teamMembers[index].sortIndex = index
+            CloudKitManager.shared.save(teamMembers[index]) { _ in }
+        }
+    }
+
     func uploadTestMembersToCloudKit() {
         print("📤 Uploading all team members to CloudKit...")
 
