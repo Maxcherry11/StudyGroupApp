@@ -226,7 +226,7 @@ private struct OnTimeCard: View {
                 Spacer()
 
                 Text("On Time")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.system(size: 28, weight: .bold))
 
                 Spacer()
 
