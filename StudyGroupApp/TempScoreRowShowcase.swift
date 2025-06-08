@@ -16,11 +16,11 @@ struct TempScoreRowShowcase: View {
     }
 
     private let members: [Member] = [
-        Member(name: "Dimitri", score: 45, color: .green),
-        Member(name: "Deanna", score: 33, color: .green),
-        Member(name: "D.J.", score: 27, color: .yellow),
-        Member(name: "Ron", score: 0, color: .gray),
-        Member(name: "Greg", score: 0, color: .gray)
+        Member(name: "D.J.",    score: 33, color: .green),
+        Member(name: "Deanna",  score: 33, color: .green),
+        Member(name: "Dimitri", score: 33, color: .green),
+        Member(name: "Greg",    score: 18, color: .yellow),
+        Member(name: "Ron",     score: 15, color: .gray)
     ]
 
     private let activity: [ActivityItem] = [
@@ -45,112 +45,128 @@ struct TempScoreRowShowcase: View {
 
     private var option1: some View {
         ScoreboardPage(
-            title: "Option 1: Elevated Score Button",
+            title: "Option 1: Classic Progress",
             members: members,
             activity: activity,
-            rowBuilder: elevatedRow
+            rowBuilder: classicProgressRow,
+            teamAsTile: true
         )
     }
 
     private var option2: some View {
         ScoreboardPage(
-            title: "Option 2: Capsule Score",
+            title: "Option 2: Thin Flat Line",
             members: members,
             activity: activity,
-            rowBuilder: capsuleRow
+            rowBuilder: thinFlatRow,
+            teamAsTile: true
         )
     }
 
     private var option3: some View {
         ScoreboardPage(
-            title: "Option 3: Progress Bar Row",
+            title: "Option 3: Capsule Progress",
             members: members,
             activity: activity,
-            rowBuilder: progressRow
+            rowBuilder: capsuleProgressRow,
+            teamAsTile: true
         )
     }
 
     private var option4: some View {
         ScoreboardPage(
-            title: "Option 4: Real App Layout with Progress",
+            title: "Option 4: Rounded Glow Bar",
             members: members,
             activity: activity,
-            rowBuilder: inlineProgressRow,
+            rowBuilder: glowProgressRow,
             teamAsTile: true
         )
     }
 
-    private func elevatedRow(_ member: Member) -> some View {
-        HStack {
+    private func classicProgressRow(_ member: Member) -> some View {
+        HStack(spacing: 8) {
             Text(member.name)
                 .font(.system(size: 20, weight: .regular, design: .rounded))
-            Spacer()
-            Text("\(Int(member.score))")
-                .font(.system(size: 18, weight: .bold, design: .rounded))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                .background(member.color)
-                .foregroundColor(.white)
-                .clipShape(Capsule())
-                .shadow(radius: 2)
-        }
-        .padding()
-        .frame(maxWidth: .infinity)
-        .background(Color.white)
-        .cornerRadius(16)
-        .shadow(radius: 2)
-    }
+                .frame(width: 100, alignment: .leading)
 
-    private func capsuleRow(_ member: Member) -> some View {
-        HStack {
-            Text(member.name)
-                .font(.system(size: 20, weight: .regular, design: .rounded))
-            Spacer()
-            Text("\(Int(member.score))")
-                .font(.system(size: 18, weight: .bold, design: .rounded))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                .background(member.color)
-                .foregroundColor(.white)
-                .clipShape(Capsule())
-        }
-        .padding()
-        .frame(maxWidth: .infinity)
-        .background(Color.white)
-        .cornerRadius(16)
-        .shadow(radius: 2)
-    }
-
-    private func progressRow(_ member: Member) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(member.name)
-                    .font(.system(size: 20, weight: .regular, design: .rounded))
-                Spacer()
-                Text("\(Int(member.score))")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-            }
             ProgressView(value: member.score / 100)
                 .tint(member.color)
+                .frame(height: 8)
+                .frame(maxWidth: .infinity)
+
+            Text("\(Int(member.score))")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .frame(width: 40, alignment: .trailing)
         }
-        .padding()
-        .frame(maxWidth: .infinity)
-        .background(Color.white)
-        .cornerRadius(16)
-        .shadow(radius: 2)
+        .padding(.vertical, 2)
     }
 
-    private func inlineProgressRow(_ member: Member) -> some View {
+    private func thinFlatRow(_ member: Member) -> some View {
+        HStack(spacing: 8) {
+            Text(member.name)
+                .font(.system(size: 20, weight: .regular, design: .rounded))
+                .frame(width: 100, alignment: .leading)
+
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.gray.opacity(0.2))
+                ProgressView(value: member.score / 100)
+                    .tint(member.color)
+            }
+            .frame(height: 4)
+            .frame(maxWidth: .infinity)
+
+            Text("\(Int(member.score))")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .frame(width: 40, alignment: .trailing)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func capsuleProgressRow(_ member: Member) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(member.name)
                     .font(.system(size: 20, weight: .regular, design: .rounded))
+                    .frame(width: 100, alignment: .leading)
                 Spacer()
                 Text("\(Int(member.score))")
                     .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .frame(width: 40, alignment: .trailing)
             }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.gray.opacity(0.2))
+                    Capsule()
+                        .fill(member.color)
+                        .frame(width: geo.size.width * member.score / 100)
+                }
+            }
+            .frame(height: 8)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func glowProgressRow(_ member: Member) -> some View {
+        HStack(spacing: 8) {
+            Text(member.name)
+                .font(.system(size: 20, weight: .regular, design: .rounded))
+                .frame(width: 100, alignment: .leading)
+
             ProgressView(value: member.score / 100)
                 .tint(member.color)
+                .frame(height: 6)
+                .frame(maxWidth: .infinity)
+                .clipShape(Capsule())
+                .shadow(color: member.color.opacity(0.4), radius: 6)
+
+            Text("\(Int(member.score))")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .frame(width: 40, alignment: .trailing)
         }
         .padding(.vertical, 2)
     }
