@@ -1,5 +1,6 @@
 import Foundation
 import CloudKit
+import SwiftUI
 
 class WinTheDayViewModel: ObservableObject {
     @Published var teamData: [TeamMember] = []
