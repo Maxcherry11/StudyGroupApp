@@ -84,8 +84,8 @@ struct WinTheDayView: View {
                 hasLoaded = true
                 shimmerPosition = -1.0
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    withAnimation(.none) {
-                        sortMembersByProgress()
+                    withTransaction(Transaction(animation: nil)) {
+                        viewModel.reorderCards()
                         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
                     }
                 }
@@ -101,8 +101,8 @@ struct WinTheDayView: View {
         if hasLoaded {
             viewModel.load(names: newList)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                withAnimation(.none) {
-                    sortMembersByProgress()
+                withTransaction(Transaction(animation: nil)) {
+                    viewModel.reorderCards()
                     viewModel.teamMembers = viewModel.teamMembers.map { $0 }
                 }
             }
@@ -182,13 +182,8 @@ private func editingSheet(for editingID: UUID) -> some View {
             editingMemberID: $editingMemberID,
             recentlyCompletedIDs: $recentlyCompletedIDs,
             onSave: { capturedID, capturedField in
-                viewModel.teamMembers.sort {
-                    ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-                    ($1.quotesToday + $1.salesWTD + $1.salesMTD)
-                }
-                for (i, _) in viewModel.teamMembers.enumerated() {
-                    viewModel.teamMembers[i].sortIndex = i
-                    CloudKitManager().save(viewModel.teamMembers[i]) { _ in }
+                withAnimation {
+                    viewModel.reorderCards()
                 }
                 viewModel.teamMembers = viewModel.teamMembers.map { $0 }
             }
@@ -220,13 +215,8 @@ private var contentVStack: some View {
                     editingMemberID: $editingMemberID,
                     recentlyCompletedIDs: $recentlyCompletedIDs,
                     onSave: { capturedID, capturedField in
-                        viewModel.teamMembers.sort {
-                            ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-                            ($1.quotesToday + $1.salesWTD + $1.salesMTD)
-                        }
-                        for (i, _) in viewModel.teamMembers.enumerated() {
-                            viewModel.teamMembers[i].sortIndex = i
-                            CloudKitManager().save(viewModel.teamMembers[i]) { _ in }
+                        withAnimation {
+                            viewModel.reorderCards()
                         }
                         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
                     }
@@ -252,11 +242,10 @@ private func handleOnAppear() {
     print("🧮 Team Data Count After Load: \(viewModel.teamMembers.count)")
 
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-        viewModel.teamMembers.sort {
-            ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-            ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+        withTransaction(Transaction(animation: nil)) {
+            viewModel.reorderCards()
+            viewModel.teamMembers = viewModel.teamMembers.map { $0 }
         }
-        viewModel.teamMembers = viewModel.teamMembers.map { $0 }
     }
 
     withAnimation(Animation.linear(duration: 8).repeatForever(autoreverses: false)) {
@@ -267,15 +256,6 @@ private func handleOnAppear() {
     }
 }
 
-private func sortMembersByProgress() {
-    viewModel.teamMembers.sort {
-        ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-        ($1.quotesToday + $1.salesWTD + $1.salesMTD)
-    }
-    for index in viewModel.teamMembers.indices {
-        viewModel.teamMembers[index].sortIndex = index
-    }
-}
 
 private var header: some View {
     HStack {
