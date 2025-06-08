@@ -295,7 +295,7 @@ private struct TeamMemberRow: View {
             HStack(spacing: 4) {
                 Text(entry.name)
 
-                    .font(.system(size: 17, weight: .regular, design: .rounded))
+                    .font(.system(size: 19, weight: .regular, design: .rounded))
                     .monospacedDigit()
 
                 if isCurrentUser {
@@ -321,7 +321,7 @@ private struct TeamMemberRow: View {
             .frame(maxWidth: .infinity)
 
             Text("\(entry.score)")
-                .font(.system(size: 17, weight: .regular, design: .rounded))
+                .font(.system(size: 19, weight: .regular, design: .rounded))
                 .monospacedDigit()
                 .frame(width: 40, alignment: .trailing)
         }
@@ -352,18 +352,18 @@ private struct ActivityCard: View {
 
                 HStack(spacing: 6) {
                     Text("Name")
-                        .font(.system(size: 17, weight: .regular, design: .rounded))
+                        .font(.system(size: 19, weight: .regular, design: .rounded))
                         .monospacedDigit()
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     Text("Pending")
-                        .font(.system(size: 17, weight: .regular, design: .rounded))
+                        .font(.system(size: 19, weight: .regular, design: .rounded))
                         .monospacedDigit()
                         .frame(minWidth: 80, alignment: .center)
                         .lineLimit(1)
 
                     Text("Projected")
-                        .font(.system(size: 17, weight: .regular, design: .rounded))
+                        .font(.system(size: 19, weight: .regular, design: .rounded))
                         .monospacedDigit()
                         .frame(minWidth: 110, alignment: .trailing)
                 }
@@ -393,18 +393,18 @@ private struct ActivityRowView: View {
         HStack(spacing: 6) {
             Text(row.name)
 
-                .font(.system(size: 17, weight: .regular, design: .rounded))
+                .font(.system(size: 19, weight: .regular, design: .rounded))
                 .monospacedDigit()
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text("\(row.pending)")
-                .font(.system(size: 17, weight: .regular, design: .rounded))
+                .font(.system(size: 19, weight: .regular, design: .rounded))
                 .monospacedDigit()
                 .frame(minWidth: 80, alignment: .center)
                 .layoutPriority(1)
             Text(row.projected, format: .currency(code: "USD").precision(.fractionLength(0)))
-                .font(.system(size: 17, weight: .regular, design: .rounded))
+                .font(.system(size: 19, weight: .regular, design: .rounded))
 
-                .foregroundColor(.black)
+                .foregroundColor(.primary)
                 .frame(minWidth: 110, alignment: .trailing)
                 .monospacedDigit()
         }
