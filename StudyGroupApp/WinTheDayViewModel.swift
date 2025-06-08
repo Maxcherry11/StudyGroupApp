@@ -11,22 +11,33 @@ class WinTheDayViewModel: ObservableObject {
     @Published var displayedCards: [TeamMember] = []
     @Published var selectedUserName: String = ""
     private let storageKey = "WTDMemberStorage"
+    private var hasLoadedDisplayOrder = false
 
-    /// Initializes ``displayedCards`` only once using the current
-    /// `teamMembers` order. This is used when the view first loads or
-    /// when navigating back from the splash screen so that card order
-    /// remains stable.
-    func initializeDisplayedCardsIfNeeded() {
-        if displayedCards.isEmpty {
-            displayedCards = teamMembers.sorted { $0.sortIndex < $1.sortIndex }
+    /// Sorts ``displayedCards`` a single time based on production metrics.
+    /// This mirrors the stable ordering used by Life Scoreboard.
+    func loadInitialDisplayOrder() {
+        guard !hasLoadedDisplayOrder else { return }
+        displayedCards = teamMembers.sorted {
+            ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
+            ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+        }
+        hasLoadedDisplayOrder = true
+    }
+
+    /// Reorders ``displayedCards`` after the user saves edits.
+    func reorderAfterSave() {
+        displayedCards = teamMembers.sorted {
+            ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
+            ($1.quotesToday + $1.salesWTD + $1.salesMTD)
         }
     }
 
-    /// Reorders ``displayedCards`` after a user saves edits. The reordering is
-    /// based on the current production metrics and mirrors `reorderCards()`
-    /// without being triggered on every appearance.
-    func reorderAfterSave() {
-        reorderCards()
+    /// Saves edits for a given ``TeamMember`` and updates ordering.
+    func saveEdits(for member: TeamMember) {
+        saveMember(member) { _ in }
+        withAnimation {
+            reorderAfterSave()
+        }
     }
 
     private func saveLocal() {
@@ -102,44 +113,6 @@ class WinTheDayViewModel: ObservableObject {
         }
     }
 
-    /// Reorders team members by current production (quotes + sales) and updates
-    /// their persisted `sortIndex`. This mirrors the stable ordering logic used
-    /// in LifeScoreboardViewModel.
-    func reorderCards() {
-        teamMembers.sort {
-            ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-            ($1.quotesToday + $1.salesWTD + $1.salesMTD)
-        }
-
-        for index in teamMembers.indices {
-            teamMembers[index].sortIndex = index
-            CloudKitManager.shared.save(teamMembers[index]) { _ in }
-        }
-        displayedCards = teamMembers
-    }
-
-    func loadCardOrderFromCloud(for user: String) {
-        CloudKitManager.shared.fetchCardOrder(for: user) { [weak self] savedOrder in
-            guard let self = self else { return }
-            if let savedOrder = savedOrder {
-                let ordered = savedOrder.compactMap { idString in
-                    self.teamMembers.first { $0.id.uuidString == idString }
-                }
-                self.displayedCards = ordered
-            } else {
-                let sorted = self.teamMembers.sorted {
-                    ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-                    ($1.quotesToday + $1.salesWTD + $1.salesMTD)
-                }
-                self.displayedCards = sorted
-            }
-        }
-    }
-
-    func saveCardOrderToCloud(for user: String) {
-        let order = displayedCards.map { $0.id.uuidString }
-        CloudKitManager.shared.saveCardOrder(for: user, order: order)
-    }
 
     func uploadTestMembersToCloudKit() {
         print("📤 Uploading all team members to CloudKit...")
