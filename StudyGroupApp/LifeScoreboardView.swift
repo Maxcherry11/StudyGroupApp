@@ -294,13 +294,14 @@ private struct TeamMemberRow: View {
         HStack(spacing: 12) {
             HStack(spacing: 4) {
                 Text(entry.name)
-
-                    .font(.system(size: 19, weight: .regular, design: .rounded))
+                    .font(
+                        .system(
+                            size: 19,
+                            weight: isCurrentUser ? .bold : .regular,
+                            design: .rounded
+                        )
+                    )
                     .monospacedDigit()
-
-                if isCurrentUser {
-                    Image(systemName: "pencil")
-                }
             }
             .frame(width: 80, alignment: .leading)
 
