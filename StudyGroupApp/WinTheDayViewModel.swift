@@ -108,17 +108,13 @@ class WinTheDayViewModel: ObservableObject {
                 let ordered = savedOrder.compactMap { idString in
                     self.teamMembers.first { $0.id.uuidString == idString }
                 }
-                withTransaction(Transaction(animation: nil)) {
-                    self.displayedCards = ordered
-                }
+                self.displayedCards = ordered
             } else {
                 let sorted = self.teamMembers.sorted {
                     ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
                     ($1.quotesToday + $1.salesWTD + $1.salesMTD)
                 }
-                withTransaction(Transaction(animation: nil)) {
-                    self.displayedCards = sorted
-                }
+                self.displayedCards = sorted
             }
         }
     }
