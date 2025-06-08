@@ -304,23 +304,20 @@ private struct TeamMemberRow: View {
             }
             .frame(width: 80, alignment: .leading)
 
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(height: 8)
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(width: 120, height: 8)
 
-                    Capsule()
-                        .fill(color)
-                        .frame(
-                            width: min(CGFloat(entry.score) / 70, 1.0) * geo.size.width,
-                            height: 8
-                        )
-                        .animation(.easeInOut(duration: 0.4), value: entry.score)
-                }
+                Capsule()
+                    .fill(color)
+                    .frame(
+                        width: min(CGFloat(entry.score) / 70, 1.0) * 120,
+                        height: 8
+                    )
+                    .animation(.easeInOut(duration: 0.4), value: entry.score)
             }
-            .frame(height: 8)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Text("\(entry.score)")
                 .font(.system(size: 19, weight: .regular, design: .rounded))
