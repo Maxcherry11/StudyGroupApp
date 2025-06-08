@@ -219,7 +219,7 @@ private struct OnTimeCard: View {
             HStack(alignment: .center) {
                 VStack(spacing: 2) {
                     Text("Honor")
-                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .font(.system(size: 20, weight: .bold))
                     ScoreBadge(text: String(format: "%.1f", onTime), color: .yellow)
                 }
 
@@ -352,18 +352,18 @@ private struct ActivityCard: View {
 
                 HStack(spacing: 6) {
                     Text("Name")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 19, weight: .bold))
                         .monospacedDigit()
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     Text("Pending")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 19, weight: .bold))
                         .monospacedDigit()
                         .frame(minWidth: 80, alignment: .center)
                         .lineLimit(1)
 
                     Text("Projected")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 19, weight: .bold))
                         .monospacedDigit()
                         .frame(minWidth: 110, alignment: .trailing)
                 }
