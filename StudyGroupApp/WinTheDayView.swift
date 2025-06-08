@@ -80,12 +80,10 @@ struct WinTheDayView: View {
         }
         .onAppear {
             if !userManager.userList.isEmpty {
-                viewModel.load(names: userManager.userList) {
-                    viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
-                }
+                viewModel.load(names: userManager.userList)
+                viewModel.loadInitialDisplayOrder()
                 hasLoaded = true
                 shimmerPosition = -1.0
-                viewModel.initializeDisplayedCardsIfNeeded()
                 withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
                     shimmerPosition = 1.5
                 }
@@ -96,10 +94,8 @@ struct WinTheDayView: View {
     .onChange(of: userManager.currentUser) { _ in }
     .onChange(of: userManager.userList) { newList in
         if hasLoaded {
-            viewModel.load(names: newList) {
-                viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
-            }
-            viewModel.initializeDisplayedCardsIfNeeded()
+            viewModel.load(names: newList)
+            viewModel.loadInitialDisplayOrder()
         }
     }
     .sheet(isPresented: $emojiPickerVisible) {
@@ -176,10 +172,10 @@ private func editingSheet(for editingID: UUID) -> some View {
             editingMemberID: $editingMemberID,
             recentlyCompletedIDs: $recentlyCompletedIDs,
             onSave: { _, _ in
-                handleSaveAndReorder()
                 viewModel.teamMembers = viewModel.teamMembers.map { $0 }
             }
         )
+        .environmentObject(viewModel)
     }
 }
 
@@ -207,10 +203,10 @@ private var contentVStack: some View {
                     editingMemberID: $editingMemberID,
                     recentlyCompletedIDs: $recentlyCompletedIDs,
                     onSave: { _, _ in
-                        handleSaveAndReorder()
                         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
                     }
                 )
+                .environmentObject(viewModel)
                 .transition(.scale)
                 .zIndex(100)
             }
@@ -225,24 +221,6 @@ private var winTheDayBackground: some View {
 // Removed winTheDayEditingOverlay and editingOverlay
 
 // Split out onAppear logic for clarity and compile speed
-private func handleOnAppear() {
-    print("🟢 onAppear triggered")
-    viewModel.load(names: userManager.userList)
-    print("🔍 Selected User: \(userManager.currentUser)")
-    print("🧮 Team Data Count After Load: \(viewModel.teamMembers.count)")
-
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-        viewModel.reorderCards()
-        viewModel.teamMembers = viewModel.teamMembers.map { $0 }
-    }
-
-    withAnimation(Animation.linear(duration: 8).repeatForever(autoreverses: false)) {
-        shimmerPosition = 1.0
-    }
-    for member in viewModel.teamMembers {
-        print("🪪 TeamMember name: [\(member.name)] — selectedUser: [\(userManager.currentUser)] — editable: \(member.name == userManager.currentUser)")
-    }
-}
 
 
 private var header: some View {
@@ -312,9 +290,8 @@ private var teamCardsList: some View {
             .padding(.horizontal, 20)
         }
         .refreshable {
-            viewModel.load(names: userManager.userList) {
-                viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
-            }
+            viewModel.load(names: userManager.userList)
+            viewModel.loadInitialDisplayOrder()
         }
     }
 }
@@ -380,13 +357,6 @@ private var emojiPickerSheet: some View {
     .padding()
 }
 
-/// Handles saving edits and reordering cards with animation.
-private func handleSaveAndReorder() {
-    withAnimation {
-        viewModel.reorderAfterSave()
-        viewModel.saveCardOrderToCloud(for: userManager.currentUser)
-    }
-}
 
 private var emojiGrid: some View {
     let emojis = [
@@ -650,6 +620,7 @@ private struct FieldStepperRow: View {
 
 // MARK: - EditingOverlayView
 private struct EditingOverlayView: View {
+    @EnvironmentObject var viewModel: WinTheDayViewModel
     @Binding var member: TeamMember
     let field: String
     @Binding var editingMemberID: UUID?
@@ -684,15 +655,8 @@ private struct EditingOverlayView: View {
                 let capturedField = field
                 editingMemberID = nil // ✅ Dismiss immediately
 
-                CloudKitManager().save(member) { newRecordID in
-                    if let newRecordID = newRecordID {
-                        member.id = UUID(uuidString: newRecordID.recordName) ?? member.id
-                    }
-                    let finalID = member.id
-                    DispatchQueue.main.async {
-                        onSave?(finalID, capturedField)
-                    }
-                }
+                viewModel.saveEdits(for: member)
+                onSave?(capturedID, capturedField)
             }
         }
     }
