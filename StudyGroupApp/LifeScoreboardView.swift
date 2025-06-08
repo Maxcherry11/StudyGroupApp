@@ -299,6 +299,7 @@ private struct TeamMemberRow: View {
                     Image(systemName: "pencil")
                 }
             }
+            .frame(width: 100, alignment: .leading)
 
             ProgressView(value: Double(entry.score) / 100)
                 .tint(color)
@@ -308,6 +309,7 @@ private struct TeamMemberRow: View {
 
             Text("\(entry.score)")
                 .font(.system(size: 18, weight: .bold, design: .rounded))
+                .monospacedDigit()
                 .frame(width: 35, alignment: .trailing)
         }
         .padding(.vertical, 2)
