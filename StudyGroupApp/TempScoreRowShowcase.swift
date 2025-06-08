@@ -45,21 +45,21 @@ struct TempScoreRowShowcase: View {
 
     private var option1: some View {
         ScoreboardPage(
-            title: "Option 1: Classic Progress",
+            title: "Option 1: Mini Meter",
             members: members,
             activity: activity,
-            rowBuilder: classicProgressRow,
-            teamAsTile: true
+            rowBuilder: miniMeterRow,
+            teamAsTile: false
         )
     }
 
     private var option2: some View {
         ScoreboardPage(
-            title: "Option 2: Thin Flat Line",
+            title: "Option 2: Color Fill Cell",
             members: members,
             activity: activity,
-            rowBuilder: thinFlatRow,
-            teamAsTile: true
+            rowBuilder: colorFillRow,
+            teamAsTile: false
         )
     }
 
@@ -69,30 +69,35 @@ struct TempScoreRowShowcase: View {
             members: members,
             activity: activity,
             rowBuilder: capsuleProgressRow,
-            teamAsTile: true
+            teamAsTile: false
         )
     }
 
     private var option4: some View {
         ScoreboardPage(
-            title: "Option 4: Rounded Glow Bar",
+            title: "Option 4: Glow Bar",
             members: members,
             activity: activity,
             rowBuilder: glowProgressRow,
-            teamAsTile: true
+            teamAsTile: false
         )
     }
 
-    private func classicProgressRow(_ member: Member) -> some View {
-        HStack(spacing: 8) {
+    private func miniMeterRow(_ member: Member) -> some View {
+        let filled = Int(round(member.score / 10))
+        return HStack(spacing: 8) {
             Text(member.name)
                 .font(.system(size: 20, weight: .regular, design: .rounded))
                 .frame(width: 100, alignment: .leading)
 
-            ProgressView(value: member.score / 100)
-                .tint(member.color)
-                .frame(height: 8)
-                .frame(maxWidth: .infinity)
+            HStack(spacing: 4) {
+                ForEach(0..<10) { index in
+                    Circle()
+                        .fill(index < filled ? member.color : Color.gray.opacity(0.3))
+                        .frame(width: 8, height: 8)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Text("\(Int(member.score))")
                 .font(.system(size: 18, weight: .bold, design: .rounded))
@@ -102,40 +107,35 @@ struct TempScoreRowShowcase: View {
         .padding(.vertical, 2)
     }
 
-    private func thinFlatRow(_ member: Member) -> some View {
-        HStack(spacing: 8) {
+    private func colorFillRow(_ member: Member) -> some View {
+        let background: Color = {
+            if member.score >= 40 { return Color.green.opacity(0.2) }
+            if member.score >= 30 { return Color.yellow.opacity(0.2) }
+            return Color.gray.opacity(0.2)
+        }()
+
+        return HStack(spacing: 8) {
             Text(member.name)
                 .font(.system(size: 20, weight: .regular, design: .rounded))
                 .frame(width: 100, alignment: .leading)
-
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.gray.opacity(0.2))
-                ProgressView(value: member.score / 100)
-                    .tint(member.color)
-            }
-            .frame(height: 4)
-            .frame(maxWidth: .infinity)
-
+            Spacer()
             Text("\(Int(member.score))")
                 .font(.system(size: 18, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .frame(width: 40, alignment: .trailing)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity)
+        .background(background)
+        .cornerRadius(12)
     }
 
     private func capsuleProgressRow(_ member: Member) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(member.name)
-                    .font(.system(size: 20, weight: .regular, design: .rounded))
-                    .frame(width: 100, alignment: .leading)
-                Spacer()
-                Text("\(Int(member.score))")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .frame(width: 40, alignment: .trailing)
-            }
+        HStack(spacing: 8) {
+            Text(member.name)
+                .font(.system(size: 20, weight: .regular, design: .rounded))
+                .frame(width: 100, alignment: .leading)
+
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule()
@@ -146,6 +146,12 @@ struct TempScoreRowShowcase: View {
                 }
             }
             .frame(height: 8)
+            .frame(maxWidth: .infinity)
+
+            Text("\(Int(member.score))")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .frame(width: 40, alignment: .trailing)
         }
         .padding(.vertical, 2)
     }
