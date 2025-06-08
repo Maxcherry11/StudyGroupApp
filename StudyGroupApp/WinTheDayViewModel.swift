@@ -8,6 +8,7 @@ class WinTheDayViewModel: ObservableObject {
         self.teamMembers = []
     }
     @Published var teamMembers: [TeamMember] = []
+    @Published var displayedCards: [TeamMember] = []
     @Published var selectedUserName: String = ""
     private let storageKey = "WTDMemberStorage"
 
@@ -41,13 +42,14 @@ class WinTheDayViewModel: ObservableObject {
         }
     }
 
-    func load(names: [String]) {
+    func load(names: [String], completion: (() -> Void)? = nil) {
         updateLocalEntries(names: names)
         CloudKitManager.shared.fetchTeam { [weak self] members in
             guard let self = self else { return }
             if members.isEmpty {
                 DispatchQueue.main.async {
                     self.saveLocal()
+                    completion?()
                 }
                 return
             }
@@ -62,6 +64,7 @@ class WinTheDayViewModel: ObservableObject {
             }
             DispatchQueue.main.async {
                 self.saveLocal()
+                completion?()
             }
         }
     }
@@ -95,6 +98,34 @@ class WinTheDayViewModel: ObservableObject {
             teamMembers[index].sortIndex = index
             CloudKitManager.shared.save(teamMembers[index]) { _ in }
         }
+        displayedCards = teamMembers
+    }
+
+    func loadCardOrderFromCloud(for user: String) {
+        CloudKitManager.shared.fetchCardOrder(for: user) { [weak self] savedOrder in
+            guard let self = self else { return }
+            if let savedOrder = savedOrder {
+                let ordered = savedOrder.compactMap { idString in
+                    self.teamMembers.first { $0.id.uuidString == idString }
+                }
+                withTransaction(Transaction(animation: nil)) {
+                    self.displayedCards = ordered
+                }
+            } else {
+                let sorted = self.teamMembers.sorted {
+                    ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
+                    ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+                }
+                withTransaction(Transaction(animation: nil)) {
+                    self.displayedCards = sorted
+                }
+            }
+        }
+    }
+
+    func saveCardOrderToCloud(for user: String) {
+        let order = displayedCards.map { $0.id.uuidString }
+        CloudKitManager.shared.saveCardOrder(for: user, order: order)
     }
 
     func uploadTestMembersToCloudKit() {

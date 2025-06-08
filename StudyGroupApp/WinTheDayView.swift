@@ -58,8 +58,6 @@ struct WinTheDayView: View {
     @State private var emojiEditingID: UUID?
     @State private var recentlyCompletedIDs: Set<UUID> = []
     @State private var hasLoaded = false
-    // Tracks the visual ordering of cards shown on screen
-    @State private var displayedCards: [TeamMember] = []
     // Production Goal Editor State
     @State private var showProductionGoalEditor = false
     @State private var newQuotesGoal = 10
@@ -82,12 +80,13 @@ struct WinTheDayView: View {
         }
         .onAppear {
             if !userManager.userList.isEmpty {
-                viewModel.load(names: userManager.userList)
+                viewModel.load(names: userManager.userList) {
+                    viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
+                }
                 hasLoaded = true
                 shimmerPosition = -1.0
-                // Preserve current order visually
-                if displayedCards.isEmpty {
-                    displayedCards = viewModel.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
+                if viewModel.displayedCards.isEmpty {
+                    viewModel.displayedCards = viewModel.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
                 }
                 withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
                     shimmerPosition = 1.5
@@ -99,9 +98,11 @@ struct WinTheDayView: View {
     .onChange(of: userManager.currentUser) { _ in }
     .onChange(of: userManager.userList) { newList in
         if hasLoaded {
-            viewModel.load(names: newList)
-            if displayedCards.isEmpty {
-                displayedCards = viewModel.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
+            viewModel.load(names: newList) {
+                viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
+            }
+            if viewModel.displayedCards.isEmpty {
+                viewModel.displayedCards = viewModel.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
             }
         }
     }
@@ -181,7 +182,7 @@ private func editingSheet(for editingID: UUID) -> some View {
             onSave: { capturedID, capturedField in
                 withAnimation {
                     viewModel.reorderCards()
-                    displayedCards = viewModel.teamMembers
+                    viewModel.saveCardOrderToCloud(for: userManager.currentUser)
                 }
                 viewModel.teamMembers = viewModel.teamMembers.map { $0 }
             }
@@ -215,7 +216,7 @@ private var contentVStack: some View {
                     onSave: { capturedID, capturedField in
                         withAnimation {
                             viewModel.reorderCards()
-                            displayedCards = viewModel.teamMembers
+                            viewModel.saveCardOrderToCloud(for: userManager.currentUser)
                         }
                         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
                     }
@@ -287,7 +288,7 @@ private var teamCardsList: some View {
         ScrollView {
             VStack(spacing: 10) {
 
-                ForEach(displayedCards, id: \.id) { card in
+                ForEach(viewModel.displayedCards, id: \.id) { card in
                     if let idx = viewModel.teamMembers.firstIndex(where: { $0.id == card.id }) {
                         let name = viewModel.teamMembers[idx].name
                         let isEditable = name == userManager.currentUser
@@ -321,10 +322,12 @@ private var teamCardsList: some View {
                 }
             }
             .padding(.horizontal, 20)
-            .animation(.easeInOut, value: displayedCards.map { $0.id })
+            .animation(.easeInOut, value: viewModel.displayedCards.map { $0.id })
         }
         .refreshable {
-            viewModel.load(names: userManager.userList)
+            viewModel.load(names: userManager.userList) {
+                viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
+            }
         }
     }
 }
