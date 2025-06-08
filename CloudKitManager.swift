@@ -243,18 +243,27 @@ class CloudKitManager: ObservableObject {
     func saveScore(entry: LifeScoreboardViewModel.ScoreEntry, pending: Int, projected: Double) {
         let predicate = NSPredicate(format: "name == %@", entry.name)
         let query = CKQuery(recordType: scoreRecordType, predicate: predicate)
-        database.perform(query, inZoneWith: nil) { records, _ in
-            let record = records?.first ?? CKRecord(recordType: self.scoreRecordType)
-            record["name"] = entry.name as CKRecordValue
-            record["score"] = entry.score as CKRecordValue
-            record["pending"] = pending as CKRecordValue
-            record["projected"] = projected as CKRecordValue
-            self.database.save(record) { _, error in
-                if let error = error {
-                    print("❌ Error saving score: \(error.localizedDescription)")
-                } else {
-                    print("✅ Saved score for \(entry.name)")
+        database.fetch(withQuery: query) { result in
+            switch result {
+            case .success(let (matchResults, _)):
+                let records = matchResults.compactMap { _, result in
+                    try? result.get()
                 }
+
+                let record = records.first ?? CKRecord(recordType: self.scoreRecordType)
+                record["name"] = entry.name as CKRecordValue
+                record["score"] = entry.score as CKRecordValue
+                record["pending"] = pending as CKRecordValue
+                record["projected"] = projected as CKRecordValue
+
+                self.database.save(record) { _, error in
+                    if let error = error {
+                        print("❌ Error saving score: \(error.localizedDescription)")
+                    }
+                }
+
+            case .failure(let error):
+                print("❌ Query failed: \(error.localizedDescription)")
             }
         }
     }
