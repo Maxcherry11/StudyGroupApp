@@ -6,6 +6,7 @@ class CloudKitManager: ObservableObject {
     private let database = CKContainer(identifier: "iCloud.com.dj.Outcast").publicCloudDatabase
     private let recordType = "TeamMember"
     private let scoreRecordType = "ScoreRecord"
+    private let cardRecordType = "Card"
 
     @Published var team: [TeamMember] = []
 
@@ -337,6 +338,50 @@ class CloudKitManager: ObservableObject {
         }
 
         database.add(operation)
+    }
+
+    // MARK: - Card Sync
+
+    static func fetchCards(completion: @escaping ([Card]) -> Void) {
+        let predicate = NSPredicate(value: true)
+        let query = CKQuery(recordType: shared.cardRecordType, predicate: predicate)
+        var results: [Card] = []
+
+        let operation = CKQueryOperation(query: query)
+        operation.recordMatchedBlock = { _, result in
+            if case .success(let record) = result {
+                if let card = Card(record: record) {
+                    results.append(card)
+                }
+            }
+        }
+
+        operation.queryResultBlock = { _ in
+            DispatchQueue.main.async {
+                completion(results)
+            }
+        }
+
+        shared.database.add(operation)
+    }
+
+    static func saveCard(_ card: Card) {
+        let predicate = NSPredicate(format: "recordID == %@", CKRecord.ID(recordName: card.id))
+        let query = CKQuery(recordType: shared.cardRecordType, predicate: predicate)
+
+        shared.database.fetch(withQuery: query) { result in
+            var existing: CKRecord?
+            if case .success(let (match, _)) = result {
+                existing = match.compactMap { _, res in try? res.get() }.first
+            }
+
+            let record = card.toCKRecord(existing: existing)
+            shared.database.save(record) { _, error in
+                if let error = error {
+                    print("❌ Error saving card: \(error.localizedDescription)")
+                }
+            }
+        }
     }
 
 }
