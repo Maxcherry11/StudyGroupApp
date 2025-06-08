@@ -209,8 +209,8 @@ private struct ScoreTile<Content: View>: View {
 }
 
 private struct OnTimeCard: View {
-    let onTime: Double
-    let travel: Double
+    let onTime: Int
+    let travel: Int
 
     var body: some View {
         ScoreTile {
@@ -218,7 +218,7 @@ private struct OnTimeCard: View {
                 VStack(spacing: 2) {
                     Text("Honor")
                         .font(.system(size: 17, weight: .semibold))
-                    ScoreBadge(text: String(format: "%.1f", onTime), color: .yellow)
+                    ScoreBadge(text: String(onTime), color: .yellow)
                 }
 
                 Spacer()
@@ -231,7 +231,7 @@ private struct OnTimeCard: View {
                 VStack(spacing: 2) {
                     Text("Travel")
                         .font(.system(size: 17, weight: .semibold))
-                    ScoreBadge(text: String(format: "%.1f", travel), color: .green)
+                    ScoreBadge(text: String(travel), color: .green)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -266,7 +266,7 @@ private struct ScoreboardPage<RowContent: View>: View {
                         .font(.system(size: 15, weight: .regular))
                 }
 
-                OnTimeCard(onTime: 17.7, travel: 31.0)
+                OnTimeCard(onTime: 18, travel: 31)
 
                 Group {
                     VStack(alignment: .leading, spacing: 8) {
