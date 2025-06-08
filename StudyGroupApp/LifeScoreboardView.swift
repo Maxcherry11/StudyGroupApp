@@ -95,10 +95,10 @@ struct LifeScoreboardView: View {
                 // Header
                 VStack(spacing: 8) {
                     Text("Life Scoreboard")
-                        .font(.system(size: 34, weight: .bold))
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
                     
                     Text("3 Weeks Remaining")
-                        .font(.subheadline.weight(.medium))
+                        .font(.system(size: 17, weight: .medium, design: .rounded))
                         .foregroundColor(.white)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
@@ -106,7 +106,7 @@ struct LifeScoreboardView: View {
                         .cornerRadius(20)
                     
                     Text(yearLabel())
-                        .font(.system(size: 15, weight: .regular))
+                        .font(.system(size: 15, weight: .regular, design: .rounded))
                     
                 }
                 .padding(.bottom, 4)
@@ -219,20 +219,20 @@ private struct OnTimeCard: View {
             HStack(alignment: .center) {
                 VStack(spacing: 2) {
                     Text("Honor")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
                     ScoreBadge(text: String(format: "%.1f", onTime), color: .yellow)
                 }
 
                 Spacer()
 
                 Text("On Time")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
 
                 Spacer()
 
                 VStack(spacing: 2) {
                     Text("Travel")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
                     ScoreBadge(text: String(format: "%.1f", travel), color: .green)
                 }
             }
@@ -261,7 +261,7 @@ private struct TeamMembersCard: View {
         return ScoreTile(verticalPadding: 8) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Team")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
                     .frame(maxWidth: .infinity, alignment: .center)
 
                 ForEach(sortedNames, id: \.self) { name in
@@ -294,11 +294,11 @@ private struct TeamMemberRow: View {
         HStack(spacing: 12) {
             HStack(spacing: 4) {
                 Text(entry.name)
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
                 if isCurrentUser {
                     Image(systemName: "pencil")
                 }
             }
-            .font(.system(size: 16, weight: .medium, design: .rounded))
             .frame(width: 80, alignment: .leading)
 
             GeometryReader { geo in
@@ -344,19 +344,19 @@ private struct ActivityCard: View {
         return ScoreTile(verticalPadding: 8) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Activity")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
                     .frame(maxWidth: .infinity, alignment: .center)
 
                 HStack(spacing: 6) {
                     Text("Name")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text("Pending")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
                         .frame(width: 70, alignment: .center)
                         .layoutPriority(1)
                     Text("Projected")
-                        .font(.system(size: 17, weight: .bold))
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
                         .frame(minWidth: 110, alignment: .trailing)
                 }
 
@@ -384,16 +384,17 @@ private struct ActivityRowView: View {
     var body: some View {
         HStack(spacing: 6) {
             Text(row.name)
-                .font(.system(size: 21, weight: .regular))
+                .font(.system(size: 21, weight: .regular, design: .rounded))
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text("\(row.pending)")
 
-                .font(.system(size: 15, weight: .regular))
+                .font(.system(size: 15, weight: .regular, design: .rounded))
                 .frame(width: 70, alignment: .center)
                 .layoutPriority(1)
                 .monospacedDigit()
             Text(row.projected, format: .currency(code: "USD").precision(.fractionLength(0)))
-                .font(.system(size: 17, weight: .regular))                .foregroundColor(.green)
+                .font(.system(size: 17, weight: .regular, design: .rounded))
+                .foregroundColor(.black)
                 .frame(minWidth: 110, alignment: .trailing)
                 .monospacedDigit()
         }
@@ -404,4 +405,3 @@ private struct ActivityRowView: View {
         }
     }
 }
-
