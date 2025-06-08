@@ -18,13 +18,17 @@ struct TempScoreRowShowcase: View {
     private let members: [Member] = [
         Member(name: "Dimitri", score: 45, color: .green),
         Member(name: "Deanna", score: 33, color: .green),
-        Member(name: "D.J.", score: 27, color: .yellow)
+        Member(name: "D.J.", score: 27, color: .yellow),
+        Member(name: "Ron", score: 0, color: .gray),
+        Member(name: "Greg", score: 0, color: .gray)
     ]
 
     private let activity: [ActivityItem] = [
         ActivityItem(name: "Dimitri", pending: 2, projected: 1500),
         ActivityItem(name: "Deanna", pending: 3, projected: 800),
-        ActivityItem(name: "D.J.", pending: 1, projected: 600)
+        ActivityItem(name: "D.J.", pending: 7, projected: 600),
+        ActivityItem(name: "Ron", pending: 0, projected: 0),
+        ActivityItem(name: "Greg", pending: 0, projected: 0)
     ]
 
     var body: some View {
@@ -36,14 +40,7 @@ struct TempScoreRowShowcase: View {
         }
         .tabViewStyle(.page)
         .indexViewStyle(.page(backgroundDisplayMode: .always))
-        .background(
-            LinearGradient(
-                gradient: Gradient(colors: [Color.gray.opacity(0.3), Color.gray]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-        )
+        .background(Color(uiColor: .systemGroupedBackground))
     }
 
     private var option1: some View {
@@ -75,10 +72,11 @@ struct TempScoreRowShowcase: View {
 
     private var option4: some View {
         ScoreboardPage(
-            title: "Option 4: Full Gradient Row",
+            title: "Option 4: Real App Layout with Progress",
             members: members,
             activity: activity,
-            rowBuilder: gradientRow
+            rowBuilder: inlineProgressRow,
+            teamAsTile: true
         )
     }
 
@@ -142,28 +140,84 @@ struct TempScoreRowShowcase: View {
         .shadow(radius: 2)
     }
 
-    private func gradientRow(_ member: Member) -> some View {
-        let yellow = Color(red: 1.0, green: 0.85, blue: 0.0)
-        let colors: [Color] = {
-            if member.score >= 40 { return [Color.green.opacity(0.4), .green] }
-            if member.score >= 25 { return [yellow.opacity(0.4), yellow] }
-            return [Color.white, Color.white]
-        }()
-
-        return HStack {
-            Text(member.name)
-                .font(.system(size: 20, weight: .regular, design: .rounded))
-            Spacer()
-            Text("\(Int(member.score))")
-                .font(.system(size: 18, weight: .bold, design: .rounded))
+    private func inlineProgressRow(_ member: Member) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(member.name)
+                    .font(.system(size: 20, weight: .regular, design: .rounded))
+                Spacer()
+                Text("\(Int(member.score))")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+            }
+            ProgressView(value: member.score / 100)
+                .tint(member.color)
         }
-        .padding()
+        .padding(.vertical, 2)
+    }
+}
+
+private struct ScoreBadge: View {
+    let text: String
+    let color: Color
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 15, weight: .bold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 3)
+            .background(color)
+            .cornerRadius(8)
+    }
+}
+
+private struct ScoreTile<Content: View>: View {
+    var verticalPadding: CGFloat = 16
+    var horizontalPadding: CGFloat = 16
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(uiColor: .secondarySystemBackground))
+                .shadow(radius: 4)
+
+            content()
+                .padding(.vertical, verticalPadding)
+                .padding(.horizontal, horizontalPadding)
+        }
         .frame(maxWidth: .infinity)
-        .background(
-            LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)
-        )
-        .cornerRadius(16)
-        .shadow(radius: 2)
+    }
+}
+
+private struct OnTimeCard: View {
+    let onTime: Double
+    let travel: Double
+
+    var body: some View {
+        ScoreTile {
+            HStack(alignment: .center) {
+                VStack(spacing: 2) {
+                    Text("Honor")
+                        .font(.system(size: 17, weight: .semibold))
+                    ScoreBadge(text: String(format: "%.1f", onTime), color: .yellow)
+                }
+
+                Spacer()
+
+                Text("On Time")
+                    .font(.system(size: 24, weight: .bold))
+
+                Spacer()
+
+                VStack(spacing: 2) {
+                    Text("Travel")
+                        .font(.system(size: 17, weight: .semibold))
+                    ScoreBadge(text: String(format: "%.1f", travel), color: .green)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
     }
 }
 
@@ -172,6 +226,7 @@ private struct ScoreboardPage<RowContent: View>: View {
     let members: [TempScoreRowShowcase.Member]
     let activity: [TempScoreRowShowcase.ActivityItem]
     let rowBuilder: (TempScoreRowShowcase.Member) -> RowContent
+    var teamAsTile: Bool = false
 
     var body: some View {
         ScrollView {
@@ -194,66 +249,90 @@ private struct ScoreboardPage<RowContent: View>: View {
                         .font(.system(size: 15, weight: .regular))
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Team")
-                        .font(.system(size: 20, weight: .bold))
-                        .frame(maxWidth: .infinity, alignment: .center)
+                OnTimeCard(onTime: 17.7, travel: 31.0)
 
-                    ForEach(members) { member in
-                        rowBuilder(member)
-                    }
-                }
-                .padding(.horizontal)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                Group {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Team")
+                            .font(.system(size: 20, weight: .bold))
+                            .frame(maxWidth: .infinity, alignment: .center)
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Activity")
-                        .font(.system(size: 20, weight: .bold))
-                        .frame(maxWidth: .infinity, alignment: .center)
-
-                    HStack {
-                        Text("Name")
-                            .font(.system(size: 16, weight: .bold))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Text("Pending")
-                            .font(.system(size: 16, weight: .bold))
-                            .frame(width: 70)
-                        Text("Projected")
-                            .font(.system(size: 16, weight: .bold))
-                            .frame(minWidth: 110, alignment: .trailing)
-                    }
-
-                    ForEach(activity) { item in
-                        HStack {
-                            Text(item.name)
-                                .font(.system(size: 20, weight: .regular, design: .rounded))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            Text("\(item.pending)")
-                                .font(.system(size: 15, weight: .regular))
-                                .frame(width: 70)
-                                .monospacedDigit()
-                            Text(item.projected, format: .currency(code: "USD").precision(.fractionLength(0)))
-                                .font(.system(size: 17, weight: .regular))
-                                .foregroundColor(.green)
-                                .frame(minWidth: 110, alignment: .trailing)
-                                .monospacedDigit()
+                        ForEach(members) { member in
+                            rowBuilder(member)
                         }
-                        .padding(.vertical, 6)
-                        .background(Color(.systemGray6))
-                        .cornerRadius(6)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.white)
-                .cornerRadius(16)
-                .shadow(radius: 2)
+                .modifier(TeamContainerModifier(asTile: teamAsTile))
+
+                ActivityCard(items: activity)
 
                 Spacer(minLength: 0)
             }
             .padding()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct TeamContainerModifier: ViewModifier {
+    let asTile: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if asTile {
+            ScoreTile(verticalPadding: 8) { content }
+        } else {
+            content
+                .padding(.horizontal)
+        }
+    }
+}
+
+private struct ActivityCard: View {
+    let items: [TempScoreRowShowcase.ActivityItem]
+
+    var body: some View {
+        ScoreTile(verticalPadding: 8) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Activity")
+                    .font(.system(size: 20, weight: .bold))
+                    .frame(maxWidth: .infinity, alignment: .center)
+
+                HStack(spacing: 6) {
+                    Text("Name")
+                        .font(.system(size: 16, weight: .bold))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text("Pending")
+                        .font(.system(size: 16, weight: .bold))
+                        .frame(width: 70, alignment: .center)
+                    Text("Projected")
+                        .font(.system(size: 16, weight: .bold))
+                        .frame(minWidth: 110, alignment: .trailing)
+                }
+
+                ForEach(items) { item in
+                    HStack(spacing: 6) {
+                        Text(item.name)
+                            .font(.system(size: 20, weight: .regular, design: .rounded))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text("\(item.pending)")
+                            .font(.system(size: 15, weight: .regular))
+                            .frame(width: 70, alignment: .center)
+                            .monospacedDigit()
+                        Text(item.projected, format: .currency(code: "USD").precision(.fractionLength(0)))
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundColor(.green)
+                            .frame(minWidth: 110, alignment: .trailing)
+                            .monospacedDigit()
+                    }
+                    .padding(.vertical, 6)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(6)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 
