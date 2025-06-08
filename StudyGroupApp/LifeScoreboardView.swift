@@ -226,13 +226,13 @@ private struct OnTimeCard: View {
                 Spacer()
 
                 Text("On Time")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .font(.system(size: 20, weight: .bold))
 
                 Spacer()
 
                 VStack(spacing: 2) {
                     Text("Travel")
-                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .font(.system(size: 20, weight: .bold))
                     ScoreBadge(text: String(format: "%.1f", travel), color: .green)
                 }
             }
@@ -261,7 +261,7 @@ private struct TeamMembersCard: View {
         return ScoreTile(verticalPadding: 8) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Team")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .font(.system(size: 21, weight: .bold))
                     .frame(maxWidth: .infinity, alignment: .center)
 
                 ForEach(sortedNames, id: \.self) { name in
@@ -347,23 +347,23 @@ private struct ActivityCard: View {
         return ScoreTile(verticalPadding: 8) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Activity")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .font(.system(size: 21, weight: .bold))
                     .frame(maxWidth: .infinity, alignment: .center)
 
                 HStack(spacing: 6) {
                     Text("Name")
-                        .font(.system(size: 19, weight: .regular, design: .rounded))
+                        .font(.system(size: 20, weight: .bold))
                         .monospacedDigit()
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     Text("Pending")
-                        .font(.system(size: 19, weight: .regular, design: .rounded))
+                        .font(.system(size: 20, weight: .bold))
                         .monospacedDigit()
                         .frame(minWidth: 80, alignment: .center)
                         .lineLimit(1)
 
                     Text("Projected")
-                        .font(.system(size: 19, weight: .regular, design: .rounded))
+                        .font(.system(size: 20, weight: .bold))
                         .monospacedDigit()
                         .frame(minWidth: 110, alignment: .trailing)
                 }
