@@ -110,3 +110,35 @@ class LifeScoreboardViewModel: ObservableObject {
         }
     }
 }
+
+// MARK: - On Time Goals
+
+extension LifeScoreboardViewModel {
+
+    /// Yearly policy goals
+    var travelGoal: Int { 70 }
+    var honorGoal: Int { 40 }
+
+    /// The number of days in this year (accounts for leap years)
+    private var daysInYear: Int {
+        let year = Calendar.current.component(.year, from: Date())
+        let components = DateComponents(calendar: .current, year: year)
+        return Calendar.current.range(of: .day, in: .year, for: components.date!)?.count ?? 365
+    }
+
+    /// The current day of the year (1–365/366)
+    private var currentDayOfYear: Int {
+        Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 1
+    }
+
+    /// 🎯 Daily-updating On Time Count for Travel
+    var onTimeTravelTarget: Int {
+        Int(round((Double(travelGoal) / Double(daysInYear)) * Double(currentDayOfYear)))
+    }
+
+    /// 🎯 Daily-updating On Time Count for Honor
+    var onTimeHonorTarget: Int {
+        Int(round((Double(honorGoal) / Double(daysInYear)) * Double(currentDayOfYear)))
+    }
+}
+
