@@ -20,6 +20,8 @@ struct TempScoreRowShowcase: View {
             option2
             option3
             option4
+            option5
+            option6
         }
         .tabViewStyle(.page)
         .indexViewStyle(.page(backgroundDisplayMode: .always))
@@ -34,7 +36,34 @@ struct TempScoreRowShowcase: View {
     }
 
     private var option1: some View {
-        OptionPage(title: "Option 1: Compact Row") {
+        OptionPage(title: "Option 1: Split-Color Row") {
+            ForEach(members) { member in
+                HStack(spacing: 0) {
+                    Text(member.name)
+                        .font(.system(size: 20, weight: .regular, design: .rounded))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 12)
+                        .background(Color(.systemGray6))
+
+                    Text("\(Int(member.score))")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 16)
+                        .background(member.color)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .frame(maxWidth: .infinity)
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(radius: 2)
+            }
+        }
+    }
+
+    private var option2: some View {
+        OptionPage(title: "Option 2: Elevated Score Button") {
             ForEach(members) { member in
                 HStack {
                     Text(member.name)
@@ -46,19 +75,20 @@ struct TempScoreRowShowcase: View {
                         .padding(.vertical, 4)
                         .background(member.color)
                         .foregroundColor(.white)
-                        .cornerRadius(8)
+                        .clipShape(Capsule())
+                        .shadow(radius: 2)
                 }
                 .padding()
                 .frame(maxWidth: .infinity)
-                .background(.ultraThinMaterial)
+                .background(Color.white)
                 .cornerRadius(16)
                 .shadow(radius: 2)
             }
         }
     }
 
-    private var option2: some View {
-        OptionPage(title: "Option 2: Capsule Style") {
+    private var option3: some View {
+        OptionPage(title: "Option 3: Capsule Style") {
             ForEach(members) { member in
                 HStack {
                     Text(member.name)
@@ -74,15 +104,15 @@ struct TempScoreRowShowcase: View {
                 }
                 .padding()
                 .frame(maxWidth: .infinity)
-                .background(.ultraThinMaterial)
+                .background(Color.white)
                 .cornerRadius(16)
                 .shadow(radius: 2)
             }
         }
     }
 
-    private var option3: some View {
-        OptionPage(title: "Option 3: Progress Bar Row") {
+    private var option4: some View {
+        OptionPage(title: "Option 4: Progress Bar Row") {
             ForEach(members) { member in
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
@@ -97,15 +127,15 @@ struct TempScoreRowShowcase: View {
                 }
                 .padding()
                 .frame(maxWidth: .infinity)
-                .background(.ultraThinMaterial)
+                .background(Color.white)
                 .cornerRadius(16)
                 .shadow(radius: 2)
             }
         }
     }
 
-    private var option4: some View {
-        OptionPage(title: "Option 4: SF Symbol + Name") {
+    private var option5: some View {
+        OptionPage(title: "Option 5: SF Symbol + Name") {
             ForEach(members) { member in
                 HStack {
                     Image(systemName: "person.crop.circle.fill")
@@ -123,9 +153,31 @@ struct TempScoreRowShowcase: View {
                 }
                 .padding()
                 .frame(maxWidth: .infinity)
-                .background(.ultraThinMaterial)
+                .background(Color.white)
                 .cornerRadius(16)
                 .shadow(radius: 2)
+            }
+        }
+    }
+
+    private var option6: some View {
+        OptionPage(title: "Option 6: Full Gradient Card") {
+            ForEach(members) { member in
+                let colors: [Color] = {
+                    if member.score >= 50 { return [Color.green.opacity(0.4), .green] }
+                    if member.score >= 30 { return [Color.yellow.opacity(0.4), .yellow] }
+                    return [Color.white, Color.white]
+                }()
+
+                Text(member.name)
+                    .font(.system(size: 20, weight: .regular, design: .rounded))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .background(
+                        LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)
+                    )
+                    .cornerRadius(16)
+                    .shadow(radius: 2)
             }
         }
     }
