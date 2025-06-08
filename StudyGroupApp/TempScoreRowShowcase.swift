@@ -143,21 +143,27 @@ struct TempScoreRowShowcase: View {
     }
 
     private func gradientRow(_ member: Member) -> some View {
+        let yellow = Color(red: 1.0, green: 0.85, blue: 0.0)
         let colors: [Color] = {
-            if member.score >= 50 { return [Color.green.opacity(0.4), .green] }
-            if member.score >= 30 { return [Color.yellow.opacity(0.4), .yellow] }
+            if member.score >= 40 { return [Color.green.opacity(0.4), .green] }
+            if member.score >= 25 { return [yellow.opacity(0.4), yellow] }
             return [Color.white, Color.white]
         }()
 
-        return Text(member.name)
-            .font(.system(size: 20, weight: .regular, design: .rounded))
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .background(
-                LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)
-            )
-            .cornerRadius(16)
-            .shadow(radius: 2)
+        return HStack {
+            Text(member.name)
+                .font(.system(size: 20, weight: .regular, design: .rounded))
+            Spacer()
+            Text("\(Int(member.score))")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(
+            LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)
+        )
+        .cornerRadius(16)
+        .shadow(radius: 2)
     }
 }
 
@@ -197,11 +203,8 @@ private struct ScoreboardPage<RowContent: View>: View {
                         rowBuilder(member)
                     }
                 }
-                .padding()
+                .padding(.horizontal)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.white)
-                .cornerRadius(16)
-                .shadow(radius: 2)
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Activity")
