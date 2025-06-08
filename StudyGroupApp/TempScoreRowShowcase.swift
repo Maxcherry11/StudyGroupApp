@@ -48,8 +48,7 @@ struct TempScoreRowShowcase: View {
             title: "Option 1: Mini Meter",
             members: members,
             activity: activity,
-            rowBuilder: miniMeterRow,
-            teamAsTile: false
+            rowBuilder: miniMeterRow
         )
     }
 
@@ -58,8 +57,7 @@ struct TempScoreRowShowcase: View {
             title: "Option 2: Color Fill Cell",
             members: members,
             activity: activity,
-            rowBuilder: colorFillRow,
-            teamAsTile: false
+            rowBuilder: colorFillRow
         )
     }
 
@@ -68,8 +66,7 @@ struct TempScoreRowShowcase: View {
             title: "Option 3: Capsule Progress",
             members: members,
             activity: activity,
-            rowBuilder: capsuleProgressRow,
-            teamAsTile: false
+            rowBuilder: capsuleProgressRow
         )
     }
 
@@ -78,8 +75,7 @@ struct TempScoreRowShowcase: View {
             title: "Option 4: Glow Bar",
             members: members,
             activity: activity,
-            rowBuilder: glowProgressRow,
-            teamAsTile: false
+            rowBuilder: glowProgressRow
         )
     }
 
@@ -153,7 +149,7 @@ struct TempScoreRowShowcase: View {
                 .monospacedDigit()
                 .frame(width: 40, alignment: .trailing)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 4)
     }
 
     private func glowProgressRow(_ member: Member) -> some View {
@@ -248,7 +244,6 @@ private struct ScoreboardPage<RowContent: View>: View {
     let members: [TempScoreRowShowcase.Member]
     let activity: [TempScoreRowShowcase.ActivityItem]
     let rowBuilder: (TempScoreRowShowcase.Member) -> RowContent
-    var teamAsTile: Bool = false
 
     var body: some View {
         ScrollView {
@@ -285,7 +280,7 @@ private struct ScoreboardPage<RowContent: View>: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .modifier(TeamContainerModifier(asTile: teamAsTile))
+                .modifier(TeamContainerModifier())
 
                 ActivityCard(items: activity)
 
@@ -298,16 +293,14 @@ private struct ScoreboardPage<RowContent: View>: View {
 }
 
 private struct TeamContainerModifier: ViewModifier {
-    let asTile: Bool
-
-    @ViewBuilder
     func body(content: Content) -> some View {
-        if asTile {
-            ScoreTile(verticalPadding: 8) { content }
-        } else {
-            content
-                .padding(.horizontal)
-        }
+        content
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white)
+            .cornerRadius(20)
+            .shadow(radius: 4)
+            .padding()
     }
 }
 
