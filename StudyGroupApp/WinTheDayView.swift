@@ -82,6 +82,7 @@ struct WinTheDayView: View {
             if !userManager.userList.isEmpty {
                 viewModel.load(names: userManager.userList)
                 viewModel.loadInitialDisplayOrder()
+                viewModel.fetchCardsFromCloud()
                 hasLoaded = true
                 shimmerPosition = -1.0
                 withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
