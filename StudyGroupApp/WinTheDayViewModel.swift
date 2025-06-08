@@ -10,6 +10,8 @@ class WinTheDayViewModel: ObservableObject {
     }
     @Published var teamMembers: [TeamMember] = []
     @Published var displayedCards: [TeamMember] = []
+    @Published var cards: [Card] = []
+    @Published var displayedCardModels: [Card] = []
     @Published var selectedUserName: String = ""
     private let storageKey = "WTDMemberStorage"
     private var hasLoadedDisplayOrder = false
@@ -30,6 +32,24 @@ class WinTheDayViewModel: ObservableObject {
         displayedCards = teamMembers.sorted {
             ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
             ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+        }
+    }
+
+    // MARK: - Card Sync Helpers
+
+    func fetchCardsFromCloud() {
+        CloudKitManager.fetchCards { fetched in
+            DispatchQueue.main.async {
+                self.cards = fetched
+                self.displayedCardModels = fetched.sorted { $0.production > $1.production }
+            }
+        }
+    }
+
+    func saveCardEdits(for card: Card) {
+        CloudKitManager.saveCard(card)
+        withAnimation {
+            displayedCardModels = cards.sorted { $0.production > $1.production }
         }
     }
 
