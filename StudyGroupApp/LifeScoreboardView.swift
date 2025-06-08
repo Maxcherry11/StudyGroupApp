@@ -314,7 +314,7 @@ private struct TeamMemberRow: View {
                     Capsule()
                         .fill(color)
                         .frame(
-                            width: min(CGFloat(entry.score) / 70, 1.0) * 140,
+                            width: min(CGFloat(entry.score) / 70, 1.0) * 200,
                             height: 8
                         )
                         .animation(.easeInOut(duration: 0.4), value: entry.score)
