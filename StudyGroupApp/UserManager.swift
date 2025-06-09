@@ -45,6 +45,8 @@ class UserManager: ObservableObject {
             self.allUsers = defaults
             saveUsers()
         }
+
+        fetchUsersFromCloud()
     }
 
     private func saveUsers() {
@@ -53,16 +55,16 @@ class UserManager: ObservableObject {
 
     func addUser(_ name: String) {
         guard !userList.contains(name) else { return }
-        userList.append(name)
-        saveUsers()
+        CloudKitManager.saveUser(name)
+        fetchUsersFromCloud()
     }
 
     func deleteUser(_ name: String) {
-        userList.removeAll { $0 == name }
-        saveUsers()
+        CloudKitManager.deleteUser(name)
         if currentUser == name {
-            currentUser = userList.first ?? ""
+            currentUser = ""
         }
+        fetchUsersFromCloud()
     }
 
     func selectUser(_ name: String) {
@@ -70,7 +72,19 @@ class UserManager: ObservableObject {
     }
 
     func refresh() {
-        let stored = UserDefaults.standard.array(forKey: userDefaultsKey) as? [String] ?? []
-        userList = stored
+        fetchUsersFromCloud()
+    }
+
+    func fetchUsersFromCloud() {
+        CloudKitManager.fetchUsers { names in
+            DispatchQueue.main.async {
+                self.userList = names
+                self.allUsers = names
+                self.saveUsers()
+                if !names.contains(self.currentUser) {
+                    self.currentUser = names.first ?? ""
+                }
+            }
+        }
     }
 }

@@ -9,9 +9,9 @@ class WinTheDayViewModel: ObservableObject {
         self.teamMembers = []
     }
     @Published var teamMembers: [TeamMember] = []
-    @Published var displayedCards: [TeamMember] = []
+    @Published var displayedMembers: [TeamMember] = []
     @Published var cards: [Card] = []
-    @Published var displayedCardModels: [Card] = []
+    @Published var displayedCards: [Card] = []
     @Published var selectedUserName: String = ""
     private let storageKey = "WTDMemberStorage"
     private var hasLoadedDisplayOrder = false
@@ -20,7 +20,7 @@ class WinTheDayViewModel: ObservableObject {
     /// This mirrors the stable ordering used by Life Scoreboard.
     func loadInitialDisplayOrder() {
         guard !hasLoadedDisplayOrder else { return }
-        displayedCards = teamMembers.sorted {
+        displayedMembers = teamMembers.sorted {
             ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
             ($1.quotesToday + $1.salesWTD + $1.salesMTD)
         }
@@ -29,7 +29,7 @@ class WinTheDayViewModel: ObservableObject {
 
     /// Reorders ``displayedCards`` after the user saves edits.
     func reorderAfterSave() {
-        displayedCards = teamMembers.sorted {
+        displayedMembers = teamMembers.sorted {
             ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
             ($1.quotesToday + $1.salesWTD + $1.salesMTD)
         }
@@ -41,15 +41,15 @@ class WinTheDayViewModel: ObservableObject {
         CloudKitManager.fetchCards { fetched in
             DispatchQueue.main.async {
                 self.cards = fetched
-                self.displayedCardModels = fetched.sorted { $0.production > $1.production }
+                self.displayedCards = fetched.sorted { $0.production > $1.production }
             }
         }
     }
 
-    func saveCardEdits(for card: Card) {
+    func saveEdits(for card: Card) {
         CloudKitManager.saveCard(card)
         withAnimation {
-            displayedCardModels = cards.sorted { $0.production > $1.production }
+            displayedCards = cards.sorted { $0.production > $1.production }
         }
     }
 
