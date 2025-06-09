@@ -32,7 +32,7 @@ struct CloudKitTestPusher: View {
         let record = CKRecord(recordType: "TestRecord")
         record["note"] = "This is a test from D.J." as CKRecordValue
 
-        CKContainer.default().privateCloudDatabase.save(record) { savedRecord, error in
+        CKContainer(identifier: "iCloud.com.dj.Outcast").privateCloudDatabase.save(record) { savedRecord, error in
             DispatchQueue.main.async {
                 if let error = error {
                     resultMessage = "❌ Failed to save: \(error.localizedDescription)"
