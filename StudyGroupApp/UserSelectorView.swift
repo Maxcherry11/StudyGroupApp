@@ -10,6 +10,7 @@ import CloudKit
 
 struct UserSelectorView: View {
     @EnvironmentObject var userManager: UserManager
+    @ObservedObject private var cloud = CloudKitManager.shared
     @State private var navigate = false
 
     @State private var newUserName = ""
@@ -29,16 +30,19 @@ struct UserSelectorView: View {
                                 .fontWeight(.bold)
 
                             List {
-                                ForEach(userManager.userList, id: \.self) { user in
+                                ForEach(cloud.teamMembers, id: \.id) { member in
                                     Button(action: {
-                                        userManager.selectUser(user)
-                                        print("👤 Selected: \(user)")
+                                        userManager.selectUser(member.name)
+                                        print("👤 Selected: \(member.name)")
                                         navigate = true
                                     }) {
-                                        Text(user)
-                                            .font(.system(size: 26, weight: .bold))
-                                            .foregroundColor(.white)
-                                            .frame(maxWidth: .infinity)
+                                        HStack {
+                                            Text(member.emoji)
+                                            Text(member.name)
+                                        }
+                                        .font(.system(size: 26, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
                                             .padding()
                                             .padding(.vertical, 6)
                                             .background(Color.red)
@@ -68,8 +72,7 @@ struct UserSelectorView: View {
                                     guard !trimmed.isEmpty, !userManager.userList.contains(trimmed) else { return }
                                     userManager.addUser(trimmed)
                                     CloudKitManager.shared.createScoreRecord(for: trimmed)
-                                    let member = TeamMember(name: trimmed)
-                                    CloudKitManager.shared.save(member) { _ in }
+                                    cloud.addTeamMember(name: trimmed)
                                     newUserName = ""
                                 })
                                 Button("Cancel", role: .cancel) { }
@@ -88,16 +91,17 @@ struct UserSelectorView: View {
             }
             .onAppear {
                 userManager.fetchUsersFromCloud()
+                cloud.fetchAllTeamMembers()
             }
         }
     }
 
     private func deleteUser(at offsets: IndexSet) {
         for index in offsets {
-            let nameToDelete = userManager.userList[index]
-            userManager.deleteUser(nameToDelete)
-            CloudKitManager.shared.deleteScoreRecord(for: nameToDelete)
-            CloudKitManager.shared.deleteByName(nameToDelete) { _ in }
+            let member = cloud.teamMembers[index]
+            userManager.deleteUser(member.name)
+            CloudKitManager.shared.deleteScoreRecord(for: member.name)
+            cloud.deleteTeamMember(member)
         }
     }
 }
