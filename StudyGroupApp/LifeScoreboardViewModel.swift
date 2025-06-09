@@ -2,7 +2,8 @@ import CloudKit
 import Foundation
 
 class LifeScoreboardViewModel: ObservableObject {
-    private let container = CKContainer.default()
+    /// Use the shared Outcast container for scoreboard records.
+    private let container = CKContainer(identifier: "iCloud.com.dj.Outcast")
     private let recordType = "ScoreRecord"
 
     @Published var scores: [ScoreEntry] = []

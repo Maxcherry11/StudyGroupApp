@@ -4,7 +4,7 @@ import SwiftUI
 @main
 struct StudyGroupApp: App {
     init() {
-        CKContainer.default().accountStatus { status, error in
+        CKContainer(identifier: "iCloud.com.dj.Outcast").accountStatus { status, error in
             DispatchQueue.main.async {
                 switch status {
                 case .available:

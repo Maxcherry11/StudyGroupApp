@@ -3,7 +3,9 @@ import Foundation
 
 class CloudKitManager: ObservableObject {
     static let shared = CloudKitManager()
-    private let database = CKContainer(identifier: "iCloud.com.dj.Outcast").publicCloudDatabase
+    /// The primary iCloud container for all app data.
+    static let container = CKContainer(identifier: "iCloud.com.dj.Outcast")
+    private let database = CloudKitManager.container.publicCloudDatabase
     private let recordType = "TeamMember"
     private let scoreRecordType = "ScoreRecord"
     private let cardRecordType = "Card"
@@ -347,7 +349,7 @@ class CloudKitManager: ObservableObject {
     static func fetchUsers(completion: @escaping ([String]) -> Void) {
         let predicate = NSPredicate(value: true)
         let query = CKQuery(recordType: userRecordType, predicate: predicate)
-        CKContainer.default().publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
+        CloudKitManager.container.publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
             guard let records = records, error == nil else {
                 let message = error?.localizedDescription ?? "Unknown error"
                 print("❌ Failed to fetch users: \(message)")
@@ -364,7 +366,7 @@ class CloudKitManager: ObservableObject {
     static func saveUser(_ name: String, completion: @escaping () -> Void) {
         let record = CKRecord(recordType: userRecordType, recordID: CKRecord.ID(recordName: name))
         record["name"] = name as CKRecordValue
-        CKContainer.default().publicCloudDatabase.save(record) { _, error in
+        CloudKitManager.container.publicCloudDatabase.save(record) { _, error in
             if let error = error {
                 print("❌ Error saving user: \(error)")
             } else {
@@ -377,7 +379,7 @@ class CloudKitManager: ObservableObject {
     /// Deletes the user with the given name from CloudKit.
     static func deleteUser(_ name: String) {
         let id = CKRecord.ID(recordName: name)
-        CKContainer.default().publicCloudDatabase.delete(withRecordID: id) { _, _ in }
+        CloudKitManager.container.publicCloudDatabase.delete(withRecordID: id) { _, _ in }
     }
 
     // MARK: - Card Sync
@@ -385,7 +387,7 @@ class CloudKitManager: ObservableObject {
     /// Fetches all Win the Day cards from CloudKit.
     static func fetchCards(completion: @escaping ([Card]) -> Void) {
         let query = CKQuery(recordType: shared.cardRecordType, predicate: NSPredicate(value: true))
-        CKContainer.default().publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
+        CloudKitManager.container.publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
             guard let records = records, error == nil else {
                 completion([])
                 return
@@ -398,7 +400,7 @@ class CloudKitManager: ObservableObject {
     /// Saves a Win the Day card to CloudKit.
     static func saveCard(_ card: Card) {
         let record = card.toCKRecord()
-        CKContainer.default().publicCloudDatabase.save(record) { _, _ in }
+        CloudKitManager.container.publicCloudDatabase.save(record) { _, _ in }
     }
 
 }
