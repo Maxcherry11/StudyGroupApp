@@ -140,8 +140,7 @@ extension TeamMember {
             let quotesGoal = record["quotesGoal"] as? Int,
             let salesWTDGoal = record["salesWTDGoal"] as? Int,
             let salesMTDGoal = record["salesMTDGoal"] as? Int,
-            let emoji = record["emoji"] as? String,
-            let sortIndex = record["sortIndex"] as? Int
+            let emoji = record["emoji"] as? String
         else {
             return nil
         }
@@ -156,7 +155,7 @@ extension TeamMember {
             salesWTDGoal: salesWTDGoal,
             salesMTDGoal: salesMTDGoal,
             emoji: emoji,
-            sortIndex: sortIndex
+            sortIndex: 0
         )
     }
 
@@ -170,7 +169,6 @@ extension TeamMember {
         record["salesWTDGoal"] = salesWTDGoal as CKRecordValue
         record["salesMTDGoal"] = salesMTDGoal as CKRecordValue
         record["emoji"] = emoji as CKRecordValue
-        record["sortIndex"] = sortIndex as CKRecordValue
         return record
     }
 }
