@@ -8,6 +8,7 @@ class SplashViewModel: ObservableObject {
     func fetchUsersFromCloud() {
         CloudKitManager.fetchUsers { fetched in
             DispatchQueue.main.async {
+                print("✅ Cloud returned users: \(fetched)")
                 self.users = fetched
             }
         }
@@ -15,8 +16,9 @@ class SplashViewModel: ObservableObject {
 
     /// Add a new user both locally and in CloudKit.
     func addUser(_ name: String) {
-        CloudKitManager.saveUser(name)
-        fetchUsersFromCloud()
+        CloudKitManager.saveUser(name) { [weak self] in
+            self?.fetchUsersFromCloud()
+        }
     }
 
     /// Delete a user from CloudKit and refresh the list.

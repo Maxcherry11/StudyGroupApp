@@ -55,8 +55,9 @@ class UserManager: ObservableObject {
 
     func addUser(_ name: String) {
         guard !userList.contains(name) else { return }
-        CloudKitManager.saveUser(name)
-        fetchUsersFromCloud()
+        CloudKitManager.saveUser(name) { [weak self] in
+            self?.fetchUsersFromCloud()
+        }
     }
 
     func deleteUser(_ name: String) {
@@ -78,6 +79,7 @@ class UserManager: ObservableObject {
     func fetchUsersFromCloud() {
         CloudKitManager.fetchUsers { names in
             DispatchQueue.main.async {
+                print("📥 Received users from CloudKit: \(names)")
                 self.userList = names
                 self.allUsers = names
                 self.saveUsers()

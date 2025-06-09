@@ -349,19 +349,28 @@ class CloudKitManager: ObservableObject {
         let query = CKQuery(recordType: userRecordType, predicate: predicate)
         CKContainer.default().publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
             guard let records = records, error == nil else {
+                print("❌ Failed to fetch users: \(error?.localizedDescription ?? \"Unknown error\")")
                 completion([])
                 return
             }
             let names = records.compactMap { $0["name"] as? String }
+            print("✅ Cloud returned users: \(names)")
             completion(names.sorted())
         }
     }
 
     /// Saves the provided user name to CloudKit.
-    static func saveUser(_ name: String) {
+    static func saveUser(_ name: String, completion: @escaping () -> Void) {
         let record = CKRecord(recordType: userRecordType, recordID: CKRecord.ID(recordName: name))
         record["name"] = name as CKRecordValue
-        CKContainer.default().publicCloudDatabase.save(record) { _, _ in }
+        CKContainer.default().publicCloudDatabase.save(record) { _, error in
+            if let error = error {
+                print("❌ Error saving user: \(error)")
+            } else {
+                print("✅ Successfully saved member: \(name)")
+            }
+            completion()
+        }
     }
 
     /// Deletes the user with the given name from CloudKit.
