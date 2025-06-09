@@ -11,7 +11,9 @@ class CloudKitManager: ObservableObject {
     private let cardRecordType = "Card"
     private static let userRecordType = "User"
 
-    @Published var team: [TeamMember] = []
+    /// Cached members fetched from CloudKit. Updates to this array reflect
+    /// immediately in any views observing the manager.
+    @Published var teamMembers: [TeamMember] = []
 
     private func isValid(_ member: TeamMember) -> Bool {
         !member.name.trimmingCharacters(in: .whitespaces).isEmpty &&
@@ -50,7 +52,7 @@ class CloudKitManager: ObservableObject {
                         print("   • \(member.name)")
                     }
                     let valid = fetchedMembers.filter { self.isValid($0) }
-                    self.team = valid
+                    self.teamMembers = valid
                     completion(valid)
                 case .failure(let error):
                     print("❌ CloudKit query failed: \(error.localizedDescription)")
@@ -60,6 +62,37 @@ class CloudKitManager: ObservableObject {
         }
 
         database.add(operation)
+    }
+
+    /// Convenience wrapper to fetch all team members and update ``teamMembers``.
+    /// - Parameter completion: Called with the retrieved members.
+    func fetchAllTeamMembers(completion: @escaping ([TeamMember]) -> Void = { _ in }) {
+        fetchTeam(completion: completion)
+    }
+
+    /// Creates a new ``TeamMember`` record in CloudKit and updates ``teamMembers``.
+    func addTeamMember(name: String, emoji: String = "🙂", completion: @escaping (Bool) -> Void = { _ in }) {
+        var member = TeamMember(name: name)
+        member.emoji = emoji
+        save(member) { id in
+            DispatchQueue.main.async {
+                if id != nil {
+                    self.teamMembers.append(member)
+                    completion(true)
+                } else {
+                    completion(false)
+                }
+            }
+        }
+    }
+
+    /// Deletes the provided ``TeamMember`` from CloudKit and local cache.
+    func deleteTeamMember(_ member: TeamMember, completion: @escaping (Bool) -> Void = { _ in }) {
+        delete(member)
+        DispatchQueue.main.async {
+            self.teamMembers.removeAll { $0.id == member.id }
+            completion(true)
+        }
     }
 
     func save(_ member: TeamMember, completion: @escaping (CKRecord.ID?) -> Void) {

@@ -2,28 +2,29 @@ import Foundation
 import CloudKit
 
 class SplashViewModel: ObservableObject {
-    @Published var users: [String] = []
+    /// Team members available for selection on the splash screen.
+    @Published var teamMembers: [TeamMember] = []
 
-    /// Fetch the user list from CloudKit and update ``users``.
-    func fetchUsersFromCloud() {
-        CloudKitManager.fetchUsers { fetched in
+    /// Fetches all members from CloudKit and updates ``teamMembers``.
+    func fetchMembersFromCloud() {
+        CloudKitManager.shared.fetchAllTeamMembers { fetched in
             DispatchQueue.main.async {
-                print("✅ Cloud returned users: \(fetched)")
-                self.users = fetched
+                self.teamMembers = fetched
             }
         }
     }
 
-    /// Add a new user both locally and in CloudKit.
-    func addUser(_ name: String) {
-        CloudKitManager.saveUser(name) { [weak self] in
-            self?.fetchUsersFromCloud()
+    /// Adds a new member record and refreshes ``teamMembers``.
+    func addMember(name: String, emoji: String = "🙂") {
+        CloudKitManager.shared.addTeamMember(name: name, emoji: emoji) { [weak self] _ in
+            self?.fetchMembersFromCloud()
         }
     }
 
-    /// Delete a user from CloudKit and refresh the list.
-    func deleteUser(_ name: String) {
-        CloudKitManager.deleteUser(name)
-        fetchUsersFromCloud()
+    /// Deletes the provided member record and refreshes the list.
+    func deleteMember(_ member: TeamMember) {
+        CloudKitManager.shared.deleteTeamMember(member) { [weak self] _ in
+            self?.fetchMembersFromCloud()
+        }
     }
 }
