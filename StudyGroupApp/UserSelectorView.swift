@@ -87,7 +87,7 @@ struct UserSelectorView: View {
                 }
             }
             .onAppear {
-                userManager.refresh()
+                userManager.fetchUsersFromCloud()
             }
         }
     }

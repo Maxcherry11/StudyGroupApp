@@ -7,6 +7,7 @@ class CloudKitManager: ObservableObject {
     private let recordType = "TeamMember"
     private let scoreRecordType = "ScoreRecord"
     private let cardRecordType = "Card"
+    private static let userRecordType = "User"
 
     @Published var team: [TeamMember] = []
 
@@ -340,48 +341,54 @@ class CloudKitManager: ObservableObject {
         database.add(operation)
     }
 
-    // MARK: - Card Sync
+    // MARK: - User Sync
 
-    static func fetchCards(completion: @escaping ([Card]) -> Void) {
+    /// Fetches all user names from CloudKit.
+    static func fetchUsers(completion: @escaping ([String]) -> Void) {
         let predicate = NSPredicate(value: true)
-        let query = CKQuery(recordType: shared.cardRecordType, predicate: predicate)
-        var results: [Card] = []
-
-        let operation = CKQueryOperation(query: query)
-        operation.recordMatchedBlock = { _, result in
-            if case .success(let record) = result {
-                if let card = Card(record: record) {
-                    results.append(card)
-                }
+        let query = CKQuery(recordType: userRecordType, predicate: predicate)
+        CKContainer.default().publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
+            guard let records = records, error == nil else {
+                completion([])
+                return
             }
+            let names = records.compactMap { $0["name"] as? String }
+            completion(names.sorted())
         }
-
-        operation.queryResultBlock = { _ in
-            DispatchQueue.main.async {
-                completion(results)
-            }
-        }
-
-        shared.database.add(operation)
     }
 
-    static func saveCard(_ card: Card) {
-        let predicate = NSPredicate(format: "recordID == %@", CKRecord.ID(recordName: card.id))
-        let query = CKQuery(recordType: shared.cardRecordType, predicate: predicate)
+    /// Saves the provided user name to CloudKit.
+    static func saveUser(_ name: String) {
+        let record = CKRecord(recordType: userRecordType, recordID: CKRecord.ID(recordName: name))
+        record["name"] = name as CKRecordValue
+        CKContainer.default().publicCloudDatabase.save(record) { _, _ in }
+    }
 
-        shared.database.fetch(withQuery: query) { result in
-            var existing: CKRecord?
-            if case .success(let (match, _)) = result {
-                existing = match.compactMap { _, res in try? res.get() }.first
-            }
+    /// Deletes the user with the given name from CloudKit.
+    static func deleteUser(_ name: String) {
+        let id = CKRecord.ID(recordName: name)
+        CKContainer.default().publicCloudDatabase.delete(withRecordID: id) { _, _ in }
+    }
 
-            let record = card.toCKRecord(existing: existing)
-            shared.database.save(record) { _, error in
-                if let error = error {
-                    print("❌ Error saving card: \(error.localizedDescription)")
-                }
+    // MARK: - Card Sync
+
+    /// Fetches all Win the Day cards from CloudKit.
+    static func fetchCards(completion: @escaping ([Card]) -> Void) {
+        let query = CKQuery(recordType: shared.cardRecordType, predicate: NSPredicate(value: true))
+        CKContainer.default().publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
+            guard let records = records, error == nil else {
+                completion([])
+                return
             }
+            let cards = records.compactMap(Card.init)
+            completion(cards)
         }
+    }
+
+    /// Saves a Win the Day card to CloudKit.
+    static func saveCard(_ card: Card) {
+        let record = card.toCKRecord()
+        CKContainer.default().publicCloudDatabase.save(record) { _, _ in }
     }
 
 }
