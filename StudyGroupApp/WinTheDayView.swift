@@ -80,11 +80,14 @@ struct WinTheDayView: View {
         }
         .onAppear {
             if !userManager.userList.isEmpty {
-                viewModel.load(names: userManager.userList)
+                viewModel.load(names: userManager.userList) {
+                    viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
+                }
                 viewModel.loadInitialDisplayOrder()
                 viewModel.fetchCardsFromCloud()
                 hasLoaded = true
                 shimmerPosition = -1.0
+                viewModel.initializeDisplayedCardsIfNeeded()
                 withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
                     shimmerPosition = 1.5
                 }
@@ -95,8 +98,10 @@ struct WinTheDayView: View {
     .onChange(of: userManager.currentUser) { _ in }
     .onChange(of: userManager.userList) { newList in
         if hasLoaded {
-            viewModel.load(names: newList)
-            viewModel.loadInitialDisplayOrder()
+            viewModel.load(names: newList) {
+                viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
+            }
+            viewModel.initializeDisplayedCardsIfNeeded()
         }
     }
     .sheet(isPresented: $emojiPickerVisible) {
@@ -173,6 +178,7 @@ private func editingSheet(for editingID: UUID) -> some View {
             editingMemberID: $editingMemberID,
             recentlyCompletedIDs: $recentlyCompletedIDs,
             onSave: { _, _ in
+                handleSaveAndReorder()
                 viewModel.teamMembers = viewModel.teamMembers.map { $0 }
             }
         )
@@ -204,6 +210,7 @@ private var contentVStack: some View {
                     editingMemberID: $editingMemberID,
                     recentlyCompletedIDs: $recentlyCompletedIDs,
                     onSave: { _, _ in
+                        handleSaveAndReorder()
                         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
                     }
                 )
@@ -291,8 +298,9 @@ private var teamCardsList: some View {
             .padding(.horizontal, 20)
         }
         .refreshable {
-            viewModel.load(names: userManager.userList)
-            viewModel.loadInitialDisplayOrder()
+            viewModel.load(names: userManager.userList) {
+                viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
+            }
         }
     }
 }
@@ -399,6 +407,14 @@ private var emojiGrid: some View {
             }
         }
         .padding(.vertical, 10)
+    }
+}
+
+/// Handles saving edits and reordering cards with animation.
+private func handleSaveAndReorder() {
+    withAnimation {
+        viewModel.reorderAfterSave()
+        viewModel.saveCardOrderToCloud(for: userManager.currentUser)
     }
 }
 

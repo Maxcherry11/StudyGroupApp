@@ -27,12 +27,18 @@ class WinTheDayViewModel: ObservableObject {
         hasLoadedDisplayOrder = true
     }
 
+    /// Initializes ``displayedMembers`` only once using the current
+    /// ``teamMembers`` order so that card order remains stable when returning
+    /// from the splash screen.
+    func initializeDisplayedCardsIfNeeded() {
+        if displayedMembers.isEmpty {
+            displayedMembers = teamMembers.sorted { $0.sortIndex < $1.sortIndex }
+        }
+    }
+
     /// Reorders ``displayedCards`` after the user saves edits.
     func reorderAfterSave() {
-        displayedMembers = teamMembers.sorted {
-            ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-            ($1.quotesToday + $1.salesWTD + $1.salesMTD)
-        }
+        reorderCards()
     }
 
     // MARK: - Card Sync Helpers
@@ -132,6 +138,45 @@ class WinTheDayViewModel: ObservableObject {
             }
             return name == selectedUserName.lowercased().replacingOccurrences(of: ".", with: "")
         }
+    }
+
+    /// Reorders team members by current production (quotes + sales) and updates
+    /// their persisted `sortIndex`. This mirrors the stable ordering logic used
+    /// in LifeScoreboardViewModel.
+    func reorderCards() {
+        teamMembers.sort {
+            ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
+            ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+        }
+
+        for index in teamMembers.indices {
+            teamMembers[index].sortIndex = index
+            CloudKitManager.shared.save(teamMembers[index]) { _ in }
+        }
+        displayedMembers = teamMembers
+    }
+
+    func loadCardOrderFromCloud(for user: String) {
+        CloudKitManager.shared.fetchCardOrder(for: user) { [weak self] savedOrder in
+            guard let self = self else { return }
+            if let savedOrder = savedOrder {
+                let ordered = savedOrder.compactMap { idString in
+                    self.teamMembers.first { $0.id.uuidString == idString }
+                }
+                self.displayedMembers = ordered
+            } else {
+                let sorted = self.teamMembers.sorted {
+                    ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
+                    ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+                }
+                self.displayedMembers = sorted
+            }
+        }
+    }
+
+    func saveCardOrderToCloud(for user: String) {
+        let order = displayedMembers.map { $0.id.uuidString }
+        CloudKitManager.shared.saveCardOrder(for: user, order: order)
     }
 
 
