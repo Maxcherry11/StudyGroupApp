@@ -349,7 +349,8 @@ class CloudKitManager: ObservableObject {
         let query = CKQuery(recordType: userRecordType, predicate: predicate)
         CKContainer.default().publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
             guard let records = records, error == nil else {
-                print("❌ Failed to fetch users: \(error?.localizedDescription ?? \"Unknown error\")")
+                let message = error?.localizedDescription ?? "Unknown error"
+                print("❌ Failed to fetch users: \(message)")
                 completion([])
                 return
             }
