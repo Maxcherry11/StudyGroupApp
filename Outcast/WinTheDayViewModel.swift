@@ -3,7 +3,8 @@ import CloudKit
 
 class WinTheDayViewModel: ObservableObject {
     @Published var teamData: [TeamMember] = []
-    private var database = CKContainer.default().publicCloudDatabase
+    /// Use the Outcast container explicitly for all sync operations.
+    private let database = CKContainer(identifier: "iCloud.com.dj.Outcast").publicCloudDatabase
 
     init() {
         fetchTeamMembers()
@@ -36,7 +37,7 @@ class WinTheDayViewModel: ObservableObject {
             }
         }
 
-        CKContainer.default().publicCloudDatabase.add(operation)
+        database.add(operation)
     }
 
     func fetchTeamMembers() {
@@ -93,7 +94,7 @@ class WinTheDayViewModel: ObservableObject {
             }
         }
 
-        CKContainer.default().publicCloudDatabase.add(operation)
+        database.add(operation)
     }
 } // End of class WinTheDayViewModel
 

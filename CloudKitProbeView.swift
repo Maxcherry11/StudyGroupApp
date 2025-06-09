@@ -22,7 +22,7 @@ struct CloudKitProbeView: View {
     }
 
     func checkCloudKit() {
-        CKContainer.default().accountStatus { status, error in
+        CKContainer(identifier: "iCloud.com.dj.Outcast").accountStatus { status, error in
             DispatchQueue.main.async {
                 switch status {
                 case .available:
