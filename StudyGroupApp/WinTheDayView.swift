@@ -255,7 +255,7 @@ private var teamCardsList: some View {
         ScrollView {
             VStack(spacing: 10) {
 
-                ForEach(viewModel.displayedCards, id: \.id) { card in
+                ForEach(viewModel.displayedMembers, id: \.id) { card in
                     if let idx = viewModel.teamMembers.firstIndex(where: { $0.id == card.id }) {
                         let name = viewModel.teamMembers[idx].name
                         let isEditable = name == userManager.currentUser
