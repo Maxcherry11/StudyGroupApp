@@ -465,11 +465,12 @@ class CloudKitManager: ObservableObject {
 
     // MARK: - User Sync
 
-    /// Fetches all user names from CloudKit.
-    static func fetchUsers(completion: @escaping ([String]) -> Void) {
-        print("\u{1F50D} Starting fetchUsers()")
-        let predicate = NSPredicate(value: true)
+    /// Fetches user records filtered by the provided user name.
+    static func fetchUsers(for userName: String, completion: @escaping ([String]) -> Void) {
+        print("\u{1F50D} Starting fetchUsers() for user: \(userName)")
+        let predicate = NSPredicate(format: "userName == %@", userName)
         let query = CKQuery(recordType: userRecordType, predicate: predicate)
+
         CloudKitManager.container.publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
             guard let records = records, error == nil else {
                 let message = error?.localizedDescription ?? "Unknown error"
@@ -478,7 +479,7 @@ class CloudKitManager: ObservableObject {
                 return
             }
             let names = records.compactMap { $0["name"] as? String }
-            print("✅ fetchUsers(): loaded \(names.count) users")
+            print("✅ fetchUsers() loaded \(names.count) users")
             completion(names.sorted())
         }
     }
