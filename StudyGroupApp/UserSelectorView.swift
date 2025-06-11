@@ -32,6 +32,7 @@ struct UserSelectorView: View {
                             List {
                                 ForEach(cloud.teamMembers, id: \.id) { member in
                                     Button(action: {
+                                        // Set current user before fetching additional info
                                         userManager.currentUser = member.name
                                         cloud.fetchUsers()
                                         print("👤 Selected: \(member.name)")
