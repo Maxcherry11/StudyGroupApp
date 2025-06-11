@@ -468,7 +468,7 @@ class CloudKitManager: ObservableObject {
     /// Fetches user records filtered by the provided user name.
     static func fetchUsers(for userName: String, completion: @escaping ([String]) -> Void) {
         print("\u{1F50D} Starting fetchUsers() for user: \(userName)")
-        let predicate = NSPredicate(format: "userName == %@", userName)
+        let predicate = NSPredicate(format: "name == %@", userName)
         let query = CKQuery(recordType: userRecordType, predicate: predicate)
 
         CloudKitManager.container.publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
