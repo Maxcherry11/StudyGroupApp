@@ -422,7 +422,7 @@ class CloudKitManager: ObservableObject {
             DispatchQueue.main.async {
                 switch result {
                 case .success:
-                    if let order = savedOrder {
+                    if savedOrder != nil {
                         print("✅ fetchCardOrder(): card order found for user: \(user)")
                     } else {
                         print("⚠️ fetchCardOrder(): no order found for user: \(user)")
@@ -478,16 +478,20 @@ class CloudKitManager: ObservableObject {
         let predicate = NSPredicate(format: "name == %@", userName)
         let query = CKQuery(recordType: userRecordType, predicate: predicate)
 
-        CloudKitManager.container.publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
-            guard let records = records, error == nil else {
-                let message = error?.localizedDescription ?? "Unknown error"
+        CloudKitManager.container.publicCloudDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: CKQueryOperation.maximumResults) { result in
+            switch result {
+            case .success(let (matchResults, _)):
+                let records = matchResults.compactMap { _, recordResult in
+                    try? recordResult.get()
+                }
+                let names = records.compactMap { $0["name"] as? String }
+                print("🕒 \(Date()) — ✅ fetchUsers() loaded \(names.count) users")
+                completion(names.sorted())
+            case .failure(let error):
+                let message = error.localizedDescription
                 print("🕒 \(Date()) — ❌ fetchUsers() failed: \(message)")
                 completion([])
-                return
             }
-            let names = records.compactMap { $0["name"] as? String }
-            print("🕒 \(Date()) — ✅ fetchUsers() loaded \(names.count) users")
-            completion(names.sorted())
         }
     }
 
@@ -527,13 +531,17 @@ class CloudKitManager: ObservableObject {
     /// Fetches all Win the Day cards from CloudKit.
     static func fetchCards(completion: @escaping ([Card]) -> Void) {
         let query = CKQuery(recordType: shared.cardRecordType, predicate: NSPredicate(value: true))
-        CloudKitManager.container.publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
-            guard let records = records, error == nil else {
+        CloudKitManager.container.publicCloudDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: CKQueryOperation.maximumResults) { result in
+            switch result {
+            case .success(let (matchResults, _)):
+                let records = matchResults.compactMap { _, recordResult in
+                    try? recordResult.get()
+                }
+                let cards = records.compactMap(Card.init)
+                completion(cards)
+            case .failure:
                 completion([])
-                return
             }
-            let cards = records.compactMap(Card.init)
-            completion(cards)
         }
     }
 
