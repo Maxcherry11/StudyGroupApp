@@ -33,7 +33,7 @@ struct UserSelectorView: View {
                                 ForEach(cloud.teamMembers, id: \.id) { member in
                                     Button(action: {
                                         userManager.currentUser = member.name
-                                        userManager.fetchUsersFromCloud()
+                                        cloud.fetchUsers()
                                         print("👤 Selected: \(member.name)")
                                         navigate = true
                                     }) {

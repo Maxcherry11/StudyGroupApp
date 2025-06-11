@@ -490,6 +490,17 @@ class CloudKitManager: ObservableObject {
         }
     }
 
+    /// Convenience wrapper that uses ``UserManager``'s current user.
+    /// Calls ``fetchUsers(for:completion:)`` and simply prints the results.
+    func fetchUsers() {
+        let current = UserManager.shared.currentUser
+        CloudKitManager.fetchUsers(for: current) { names in
+            DispatchQueue.main.async {
+                print("📥 Received users from CloudKit: \(names)")
+            }
+        }
+    }
+
     /// Saves the provided user name to CloudKit.
     static func saveUser(_ name: String, completion: @escaping () -> Void) {
         let record = CKRecord(recordType: userRecordType, recordID: CKRecord.ID(recordName: name))
