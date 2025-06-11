@@ -474,6 +474,7 @@ class CloudKitManager: ObservableObject {
             completion([])
             return
         }
+        // Use the custom "name" field rather than the system-level recordName
         let predicate = NSPredicate(format: "name == %@", userName)
         let query = CKQuery(recordType: userRecordType, predicate: predicate)
 
