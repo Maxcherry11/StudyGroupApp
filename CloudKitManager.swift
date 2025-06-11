@@ -10,7 +10,7 @@ class CloudKitManager: ObservableObject {
     private let scoreRecordType = "ScoreRecord"
     private let cardRecordType = "Card"
     private let cardOrderRecordType = "CardOrder"
-    private static let userRecordType = "User"
+    private static let userRecordType = "TeamMember"
 
     /// Cached members fetched from CloudKit. Updates to this array reflect
     /// immediately in any views observing the manager.
@@ -468,6 +468,7 @@ class CloudKitManager: ObservableObject {
     /// Fetches user records filtered by the provided user name.
     static func fetchUsers(for userName: String, completion: @escaping ([String]) -> Void) {
         print("\u{1F50D} Starting fetchUsers() for user: \(userName)")
+        print("\u{1F50D} \u{1F50D} fetchUsers() is searching for name: \(userName)")
         let predicate = NSPredicate(format: "name == %@", userName)
         let query = CKQuery(recordType: userRecordType, predicate: predicate)
 
