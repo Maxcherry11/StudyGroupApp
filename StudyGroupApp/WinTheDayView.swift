@@ -49,6 +49,7 @@ enum StatType {
 struct WinTheDayView: View {
     @StateObject var viewModel: WinTheDayViewModel
     @EnvironmentObject var userManager: UserManager
+    @ObservedObject private var cloud = CloudKitManager.shared
     @State private var selectedMember: TeamMember?
     @State private var shimmerPosition: CGFloat = 0
     @State private var editingMemberID: UUID?
@@ -79,6 +80,7 @@ struct WinTheDayView: View {
             }
         }
         .onAppear {
+            cloud.fetchTeam()
             if !userManager.userList.isEmpty {
                 viewModel.load(names: userManager.userList) {
                     viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
@@ -262,8 +264,8 @@ private var teamCardsList: some View {
         ScrollView {
             VStack(spacing: 10) {
 
-                ForEach(viewModel.displayedMembers, id: \.id) { card in
-                    if let idx = viewModel.teamMembers.firstIndex(where: { $0.id == card.id }) {
+                ForEach(viewModel.teamMembers, id: \.id) { member in
+                    if let idx = viewModel.teamMembers.firstIndex(where: { $0.id == member.id }) {
                         let name = viewModel.teamMembers[idx].name
                         let isEditable = name == userManager.currentUser
                         TeamMemberCardView(
@@ -272,15 +274,15 @@ private var teamCardsList: some View {
                         selectedUserName: userManager.currentUser,
                         onEdit: { field in
                             if isEditable {
-                                editingMemberID = card.id
+                                editingMemberID = member.id
                                 editingField = field
                                 if field == "emoji" {
                                     emojiPickerVisible = true
-                                    emojiEditingID = card.id
+                                    emojiEditingID = member.id
                                     editingMemberID = nil
                                 } else {
                                     withAnimation {
-                                        scrollProxy.scrollTo(card.id, anchor: .center)
+                                        scrollProxy.scrollTo(member.id, anchor: .center)
                                     }
                                 }
                             }
@@ -291,7 +293,7 @@ private var teamCardsList: some View {
                         salesWTDLabel: salesWTDLabel,
                         salesMTDLabel: salesMTDLabel
                         )
-                        .id(card.id)
+                        .id(member.id)
                     }
                 }
             }
