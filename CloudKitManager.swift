@@ -468,7 +468,12 @@ class CloudKitManager: ObservableObject {
     /// Fetches user records filtered by the provided user name.
     static func fetchUsers(for userName: String, completion: @escaping ([String]) -> Void) {
         print("\u{1F50D} Starting fetchUsers() for user: \(userName)")
-        print("\u{1F50D} \u{1F50D} fetchUsers() is searching for name: \(userName)")
+        print("\u{1F50D} \u{1F50D} fetchUsers() is searching for name: [\(userName)]")
+        guard !userName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            print("⚠️ fetchUsers() aborted: currentUser is empty or invalid.")
+            completion([])
+            return
+        }
         let predicate = NSPredicate(format: "name == %@", userName)
         let query = CKQuery(recordType: userRecordType, predicate: predicate)
 
