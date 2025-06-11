@@ -24,6 +24,7 @@ class CloudKitManager: ObservableObject {
     }
 
     func fetchTeam(completion: @escaping ([TeamMember]) -> Void) {
+        print("\u{1F50D} Starting fetchTeam()")
         let predicate = NSPredicate(value: true)
         let query = CKQuery(recordType: "TeamMember", predicate: predicate)
         query.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
@@ -37,8 +38,9 @@ class CloudKitManager: ObservableObject {
                 if let member = TeamMember(record: record) {
                     fetchedMembers.append(member)
                 }
+                print("✅ fetchTeam() matched record: \(recordID.recordName)")
             case .failure(let error):
-                print("❌ Failed to match record: \(error.localizedDescription)")
+                print("❌ fetchTeam() record match failed: \(error.localizedDescription)")
             }
         }
 
@@ -46,14 +48,14 @@ class CloudKitManager: ObservableObject {
             DispatchQueue.main.async {
                 switch result {
                 case .success:
-                    print("✅ Fetched \(fetchedMembers.count) team members.")
                     let valid = fetchedMembers.filter {
                         !$0.name.trimmingCharacters(in: .whitespaces).isEmpty
                     }
                     self.teamMembers = valid
+                    print("✅ fetchTeam(): loaded \(valid.count) TeamMember records")
                     completion(valid)
                 case .failure(let error):
-                    print("❌ CloudKit query failed: \(error.localizedDescription)")
+                    print("❌ fetchTeam() query failed: \(error.localizedDescription)")
                     completion([])
                 }
             }
@@ -157,10 +159,15 @@ class CloudKitManager: ObservableObject {
     }
 
     func fetchAll(completion: @escaping ([TeamMember]) -> Void) {
-        fetchTeam(completion: completion)
+        print("\u{1F50D} Starting fetchAll()")
+        fetchTeam { members in
+            print("✅ fetchAll(): retrieved \(members.count) members")
+            completion(members)
+        }
     }
 
     func fetchFiltered(byUserName name: String, completion: @escaping ([TeamMember]) -> Void) {
+        print("\u{1F50D} Starting fetchFiltered() for user: \(name)")
         let predicate = NSPredicate(format: "name == %@", name)
         let query = CKQuery(recordType: recordType, predicate: predicate)
         query.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
@@ -174,14 +181,21 @@ class CloudKitManager: ObservableObject {
                 if let member = TeamMember(record: record) {
                     results.append(member)
                 }
+                print("✅ fetchFiltered() matched record: \(recordID.recordName)")
             case .failure(let error):
-                print("❌ Failed to fetch record: \(error.localizedDescription)")
+                print("❌ fetchFiltered() record match failed: \(error.localizedDescription)")
             }
         }
 
-        operation.queryResultBlock = { _ in
+        operation.queryResultBlock = { result in
             DispatchQueue.main.async {
                 let valid = results.filter { self.isValid($0) }
+                switch result {
+                case .success:
+                    print("✅ fetchFiltered(): loaded \(valid.count) TeamMember records")
+                case .failure(let error):
+                    print("❌ fetchFiltered() query failed: \(error.localizedDescription)")
+                }
                 completion(valid)
             }
         }
@@ -346,6 +360,7 @@ class CloudKitManager: ObservableObject {
     }
 
     func fetchScores(for names: [String], completion: @escaping ([String: (score: Int, pending: Int, projected: Double)]) -> Void) {
+        print("\u{1F50D} Starting fetchScores() for names: \(names)")
         guard !names.isEmpty else {
             completion([:])
             return
@@ -355,18 +370,28 @@ class CloudKitManager: ObservableObject {
 
         var results: [String: (Int, Int, Double)] = [:]
         let operation = CKQueryOperation(query: query)
-        operation.recordMatchedBlock = { _, result in
-            if case .success(let record) = result {
+        operation.recordMatchedBlock = { recordID, result in
+            switch result {
+            case .success(let record):
                 let name = record["name"] as? String ?? ""
                 let score = record["score"] as? Int ?? 0
                 let pending = record["pending"] as? Int ?? 0
                 let projected = record["projected"] as? Double ?? 0.0
                 results[name] = (score, pending, projected)
+                print("✅ fetchScores() matched record: \(recordID.recordName)")
+            case .failure(let error):
+                print("❌ fetchScores() record match failed: \(error.localizedDescription)")
             }
         }
 
-        operation.queryResultBlock = { _ in
+        operation.queryResultBlock = { result in
             DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    print("✅ fetchScores(): loaded \(results.count) records")
+                case .failure(let error):
+                    print("❌ fetchScores() query failed: \(error.localizedDescription)")
+                }
                 completion(results)
             }
         }
@@ -376,20 +401,35 @@ class CloudKitManager: ObservableObject {
 
     // MARK: - Card Order
     func fetchCardOrder(for user: String, completion: @escaping ([String]?) -> Void) {
+        print("\u{1F50D} Starting fetchCardOrder() for user: \(user)")
         let predicate = NSPredicate(format: "userName == %@", user)
         let query = CKQuery(recordType: cardOrderRecordType, predicate: predicate)
         let operation = CKQueryOperation(query: query)
         operation.resultsLimit = 1
 
         var savedOrder: [String]?
-        operation.recordMatchedBlock = { _, result in
-            if case .success(let record) = result {
+        operation.recordMatchedBlock = { recordID, result in
+            switch result {
+            case .success(let record):
                 savedOrder = record["cardOrder"] as? [String]
+                print("✅ fetchCardOrder() matched record: \(recordID.recordName)")
+            case .failure(let error):
+                print("❌ fetchCardOrder() record match failed: \(error.localizedDescription)")
             }
         }
 
-        operation.queryResultBlock = { _ in
+        operation.queryResultBlock = { result in
             DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    if let order = savedOrder {
+                        print("✅ fetchCardOrder(): card order found for user: \(user)")
+                    } else {
+                        print("⚠️ fetchCardOrder(): no order found for user: \(user)")
+                    }
+                case .failure(let error):
+                    print("❌ fetchCardOrder() query failed: \(error.localizedDescription)")
+                }
                 completion(savedOrder)
             }
         }
@@ -427,17 +467,18 @@ class CloudKitManager: ObservableObject {
 
     /// Fetches all user names from CloudKit.
     static func fetchUsers(completion: @escaping ([String]) -> Void) {
+        print("\u{1F50D} Starting fetchUsers()")
         let predicate = NSPredicate(value: true)
         let query = CKQuery(recordType: userRecordType, predicate: predicate)
         CloudKitManager.container.publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
             guard let records = records, error == nil else {
                 let message = error?.localizedDescription ?? "Unknown error"
-                print("❌ Failed to fetch users: \(message)")
+                print("❌ fetchUsers() failed: \(message)")
                 completion([])
                 return
             }
             let names = records.compactMap { $0["name"] as? String }
-            print("✅ Cloud returned users: \(names)")
+            print("✅ fetchUsers(): loaded \(names.count) users")
             completion(names.sorted())
         }
     }
