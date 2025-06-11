@@ -24,9 +24,8 @@ class CloudKitManager: ObservableObject {
     }
 
     func fetchTeam(completion: @escaping ([TeamMember]) -> Void) {
-        // Explicitly use NSPredicate(value: true) to avoid relying on implicit queryable fields
         let predicate = NSPredicate(value: true)
-        let query = CKQuery(recordType: recordType, predicate: predicate)
+        let query = CKQuery(recordType: "TeamMember", predicate: predicate)
         query.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
 
         var fetchedMembers: [TeamMember] = []
@@ -47,12 +46,10 @@ class CloudKitManager: ObservableObject {
             DispatchQueue.main.async {
                 switch result {
                 case .success:
-                    print("📤 Fetching from CloudKit...")
-                    print("✅ Retrieved \(fetchedMembers.count) members:")
-                    for member in fetchedMembers {
-                        print("   • \(member.name)")
+                    print("✅ Fetched \(fetchedMembers.count) team members.")
+                    let valid = fetchedMembers.filter {
+                        !$0.name.trimmingCharacters(in: .whitespaces).isEmpty
                     }
-                    let valid = fetchedMembers.filter { self.isValid($0) }
                     self.teamMembers = valid
                     completion(valid)
                 case .failure(let error):
