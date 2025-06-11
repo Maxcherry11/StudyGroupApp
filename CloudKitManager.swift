@@ -467,10 +467,10 @@ class CloudKitManager: ObservableObject {
 
     /// Fetches user records filtered by the provided user name.
     static func fetchUsers(for userName: String, completion: @escaping ([String]) -> Void) {
-        print("\u{1F50D} Starting fetchUsers() for user: \(userName)")
-        print("\u{1F50D} \u{1F50D} fetchUsers() is searching for name: [\(userName)]")
+        print("🕒 \(Date()) — \u{1F50D} Starting fetchUsers() for user: \(userName)")
+        print("🕒 \(Date()) — \u{1F50D} \u{1F50D} fetchUsers() is searching for name: [\(userName)]")
         guard !userName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            print("⚠️ fetchUsers() aborted: currentUser is empty or invalid.")
+            print("🕒 \(Date()) — ⚠️ fetchUsers() aborted: currentUser is empty or invalid.")
             completion([])
             return
         }
@@ -480,12 +480,12 @@ class CloudKitManager: ObservableObject {
         CloudKitManager.container.publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
             guard let records = records, error == nil else {
                 let message = error?.localizedDescription ?? "Unknown error"
-                print("❌ fetchUsers() failed: \(message)")
+                print("🕒 \(Date()) — ❌ fetchUsers() failed: \(message)")
                 completion([])
                 return
             }
             let names = records.compactMap { $0["name"] as? String }
-            print("✅ fetchUsers() loaded \(names.count) users")
+            print("🕒 \(Date()) — ✅ fetchUsers() loaded \(names.count) users")
             completion(names.sorted())
         }
     }
@@ -496,7 +496,7 @@ class CloudKitManager: ObservableObject {
         let current = UserManager.shared.currentUser
         CloudKitManager.fetchUsers(for: current) { names in
             DispatchQueue.main.async {
-                print("📥 Received users from CloudKit: \(names)")
+                print("🕒 \(Date()) — 📥 Received users from CloudKit: \(names)")
             }
         }
     }
