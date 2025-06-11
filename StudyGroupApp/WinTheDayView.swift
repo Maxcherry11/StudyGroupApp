@@ -80,7 +80,7 @@ struct WinTheDayView: View {
             }
         }
         .onAppear {
-            cloud.fetchTeam()
+            cloud.fetchTeam { _ in }
             if !userManager.userList.isEmpty {
                 viewModel.load(names: userManager.userList) {
                     viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
