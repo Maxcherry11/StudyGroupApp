@@ -76,7 +76,7 @@ struct UserSelectorView: View {
                                     CloudKitManager.shared.createScoreRecord(for: trimmed)
                                     let newMember = TeamMember(name: trimmed)
                                     cloud.save(newMember) { _ in
-                                        cloud.fetchTeam()
+                                        cloud.fetchTeam { _ in }
                                     }
                                     newUserName = ""
                                 })
@@ -107,7 +107,7 @@ struct UserSelectorView: View {
             userManager.deleteUser(member.name)
             CloudKitManager.shared.deleteScoreRecord(for: member.name)
             cloud.deleteByName(member.name) { _ in
-                cloud.fetchTeam()
+                cloud.fetchTeam { _ in }
             }
         }
     }
