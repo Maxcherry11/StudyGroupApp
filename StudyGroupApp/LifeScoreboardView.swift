@@ -136,14 +136,11 @@ struct LifeScoreboardView: View {
             .padding()
         }
         .onAppear {
-            viewModel.load(for: userManager.userList)
-        }
-        .onReceive(userManager.$userList) { names in
-            viewModel.load(for: names)
+            viewModel.fetchTeamMembersFromCloud()
         }
         .refreshable {
             userManager.refresh()
-            viewModel.load(for: userManager.userList)
+            viewModel.fetchTeamMembersFromCloud()
         }
         .background(
             LinearGradient(
@@ -255,7 +252,9 @@ private struct TeamMembersCard: View {
     }
 
     var body: some View {
-        let sortedNames = viewModel.scores.sorted { $0.sortIndex < $1.sortIndex }.map { $0.name }
+        let sortedMembers = viewModel.teamMembers.sorted {
+            viewModel.score(for: $0.name) > viewModel.score(for: $1.name)
+        }
 
         return ScoreTile(verticalPadding: 8) {
             VStack(alignment: .leading, spacing: 8) {
@@ -263,8 +262,9 @@ private struct TeamMembersCard: View {
                     .font(.system(size: 21, weight: .bold))
                     .frame(maxWidth: .infinity, alignment: .center)
 
-                ForEach(sortedNames, id: \.self) { name in
-                    if let entry = viewModel.scores.first(where: { $0.name == name }),
+                ForEach(sortedMembers, id: \.id) { member in
+                    let name = member.name
+                    if let entry = viewModel.entry(for: name),
                        let row = viewModel.row(for: name) {
                         TeamMemberRow(
                             entry: entry,
@@ -342,8 +342,9 @@ private struct ActivityCard: View {
     var onSelect: (LifeScoreboardViewModel.ScoreEntry, LifeScoreboardViewModel.ActivityRow) -> Void
 
     var body: some View {
-        let sortedRows = viewModel.scores.sorted { $0.sortIndex < $1.sortIndex }
-            .compactMap { viewModel.row(for: $0.name) }
+        let sortedMembers = viewModel.teamMembers.sorted {
+            viewModel.score(for: $0.name) > viewModel.score(for: $1.name)
+        }
 
         return ScoreTile(verticalPadding: 8) {
             VStack(alignment: .leading, spacing: 6) {
@@ -369,15 +370,16 @@ private struct ActivityCard: View {
                         .frame(minWidth: 110, alignment: .trailing)
                 }
 
-                ForEach(sortedRows) { row in
-                    let isCurrent = row.name == userManager.currentUser
-                    ActivityRowView(row: row, isCurrentUser: isCurrent) {
-                        if let entry = viewModel.scores.first(where: { $0.name == row.name }) {
+                ForEach(sortedMembers, id: \.id) { member in
+                    if let row = viewModel.row(for: member.name),
+                       let entry = viewModel.entry(for: member.name) {
+                        let isCurrent = member.name == userManager.currentUser
+                        ActivityRowView(row: row, isCurrentUser: isCurrent) {
                             onSelect(entry, row)
                         }
+                        .background(Color(.systemGray6))
+                        .cornerRadius(6)
                     }
-                    .background(Color(.systemGray6))
-                    .cornerRadius(6)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
