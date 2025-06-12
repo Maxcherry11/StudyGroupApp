@@ -302,7 +302,7 @@ class LifeScoreboardViewModel: ObservableObject {
             }
         }
 
-        let sorted = entries.sorted { $0.score > $1.score }
+        var sorted = entries.sorted { $0.score > $1.score }
         for index in sorted.indices { sorted[index].sortIndex = index }
         return sorted
     }
