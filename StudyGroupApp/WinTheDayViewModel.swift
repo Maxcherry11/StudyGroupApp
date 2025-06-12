@@ -7,8 +7,9 @@ class WinTheDayViewModel: ObservableObject {
 
     init() {
         self.teamMembers = []
-        self.goalNames = loadLocalGoalNames()
-        self.lastGoalHash = computeGoalHash(for: self.goalNames)
+        let names = Self.loadLocalGoalNames()
+        self.goalNames = names
+        self.lastGoalHash = Self.computeGoalHash(for: names)
     }
     @Published var teamMembers: [TeamMember] = []
     @Published var displayedMembers: [TeamMember] = []
@@ -17,7 +18,7 @@ class WinTheDayViewModel: ObservableObject {
     @Published var selectedUserName: String = ""
     @Published var goalNames: GoalNames
     private let storageKey = "WTDMemberStorage"
-    private let goalNameKey = "WTDGoalNames"
+    private static let goalNameKey = "WTDGoalNames"
     private var hasLoadedDisplayOrder = false
     /// Signature of the last CloudKit fetch used to detect changes
     private var lastFetchHash: Int?
@@ -135,19 +136,19 @@ class WinTheDayViewModel: ObservableObject {
 
     private func saveLocalGoalNames() {
         if let data = try? JSONEncoder().encode(goalNames) {
-            UserDefaults.standard.set(data, forKey: goalNameKey)
+            UserDefaults.standard.set(data, forKey: Self.goalNameKey)
         }
     }
 
-    private func loadLocalGoalNames() -> GoalNames {
-        guard let data = UserDefaults.standard.data(forKey: goalNameKey),
+    private static func loadLocalGoalNames() -> GoalNames {
+        guard let data = UserDefaults.standard.data(forKey: Self.goalNameKey),
               let decoded = try? JSONDecoder().decode(GoalNames.self, from: data) else {
             return GoalNames()
         }
         return decoded
     }
 
-    private func computeGoalHash(for names: GoalNames) -> Int {
+    private static func computeGoalHash(for names: GoalNames) -> Int {
         var hasher = Hasher()
         hasher.combine(names.quotes)
         hasher.combine(names.salesWTD)
@@ -256,7 +257,7 @@ class WinTheDayViewModel: ObservableObject {
     func fetchGoalNamesFromCloud() {
         CloudKitManager.shared.fetchGoalNames { [weak self] fetched in
             guard let self = self, let fetched = fetched else { return }
-            let newHash = self.computeGoalHash(for: fetched)
+            let newHash = Self.computeGoalHash(for: fetched)
             if self.lastGoalHash != newHash {
                 self.goalNames = fetched
                 self.lastGoalHash = newHash
@@ -269,7 +270,7 @@ class WinTheDayViewModel: ObservableObject {
         goalNames.quotes = quotes
         goalNames.salesWTD = salesWTD
         goalNames.salesMTD = salesMTD
-        lastGoalHash = computeGoalHash(for: goalNames)
+        lastGoalHash = Self.computeGoalHash(for: goalNames)
         saveLocalGoalNames()
         CloudKitManager.shared.saveGoalNames(goalNames)
     }
