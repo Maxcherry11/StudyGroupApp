@@ -351,11 +351,6 @@ private struct ActivityCard: View {
                     .frame(maxWidth: .infinity, alignment: .center)
 
                 HStack(spacing: 6) {
-                    Text("Name")
-                        .font(.system(size: 19, weight: .bold))
-                        .monospacedDigit()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
                     Text("Pending")
                         .font(.system(size: 19, weight: .bold))
                         .monospacedDigit()
@@ -367,6 +362,7 @@ private struct ActivityCard: View {
                         .monospacedDigit()
                         .frame(minWidth: 110, alignment: .trailing)
                 }
+                .frame(maxWidth: .infinity, alignment: .center)
 
                 ForEach(sortedRows, id: \.id) { row in
                     if let entry = viewModel.entry(for: row.name) {
@@ -391,11 +387,6 @@ private struct ActivityRowView: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Text(row.name)
-
-                .font(.system(size: 19, weight: .regular, design: .rounded))
-                .monospacedDigit()
-                .frame(maxWidth: .infinity, alignment: .leading)
             Text("\(row.pending)")
                 .font(.system(size: 19, weight: .regular, design: .rounded))
                 .monospacedDigit()
@@ -408,6 +399,7 @@ private struct ActivityRowView: View {
                 .frame(minWidth: 110, alignment: .trailing)
                 .monospacedDigit()
         }
+        .frame(maxWidth: .infinity, alignment: .center)
         .padding(.vertical, 2)
         .contentShape(Rectangle())
         .onTapGesture {
