@@ -346,9 +346,16 @@ private struct ActivityCard: View {
 
         return ScoreTile(verticalPadding: 8) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Activity")
-                    .font(.system(size: 21, weight: .bold))
-                    .frame(maxWidth: .infinity, alignment: .center)
+                HStack(spacing: 6) {
+                    // Spacer maintains name column width without a heading
+                    Color.clear
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    // Center the heading over Pending and Projected columns
+                    Text("Activity")
+                        .font(.system(size: 21, weight: .bold))
+                        .frame(minWidth: 190, alignment: .center)
+                }
 
                 HStack(spacing: 6) {
                     // Spacer maintains name column width without a heading
