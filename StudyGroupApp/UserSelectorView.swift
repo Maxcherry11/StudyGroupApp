@@ -38,13 +38,10 @@ struct UserSelectorView: View {
                                         print("👤 Selected: \(member.name)")
                                         navigate = true
                                     }) {
-                                        HStack {
-                                            Text(member.emoji)
-                                            Text(member.name)
-                                        }
-                                        .font(.system(size: 26, weight: .bold))
-                                        .foregroundColor(.white)
-                                        .frame(maxWidth: .infinity)
+                                        Text(member.name)
+                                            .font(.system(size: 26, weight: .bold))
+                                            .foregroundColor(.white)
+                                            .frame(maxWidth: .infinity)
                                             .padding()
                                             .padding(.vertical, 6)
                                             .background(Color.red)
