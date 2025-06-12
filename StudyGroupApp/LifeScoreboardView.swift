@@ -342,9 +342,7 @@ private struct ActivityCard: View {
     var onSelect: (LifeScoreboardViewModel.ScoreEntry, LifeScoreboardViewModel.ActivityRow) -> Void
 
     var body: some View {
-        let sortedMembers = viewModel.teamMembers.sorted {
-            viewModel.score(for: $0.name) > viewModel.score(for: $1.name)
-        }
+        let sortedRows = activity.sorted { $0.projected > $1.projected }
 
         return ScoreTile(verticalPadding: 8) {
             VStack(alignment: .leading, spacing: 6) {
@@ -370,10 +368,9 @@ private struct ActivityCard: View {
                         .frame(minWidth: 110, alignment: .trailing)
                 }
 
-                ForEach(sortedMembers, id: \.id) { member in
-                    if let row = viewModel.row(for: member.name),
-                       let entry = viewModel.entry(for: member.name) {
-                        let isCurrent = member.name == userManager.currentUser
+                ForEach(sortedRows, id: \.id) { row in
+                    if let entry = viewModel.entry(for: row.name) {
+                        let isCurrent = row.name == userManager.currentUser
                         ActivityRowView(row: row, isCurrentUser: isCurrent) {
                             onSelect(entry, row)
                         }
