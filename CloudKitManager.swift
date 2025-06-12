@@ -290,35 +290,27 @@ class CloudKitManager: ObservableObject {
     }
 
     func saveScore(entry: LifeScoreboardViewModel.ScoreEntry, pending: Int, projected: Double) {
-        let predicate = NSPredicate(format: "name == %@", entry.name)
-        let query = CKQuery(recordType: scoreRecordType, predicate: predicate)
-        database.fetch(withQuery: query) { result in
-            switch result {
-            case .success(let (matchResults, _)):
-                let records = matchResults.compactMap { _, result in
-                    try? result.get()
+        let recordID = CKRecord.ID(recordName: entry.name)
+        database.fetch(withRecordID: recordID) { existing, _ in
+            let record = existing ?? CKRecord(recordType: self.scoreRecordType, recordID: recordID)
+            record["name"] = entry.name as CKRecordValue
+            record["score"] = entry.score as CKRecordValue
+            record["pending"] = pending as CKRecordValue
+            record["projected"] = projected as CKRecordValue
+
+            self.database.save(record) { _, error in
+                if let error = error {
+                    print("❌ Error saving score: \(error.localizedDescription)")
+                } else {
+                    print("✅ Saved score for \(entry.name)")
                 }
-
-                let record = records.first ?? CKRecord(recordType: self.scoreRecordType)
-                record["name"] = entry.name as CKRecordValue
-                record["score"] = entry.score as CKRecordValue
-                record["pending"] = pending as CKRecordValue
-                record["projected"] = projected as CKRecordValue
-
-                self.database.save(record) { _, error in
-                    if let error = error {
-                        print("❌ Error saving score: \(error.localizedDescription)")
-                    }
-                }
-
-            case .failure(let error):
-                print("❌ Query failed: \(error.localizedDescription)")
             }
         }
     }
 
     func createScoreRecord(for name: String) {
-        let record = CKRecord(recordType: scoreRecordType)
+        let recordID = CKRecord.ID(recordName: name)
+        let record = CKRecord(recordType: scoreRecordType, recordID: recordID)
         record["name"] = name as CKRecordValue
         record["score"] = 0 as CKRecordValue
         record["pending"] = 0 as CKRecordValue
@@ -333,30 +325,14 @@ class CloudKitManager: ObservableObject {
     }
 
     func deleteScoreRecord(for name: String) {
-        let predicate = NSPredicate(format: "name == %@", name)
-        let query = CKQuery(recordType: scoreRecordType, predicate: predicate)
-        let operation = CKQueryOperation(query: query)
-        operation.resultsLimit = 1
-
-        var matchedID: CKRecord.ID?
-        operation.recordMatchedBlock = { recordID, result in
-            if case .success = result {
-                matchedID = recordID
+        let id = CKRecord.ID(recordName: name)
+        database.delete(withRecordID: id) { _, error in
+            if let error = error {
+                print("❌ Error deleting score record: \(error.localizedDescription)")
+            } else {
+                print("🗑️ Deleted score record for \(name)")
             }
         }
-
-        operation.queryResultBlock = { [weak self] _ in
-            guard let self = self, let id = matchedID else { return }
-            self.database.delete(withRecordID: id) { _, error in
-                if let error = error {
-                    print("❌ Error deleting score record: \(error.localizedDescription)")
-                } else {
-                    print("🗑️ Deleted score record for \(name)")
-                }
-            }
-        }
-
-        database.add(operation)
     }
 
     func fetchScores(for names: [String], completion: @escaping ([String: (score: Int, pending: Int, projected: Double)]) -> Void) {
@@ -365,26 +341,23 @@ class CloudKitManager: ObservableObject {
             completion([:])
             return
         }
-        let predicate = NSPredicate(format: "name IN %@", names)
-        let query = CKQuery(recordType: scoreRecordType, predicate: predicate)
-
+        let ids = names.map { CKRecord.ID(recordName: $0) }
         var results: [String: (Int, Int, Double)] = [:]
-        let operation = CKQueryOperation(query: query)
-        operation.recordMatchedBlock = { recordID, result in
+        let operation = CKFetchRecordsOperation(recordIDs: ids)
+        operation.perRecordResultBlock = { recordID, result in
             switch result {
             case .success(let record):
-                let name = record["name"] as? String ?? ""
+                let name = record["name"] as? String ?? recordID.recordName
                 let score = record["score"] as? Int ?? 0
                 let pending = record["pending"] as? Int ?? 0
                 let projected = record["projected"] as? Double ?? 0.0
                 results[name] = (score, pending, projected)
                 print("✅ fetchScores() matched record: \(recordID.recordName)")
             case .failure(let error):
-                print("❌ fetchScores() record match failed: \(error.localizedDescription)")
+                print("❌ fetchScores() record failed: \(error.localizedDescription)")
             }
         }
-
-        operation.queryResultBlock = { result in
+        operation.fetchRecordsResultBlock = { result in
             DispatchQueue.main.async {
                 switch result {
                 case .success:
