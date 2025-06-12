@@ -5,6 +5,8 @@ class LifeScoreboardViewModel: ObservableObject {
     private let container = CKContainer.default()
     private let recordType = "ScoreRecord"
 
+    /// All team members fetched from CloudKit
+    @Published var teamMembers: [TeamMember] = []
     @Published var scores: [ScoreEntry] = []
     @Published var activity: [ActivityRow] = []
     @Published var onTime: Double = 17.7
@@ -256,6 +258,67 @@ class LifeScoreboardViewModel: ObservableObject {
             } else {
                 print("✅ Test record saved to CloudKit")
             }
+        }
+    }
+
+    // MARK: - Team Member Sync
+
+    /// Fetches all `TeamMember` records from CloudKit and initializes
+    /// the local scoreboard state. The resulting order is based on the
+    /// members' saved scores so rows remain stable between view loads.
+    func fetchTeamMembersFromCloud() {
+        CloudKitManager.shared.fetchAllTeamMembers { [weak self] fetched in
+            guard let self = self else { return }
+
+            let entries = self.buildScoreEntries(from: fetched)
+            let rows = self.buildActivityRows(from: entries)
+
+            DispatchQueue.main.async {
+                self.teamMembers = fetched
+                self.scores = entries
+                self.activity = rows
+                self.load(for: fetched.map { $0.name })
+            }
+        }
+    }
+
+    /// Creates score entries from the provided team members using any
+    /// locally stored values and sorts them by score descending.
+    private func buildScoreEntries(from members: [TeamMember]) -> [ScoreEntry] {
+        let stored = loadLocalScores()
+        var entries: [ScoreEntry] = []
+
+        for member in members {
+            if let saved = stored.first(where: { $0.name == member.name }) {
+                entries.append(ScoreEntry(name: member.name,
+                                         score: saved.score,
+                                         sortIndex: saved.sortIndex))
+            } else if let existing = scores.first(where: { $0.name == member.name }) {
+                entries.append(existing)
+            } else {
+                entries.append(ScoreEntry(name: member.name,
+                                         score: 0,
+                                         sortIndex: entries.count))
+            }
+        }
+
+        let sorted = entries.sorted { $0.score > $1.score }
+        for index in sorted.indices { sorted[index].sortIndex = index }
+        return sorted
+    }
+
+    /// Builds activity rows aligned with the provided score entries.
+    private func buildActivityRows(from entries: [ScoreEntry]) -> [ActivityRow] {
+        let stored = loadLocalScores()
+        return entries.map { entry in
+            let saved = stored.first(where: { $0.name == entry.name })
+            let row = ActivityRow(name: entry.name,
+                                  score: entry.score,
+                                  sortIndex: entry.sortIndex,
+                                  pending: saved?.pending ?? 0,
+                                  projected: saved?.projected ?? 0)
+            row.entries = [entry]
+            return row
         }
     }
 }
