@@ -10,10 +10,28 @@ class LifeScoreboardViewModel: ObservableObject {
     @Published var onTime: Double = 17.7
     @Published var travel: Double = 31.0
 
-    struct ScoreEntry: Identifiable, Hashable {
+    /// Key used for persisting scoreboard data locally
+    private let storageKey = "LifeScoreboardStorage"
+    /// Signature of the last CloudKit fetch used to detect changes
+    private var lastFetchHash: Int?
+
+    init() {
+        let stored = loadLocalScores().sorted { $0.sortIndex < $1.sortIndex }
+        for item in stored {
+            let entry = ScoreEntry(name: item.name, score: item.score, sortIndex: item.sortIndex)
+            scores.append(entry)
+            let row = ActivityRow(name: item.name, score: item.score, sortIndex: item.sortIndex, pending: item.pending, projected: item.projected)
+            row.entries = [entry]
+            activity.append(row)
+        }
+        lastFetchHash = computeHash(for: stored)
+    }
+
+    struct ScoreEntry: Identifiable, Hashable, Codable {
         var id = UUID()
         var name: String
         var score: Int
+        var sortIndex: Int = 0
     }
 
     class ActivityRow: ObservableObject, Identifiable {
@@ -30,9 +48,9 @@ class LifeScoreboardViewModel: ObservableObject {
             self.projected = 0.0
         }
 
-        init(name: String, score: Int, pending: Int, projected: Double) {
+        init(name: String, score: Int, sortIndex: Int, pending: Int, projected: Double) {
             self.name = name
-            self.entries = [ScoreEntry(name: name, score: score)]
+            self.entries = [ScoreEntry(name: name, score: score, sortIndex: sortIndex)]
             self.pending = pending
             self.projected = projected
         }
@@ -53,34 +71,163 @@ class LifeScoreboardViewModel: ObservableObject {
         activity.first(where: { $0.name == name })
     }
 
+    /// Calculates a simple signature for the provided stored scores to detect
+    /// changes between CloudKit fetches.
+    private func computeHash(for stored: [StoredScore]) -> Int {
+        var hasher = Hasher()
+        for item in stored {
+            hasher.combine(item.name)
+            hasher.combine(item.score)
+            hasher.combine(item.pending)
+            hasher.combine(item.projected)
+        }
+        return hasher.finalize()
+    }
+
+    /// Model used for local persistence
+    private struct StoredScore: Codable {
+        var name: String
+        var score: Int
+        var pending: Int
+        var projected: Double
+        var sortIndex: Int
+    }
+
+    private func saveLocal() {
+        let stored = scores.map { score -> StoredScore in
+            let row = activity.first { $0.name == score.name }
+            return StoredScore(
+                name: score.name,
+                score: score.score,
+                pending: row?.pending ?? 0,
+                projected: row?.projected ?? 0,
+                sortIndex: score.sortIndex
+            )
+        }
+        if let data = try? JSONEncoder().encode(stored) {
+            UserDefaults.standard.set(data, forKey: storageKey)
+        }
+    }
+
+    private func loadLocalScores() -> [StoredScore] {
+        guard let data = UserDefaults.standard.data(forKey: storageKey),
+              let decoded = try? JSONDecoder().decode([StoredScore].self, from: data) else {
+            return []
+        }
+        return decoded
+    }
+
     private func updateLocalEntries(names: [String]) {
         // Remove entries for deleted users
         scores.removeAll { entry in !names.contains(entry.name) }
         activity.removeAll { row in !names.contains(row.name) }
 
-        // Add entries for new users
+        let stored = loadLocalScores()
+
+        // Add entries for new users using any stored values
         for name in names where !scores.contains(where: { $0.name == name }) {
-            let entry = ScoreEntry(name: name, score: 0)
-            scores.append(entry)
-            let row = ActivityRow(name: name, score: 0, pending: 0, projected: 0)
-            row.entries = [entry]
-            activity.append(row)
+            if let saved = stored.first(where: { $0.name == name }) {
+                let entry = ScoreEntry(name: name, score: saved.score, sortIndex: saved.sortIndex)
+                scores.append(entry)
+                let row = ActivityRow(name: name, score: saved.score, sortIndex: saved.sortIndex, pending: saved.pending, projected: saved.projected)
+                row.entries = [entry]
+                activity.append(row)
+            } else {
+                let index = scores.count
+                let entry = ScoreEntry(name: name, score: 0, sortIndex: index)
+                scores.append(entry)
+                let row = ActivityRow(name: name, score: 0, sortIndex: index, pending: 0, projected: 0)
+                row.entries = [entry]
+                activity.append(row)
+            }
+        }
+
+        // Ensure ordering based on stored sortIndex
+        scores.sort { $0.sortIndex < $1.sortIndex }
+        activity.sort { lhs, rhs in
+            guard let left = scores.firstIndex(where: { $0.name == lhs.name }),
+                  let right = scores.firstIndex(where: { $0.name == rhs.name }) else { return false }
+            return left < right
         }
     }
 
     func load(for names: [String]) {
         updateLocalEntries(names: names)
-        CloudKitManager.shared.fetchScores(for: names) { records in
-            for (name, values) in records {
-                if let index = self.scores.firstIndex(where: { $0.name == name }) {
-                    self.scores[index].score = values.score
+        CloudKitManager.shared.fetchScores(for: names) { [weak self] records in
+            guard let self = self else { return }
+
+            var fetched: [StoredScore] = []
+            for (idx, name) in names.enumerated() {
+                let values = records[name]
+                let score = values?.score ?? self.entry(for: name)?.score ?? 0
+                let pending = values?.pending ?? self.row(for: name)?.pending ?? 0
+                let projected = values?.projected ?? self.row(for: name)?.projected ?? 0
+                let sort = self.scores.first(where: { $0.name == name })?.sortIndex ?? idx
+                fetched.append(StoredScore(name: name, score: score, pending: pending, projected: projected, sortIndex: sort))
+            }
+
+            DispatchQueue.main.async {
+                let newHash = self.computeHash(for: fetched)
+
+                if self.lastFetchHash != newHash {
+                    let sorted = fetched.sorted { $0.score > $1.score }
+                    for (index, item) in sorted.enumerated() {
+                        if let scoreIndex = self.scores.firstIndex(where: { $0.name == item.name }) {
+                            self.scores[scoreIndex].score = item.score
+                            self.scores[scoreIndex].sortIndex = index
+                        } else {
+                            self.scores.append(ScoreEntry(name: item.name, score: item.score, sortIndex: index))
+                        }
+
+                        if let row = self.activity.first(where: { $0.name == item.name }) {
+                            row.pending = item.pending
+                            row.projected = item.projected
+                        } else {
+                            let row = ActivityRow(name: item.name, score: item.score, sortIndex: index, pending: item.pending, projected: item.projected)
+                            row.entries = [ScoreEntry(name: item.name, score: item.score, sortIndex: index)]
+                            self.activity.append(row)
+                        }
+                    }
+                    self.scores.sort { $0.sortIndex < $1.sortIndex }
+                    self.activity.sort { lhs, rhs in
+                        guard let left = self.scores.firstIndex(where: { $0.name == lhs.name }),
+                              let right = self.scores.firstIndex(where: { $0.name == rhs.name }) else { return false }
+                        return left < right
+                    }
+                    self.lastFetchHash = newHash
+                } else {
+                    for item in fetched {
+                        if let scoreIndex = self.scores.firstIndex(where: { $0.name == item.name }) {
+                            self.scores[scoreIndex].score = item.score
+                        }
+                        if let row = self.activity.first(where: { $0.name == item.name }) {
+                            row.pending = item.pending
+                            row.projected = item.projected
+                        }
+                    }
                 }
-                if let row = self.activity.first(where: { $0.name == name }) {
-                    row.pending = values.pending
-                    row.projected = values.projected
-                }
+
+                self.saveLocal()
             }
         }
+    }
+
+    /// Reorders local entries by score and updates their stored sort index.
+    private func reorderLocal() {
+        scores.sort { $0.score > $1.score }
+        for index in scores.indices { scores[index].sortIndex = index }
+        activity.sort { lhs, rhs in
+            guard let left = scores.firstIndex(where: { $0.name == lhs.name }),
+                  let right = scores.firstIndex(where: { $0.name == rhs.name }) else { return false }
+            return left < right
+        }
+        lastFetchHash = computeHash(for: scores.map { score in
+            StoredScore(name: score.name,
+                        score: score.score,
+                        pending: activity.first { $0.name == score.name }?.pending ?? 0,
+                        projected: activity.first { $0.name == score.name }?.projected ?? 0,
+                        sortIndex: score.sortIndex)
+        })
     }
     func save(_ entry: ScoreEntry, pending: Int, projected: Double) {
         guard let index = scores.firstIndex(where: { $0.name == entry.name }) else { return }
@@ -91,6 +238,8 @@ class LifeScoreboardViewModel: ObservableObject {
             activity[rowIndex].projected = projected
         }
 
+        reorderLocal()
+        saveLocal()
         CloudKitManager.shared.saveScore(entry: entry, pending: pending, projected: projected)
     }
 

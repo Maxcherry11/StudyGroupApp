@@ -255,9 +255,7 @@ private struct TeamMembersCard: View {
     }
 
     var body: some View {
-        let sortedNames = userManager.userList.sorted { lhs, rhs in
-            viewModel.score(for: lhs) > viewModel.score(for: rhs)
-        }
+        let sortedNames = viewModel.scores.sorted { $0.sortIndex < $1.sortIndex }.map { $0.name }
 
         return ScoreTile(verticalPadding: 8) {
             VStack(alignment: .leading, spacing: 8) {
@@ -344,9 +342,8 @@ private struct ActivityCard: View {
     var onSelect: (LifeScoreboardViewModel.ScoreEntry, LifeScoreboardViewModel.ActivityRow) -> Void
 
     var body: some View {
-        let sortedRows = userManager.userList
-            .compactMap { viewModel.row(for: $0) }
-            .sorted { $0.projected > $1.projected }
+        let sortedRows = viewModel.scores.sorted { $0.sortIndex < $1.sortIndex }
+            .compactMap { viewModel.row(for: $0.name) }
 
         return ScoreTile(verticalPadding: 8) {
             VStack(alignment: .leading, spacing: 6) {
