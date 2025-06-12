@@ -23,8 +23,9 @@
 		B6C560BE2DEFC65500F64256 /* LifeScoreboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C560BD2DEFC65500F64256 /* LifeScoreboardView.swift */; };
 		B6C560C02DEFC75800F64256 /* LifeScoreboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C560BF2DEFC75800F64256 /* LifeScoreboardViewModel.swift */; };
 		B6C560C62DEFCC0E00F64256 /* ActivityEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C560C52DEFCC0E00F64256 /* ActivityEditorView.swift */; };
-		B6CB206A2DE3D90A00CE7A18 /* LaunchScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6CB20692DE3D90A00CE7A18 /* LaunchScreenView.swift */; };
-		F24CB4DF149A4B09974A1B6C /* CodexNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B75D2389F8474FB89FF01B /* CodexNotes.swift */; };
+                B6CB206A2DE3D90A00CE7A18 /* LaunchScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6CB20692DE3D90A00CE7A18 /* LaunchScreenView.swift */; };
+                F24CB4DF149A4B09974A1B6C /* CodexNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B75D2389F8474FB89FF01B /* CodexNotes.swift */; };
+                ABCDE12345ABCDE12345ABCE /* GoalNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCDE12345ABCDE12345ABCD /* GoalNames.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -49,8 +50,9 @@
 		B6C560BD2DEFC65500F64256 /* LifeScoreboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifeScoreboardView.swift; sourceTree = "<group>"; };
 		B6C560BF2DEFC75800F64256 /* LifeScoreboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifeScoreboardViewModel.swift; sourceTree = "<group>"; };
 		B6C560C52DEFCC0E00F64256 /* ActivityEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityEditorView.swift; sourceTree = "<group>"; };
-		B6CB20682DE3B35B00CE7A18 /* StudyGroupApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StudyGroupApp.entitlements; sourceTree = "<group>"; };
-		B6CB20692DE3D90A00CE7A18 /* LaunchScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScreenView.swift; sourceTree = "<group>"; };
+                B6CB20682DE3B35B00CE7A18 /* StudyGroupApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StudyGroupApp.entitlements; sourceTree = "<group>"; };
+                B6CB20692DE3D90A00CE7A18 /* LaunchScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScreenView.swift; sourceTree = "<group>"; };
+                ABCDE12345ABCDE12345ABCD /* GoalNames.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalNames.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -79,7 +81,8 @@
                                 331336D4828944B798561421 /* UserManager.swift */,
 				B653C5282DE23D36001B905F /* MainTabView.swift */,
                                B653C53E2DE2407A001B905F /* TeamMember.swift */,
-                                A1B2C3D32DEFCAFE00000001 /* Card.swift */,
+                               A1B2C3D32DEFCAFE00000001 /* Card.swift */,
+                                ABCDE12345ABCDE12345ABCD /* GoalNames.swift */,
                                B653C52E2DE23D36001B905F /* WinTheDayViewModel.swift */,
 				B653C4F32DE22D8D001B905F /* Products */,
 				B653C5002DE22E7D001B905F /* Assets.xcassets */,
@@ -189,7 +192,8 @@
 				B653C5412DE2409D001B905F /* StudyGroupApp.swift in Sources */,
 				B653C53D2DE2403E001B905F /* WinTheDayView.swift in Sources */,
                                B653C53F2DE2407A001B905F /* TeamMember.swift in Sources */,
-                                A1B2C3D42DEFCAFE00000001 /* Card.swift in Sources */,
+                               A1B2C3D42DEFCAFE00000001 /* Card.swift in Sources */,
+                                ABCDE12345ABCDE12345ABCE /* GoalNames.swift in Sources */,
                                B653C5312DE23D36001B905F /* MainTabView.swift in Sources */,
 				B653C5322DE23D36001B905F /* WinTheDayViewModel.swift in Sources */,
 				B653C54D2DE270A5001B905F /* UserSelectorView.swift in Sources */,
