@@ -1,4 +1,5 @@
 import CloudKit
+import Combine
 import Foundation
 
 class LifeScoreboardViewModel: ObservableObject {
@@ -10,6 +11,16 @@ class LifeScoreboardViewModel: ObservableObject {
     @Published var activity: [ActivityRow] = []
     @Published var onTime: Double = 17.7
     @Published var travel: Double = 31.0
+    @Published var teamMembers: [TeamMember] = []
+
+    private var cancellables = Set<AnyCancellable>()
+
+    init() {
+        CloudKitManager.shared.$teamMembers
+            .receive(on: DispatchQueue.main)
+            .assign(to: \.teamMembers, on: self)
+            .store(in: &cancellables)
+    }
 
     struct ScoreEntry: Identifiable, Hashable {
         var id = UUID()
@@ -66,6 +77,15 @@ class LifeScoreboardViewModel: ObservableObject {
             let row = ActivityRow(name: name, score: 0, pending: 0, projected: 0)
             row.entries = [entry]
             activity.append(row)
+        }
+    }
+
+    /// Fetches all team members from CloudKit and updates ``teamMembers``.
+    func fetchTeamMembersFromCloud() {
+        CloudKitManager.shared.fetchAllTeamMembers { [weak self] fetched in
+            DispatchQueue.main.async {
+                self?.teamMembers = fetched
+            }
         }
     }
 
