@@ -76,17 +76,19 @@ class WinTheDayViewModel: ObservableObject {
                 guard let self = self else { return }
 
                 let newHash = self.computeHash(for: fetched)
-                self.teamMembers = fetched
 
                 if self.lastFetchHash != newHash {
-                    self.lastFetchHash = newHash
-                    self.displayedMembers = fetched.sorted {
+                    self.teamMembers = fetched.sorted {
                         ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
                         ($1.quotesToday + $1.salesWTD + $1.salesMTD)
                     }
                     for index in self.teamMembers.indices {
                         self.teamMembers[index].sortIndex = index
                     }
+                    self.displayedMembers = self.teamMembers
+                    self.lastFetchHash = newHash
+                } else {
+                    self.teamMembers = fetched
                 }
 
                 completion?()
