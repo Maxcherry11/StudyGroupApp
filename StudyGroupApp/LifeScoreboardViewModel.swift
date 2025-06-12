@@ -14,6 +14,9 @@ class LifeScoreboardViewModel: ObservableObject {
     @Published var teamMembers: [TeamMember] = []
 
     private var cancellables = Set<AnyCancellable>()
+    /// Signature of the last CloudKit fetch. Used to avoid UI resets when
+    /// returning to the scoreboard if nothing has changed.
+    private var lastFetchHash: Int?
 
     init() {
         CloudKitManager.shared.$teamMembers
@@ -98,19 +101,27 @@ class LifeScoreboardViewModel: ObservableObject {
             let names = members.map { $0.name }
             CloudKitManager.shared.fetchScores(for: names) { records in
                 DispatchQueue.main.async {
-                    self.teamMembers = members
-                    self.scores = names.map { name in
-                        let value = records[name]?.score ?? 0
-                        return ScoreEntry(name: name, score: value)
-                    }
-                    self.activity = names.map { name in
-                        let values = records[name]
-                        return ActivityRow(
-                            name: name,
-                            score: values?.score ?? 0,
-                            pending: values?.pending ?? 0,
-                            projected: values?.projected ?? 0.0
-                        )
+                    let newHash = self.computeHash(members: members, records: records)
+
+                    if self.lastFetchHash != newHash {
+                        self.teamMembers = members
+                        self.scores = names.map { name in
+                            let value = records[name]?.score ?? 0
+                            return ScoreEntry(name: name, score: value)
+                        }
+                        self.activity = names.map { name in
+                            let values = records[name]
+                            return ActivityRow(
+                                name: name,
+                                score: values?.score ?? 0,
+                                pending: values?.pending ?? 0,
+                                projected: values?.projected ?? 0.0
+                            )
+                        }
+                        self.lastFetchHash = newHash
+                    } else {
+                        // Even if nothing changed, keep team member list in sync
+                        self.teamMembers = members
                     }
                 }
             }
@@ -141,6 +152,22 @@ class LifeScoreboardViewModel: ObservableObject {
         }
 
         CloudKitManager.shared.saveScore(entry: entry, pending: pending, projected: projected)
+    }
+
+    /// Computes a simple signature for the provided members and score records.
+    /// This mirrors the change-detection logic used by ``WinTheDayViewModel``.
+    private func computeHash(members: [TeamMember],
+                             records: [String: (score: Int, pending: Int, projected: Double)]) -> Int {
+        var hasher = Hasher()
+        let sorted = members.sorted { $0.name < $1.name }
+        for member in sorted {
+            hasher.combine(member.name)
+            let values = records[member.name]
+            hasher.combine(values?.score ?? 0)
+            hasher.combine(values?.pending ?? 0)
+            hasher.combine(Int((values?.projected ?? 0).rounded()))
+        }
+        return hasher.finalize()
     }
 
     func createTestScoreRecord() {
