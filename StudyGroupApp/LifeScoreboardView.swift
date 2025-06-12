@@ -126,7 +126,7 @@ struct LifeScoreboardView: View {
                     .environmentObject(userManager)
 
                 // Activity Table
-                ActivityCard { entry, row in
+                ActivityCard(activity: $viewModel.activity) { entry, row in
                     selectedEntry = entry
                     selectedRow = row
                 }
@@ -136,10 +136,14 @@ struct LifeScoreboardView: View {
             .padding()
         }
         .onAppear {
-            viewModel.loadIfNeeded()
+            viewModel.load(for: userManager.userList)
+        }
+        .onReceive(userManager.$userList) { names in
+            viewModel.load(for: names)
         }
         .refreshable {
-            viewModel.refreshFromCloud()
+            userManager.refresh()
+            viewModel.load(for: userManager.userList)
         }
         .background(
             LinearGradient(
@@ -251,7 +255,9 @@ private struct TeamMembersCard: View {
     }
 
     var body: some View {
-        let sortedMembers = viewModel.displayedMembers
+        let sortedNames = userManager.userList.sorted { lhs, rhs in
+            viewModel.score(for: lhs) > viewModel.score(for: rhs)
+        }
 
         return ScoreTile(verticalPadding: 8) {
             VStack(alignment: .leading, spacing: 8) {
@@ -259,13 +265,13 @@ private struct TeamMembersCard: View {
                     .font(.system(size: 21, weight: .bold))
                     .frame(maxWidth: .infinity, alignment: .center)
 
-                ForEach(sortedMembers, id: \.id) { member in
-                    if let entry = viewModel.scores.first(where: { $0.name == member.name }),
-                       let row = viewModel.row(for: member.name) {
+                ForEach(sortedNames, id: \.self) { name in
+                    if let entry = viewModel.scores.first(where: { $0.name == name }),
+                       let row = viewModel.row(for: name) {
                         TeamMemberRow(
                             entry: entry,
                             color: color(for: Double(entry.score)),
-                            isCurrentUser: member.name == userManager.currentUser
+                            isCurrentUser: name == userManager.currentUser
                         ) {
                             onSelect(entry, row)
                         }
@@ -332,25 +338,26 @@ private struct TeamMemberRow: View {
 }
 
 private struct ActivityCard: View {
+    @Binding var activity: [LifeScoreboardViewModel.ActivityRow]
     @EnvironmentObject var viewModel: LifeScoreboardViewModel
     @EnvironmentObject var userManager: UserManager
     var onSelect: (LifeScoreboardViewModel.ScoreEntry, LifeScoreboardViewModel.ActivityRow) -> Void
 
     var body: some View {
-        let sortedRows = viewModel.displayedActivity
+        let sortedRows = userManager.userList
+            .compactMap { viewModel.row(for: $0) }
+            .sorted { $0.projected > $1.projected }
 
         return ScoreTile(verticalPadding: 8) {
             VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    Spacer()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text("Activity")
-                        .font(.system(size: 21, weight: .bold))
-                        .frame(minWidth: 190, alignment: .center)
-                }
+                Text("Activity")
+                    .font(.system(size: 21, weight: .bold))
+                    .frame(maxWidth: .infinity, alignment: .center)
 
                 HStack(spacing: 6) {
-                    Spacer()
+                    Text("Name")
+                        .font(.system(size: 19, weight: .bold))
+                        .monospacedDigit()
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     Text("Pending")
