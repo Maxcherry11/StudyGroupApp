@@ -29,8 +29,33 @@ class LifeScoreboardViewModel: ObservableObject {
     private var hasLoadedDisplayOrder = false
     /// Key used for persisting the member display order.
     private let orderKey = "ScoreboardDisplayOrder"
+    /// Key used for persisting scoreboard data.
+    private let storageKey = "ScoreboardLocalState"
+
+    /// Simple locally persisted values for a scoreboard row.
+    private struct LocalState: Codable {
+        var score: Int
+        var pending: Int
+        var projected: Double
+    }
+
+    /// Cache of the last saved local state.
+    private var localCache: [String: LocalState] = [:]
 
     init() {
+        localCache = loadLocalState()
+        let startingNames = Array(localCache.keys)
+        scores = startingNames.map { name in
+            let value = localCache[name] ?? LocalState(score: 0, pending: 0, projected: 0)
+            return ScoreEntry(name: name, score: value.score)
+        }
+        activity = startingNames.map { name in
+            let value = localCache[name] ?? LocalState(score: 0, pending: 0, projected: 0)
+            return ActivityRow(name: name, score: value.score, pending: value.pending, projected: value.projected)
+        }
+        displayedActivity = activity
+        lastFetchHash = computeHash(from: localCache)
+
         CloudKitManager.shared.$teamMembers
             .receive(on: DispatchQueue.main)
             .sink { [weak self] members in
@@ -106,18 +131,62 @@ class LifeScoreboardViewModel: ObservableObject {
         UserDefaults.standard.stringArray(forKey: orderKey) ?? []
     }
 
+    private func saveLocal() {
+        var dict: [String: LocalState] = [:]
+        for entry in scores {
+            let row = activity.first { $0.name == entry.name }
+            dict[entry.name] = LocalState(
+                score: entry.score,
+                pending: row?.pending ?? 0,
+                projected: row?.projected ?? 0
+            )
+        }
+        if let data = try? JSONEncoder().encode(dict) {
+            UserDefaults.standard.set(data, forKey: storageKey)
+        }
+        localCache = dict
+        lastFetchHash = computeHash(from: dict)
+    }
+
+    private func loadLocalState() -> [String: LocalState] {
+        guard let data = UserDefaults.standard.data(forKey: storageKey),
+              let decoded = try? JSONDecoder().decode([String: LocalState].self, from: data) else {
+            return [:]
+        }
+        return decoded
+    }
+
     private func updateLocalEntries(names: [String]) {
         // Remove entries for deleted users
         scores.removeAll { entry in !names.contains(entry.name) }
         activity.removeAll { row in !names.contains(row.name) }
 
-        // Add entries for new users
+        // Add entries for new users using any saved values
         for name in names where !scores.contains(where: { $0.name == name }) {
-            let entry = ScoreEntry(name: name, score: 0)
+            let saved = localCache[name]
+            let entry = ScoreEntry(name: name, score: saved?.score ?? 0)
             scores.append(entry)
-            let row = ActivityRow(name: name, score: 0, pending: 0, projected: 0)
+            let row = ActivityRow(
+                name: name,
+                score: saved?.score ?? 0,
+                pending: saved?.pending ?? 0,
+                projected: saved?.projected ?? 0
+            )
             row.entries = [entry]
             activity.append(row)
+        }
+
+        // Update existing entries with saved values
+        for name in names {
+            if let saved = localCache[name] {
+                if let index = scores.firstIndex(where: { $0.name == name }) {
+                    scores[index].score = saved.score
+                }
+                if let row = activity.first(where: { $0.name == name }) {
+                    row.pending = saved.pending
+                    row.projected = saved.projected
+                }
+            }
         }
 
         // Keep displayed arrays in sync with membership changes
@@ -129,6 +198,7 @@ class LifeScoreboardViewModel: ObservableObject {
         displayedMembers = currentNames.compactMap { n in teamMembers.first { $0.name == n } }
         displayedActivity = currentNames.compactMap { n in activity.first { $0.name == n } }
         saveOrder()
+        saveLocal()
     }
 
     /// Fetches all team members from CloudKit and updates ``teamMembers``.
@@ -168,9 +238,11 @@ class LifeScoreboardViewModel: ObservableObject {
                         }
                         self.updateDisplayOrder(with: names)
                         self.lastFetchHash = newHash
+                        self.saveLocal()
                     } else {
                         // Even if nothing changed, keep team member list in sync
                         self.teamMembers = members
+                        self.updateDisplayOrder(with: names)
                     }
                 }
             }
@@ -203,6 +275,9 @@ class LifeScoreboardViewModel: ObservableObject {
                     row.projected = values.projected
                 }
             }
+            DispatchQueue.main.async {
+                self.saveLocal()
+            }
         }
     }
     func save(_ entry: ScoreEntry, pending: Int, projected: Double) {
@@ -215,6 +290,7 @@ class LifeScoreboardViewModel: ObservableObject {
         }
 
         CloudKitManager.shared.saveScore(entry: entry, pending: pending, projected: projected)
+        saveLocal()
     }
 
     /// Updates ``displayedMembers`` and ``displayedActivity`` using the provided
@@ -255,6 +331,21 @@ class LifeScoreboardViewModel: ObservableObject {
             hasher.combine(values?.score ?? 0)
             hasher.combine(values?.pending ?? 0)
             hasher.combine(Int((values?.projected ?? 0).rounded()))
+        }
+        return hasher.finalize()
+    }
+
+    /// Generates a signature for locally cached scoreboard data.
+    private func computeHash(from local: [String: LocalState]) -> Int {
+        var hasher = Hasher()
+        let names = local.keys.sorted()
+        for name in names {
+            if let value = local[name] {
+                hasher.combine(name)
+                hasher.combine(value.score)
+                hasher.combine(value.pending)
+                hasher.combine(Int(value.projected.rounded()))
+            }
         }
         return hasher.finalize()
     }
