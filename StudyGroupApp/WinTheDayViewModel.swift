@@ -52,6 +52,18 @@ class WinTheDayViewModel: ObservableObject {
         }
     }
 
+    /// Fetches all ``TeamMember`` records from CloudKit and updates ``teamMembers``.
+    /// This mirrors the behavior used on the splash screen so both views stay in sync.
+    func fetchMembersFromCloud(completion: (() -> Void)? = nil) {
+        CloudKitManager.shared.fetchAllTeamMembers { [weak self] fetched in
+            DispatchQueue.main.async {
+                self?.teamMembers = fetched
+                self?.displayedMembers = fetched.sorted { $0.sortIndex < $1.sortIndex }
+                completion?()
+            }
+        }
+    }
+
     func saveEdits(for card: Card) {
         CloudKitManager.saveCard(card)
         withAnimation {

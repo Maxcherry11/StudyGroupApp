@@ -80,30 +80,22 @@ struct WinTheDayView: View {
             }
         }
         .onAppear {
-            cloud.fetchTeam { _ in }
-            if !userManager.userList.isEmpty {
-                viewModel.load(names: userManager.userList) {
-                    viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
-                }
-                viewModel.loadInitialDisplayOrder()
-                viewModel.fetchCardsFromCloud()
-                hasLoaded = true
-                shimmerPosition = -1.0
-                viewModel.initializeDisplayedCardsIfNeeded()
-                withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
-                    shimmerPosition = 1.5
-                }
-            } else {
-                print("⚠️ Skipped loadData in onAppear: currentUser is empty")
+            viewModel.fetchMembersFromCloud {
+                viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
+            }
+            viewModel.fetchCardsFromCloud()
+            hasLoaded = true
+            shimmerPosition = -1.0
+            withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
+                shimmerPosition = 1.5
             }
         }
     .onChange(of: userManager.currentUser) { _ in }
-    .onChange(of: userManager.userList) { newList in
+    .onChange(of: userManager.userList) { _ in
         if hasLoaded {
-            viewModel.load(names: newList) {
+            viewModel.fetchMembersFromCloud {
                 viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
             }
-            viewModel.initializeDisplayedCardsIfNeeded()
         }
     }
     .sheet(isPresented: $emojiPickerVisible) {
@@ -300,7 +292,7 @@ private var teamCardsList: some View {
             .padding(.horizontal, 20)
         }
         .refreshable {
-            viewModel.load(names: userManager.userList) {
+            viewModel.fetchMembersFromCloud {
                 viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
             }
         }
