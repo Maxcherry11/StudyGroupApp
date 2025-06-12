@@ -126,7 +126,7 @@ struct LifeScoreboardView: View {
                     .environmentObject(userManager)
 
                 // Activity Table
-                ActivityCard(activity: $viewModel.activity) { entry, row in
+                ActivityCard { entry, row in
                     selectedEntry = entry
                     selectedRow = row
                 }
@@ -251,9 +251,7 @@ private struct TeamMembersCard: View {
     }
 
     var body: some View {
-        let sortedMembers = viewModel.teamMembers.sorted { lhs, rhs in
-            viewModel.score(for: lhs.name) > viewModel.score(for: rhs.name)
-        }
+        let sortedMembers = viewModel.displayedMembers
 
         return ScoreTile(verticalPadding: 8) {
             VStack(alignment: .leading, spacing: 8) {
@@ -334,16 +332,12 @@ private struct TeamMemberRow: View {
 }
 
 private struct ActivityCard: View {
-    @Binding var activity: [LifeScoreboardViewModel.ActivityRow]
     @EnvironmentObject var viewModel: LifeScoreboardViewModel
     @EnvironmentObject var userManager: UserManager
     var onSelect: (LifeScoreboardViewModel.ScoreEntry, LifeScoreboardViewModel.ActivityRow) -> Void
 
     var body: some View {
-        let sortedRows = viewModel.teamMembers
-            .map { $0.name }
-            .compactMap { viewModel.row(for: $0) }
-            .sorted { $0.projected > $1.projected }
+        let sortedRows = viewModel.displayedActivity
 
         return ScoreTile(verticalPadding: 8) {
             VStack(alignment: .leading, spacing: 6) {

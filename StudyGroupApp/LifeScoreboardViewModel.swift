@@ -9,6 +9,11 @@ class LifeScoreboardViewModel: ObservableObject {
 
     @Published var scores: [ScoreEntry] = []
     @Published var activity: [ActivityRow] = []
+    /// Stable ordering of members for display. Mirrors the logic used in
+    /// ``WinTheDayViewModel`` so rows don't reshuffle on every appearance.
+    @Published var displayedMembers: [TeamMember] = []
+    /// Activity rows matching ``displayedMembers`` ordering.
+    @Published var displayedActivity: [ActivityRow] = []
     @Published var onTime: Double = 17.7
     @Published var travel: Double = 31.0
     @Published var teamMembers: [TeamMember] = []
@@ -20,6 +25,10 @@ class LifeScoreboardViewModel: ObservableObject {
     /// Tracks whether a full load has already occurred. Prevents unnecessary
     /// re-fetching when the view appears multiple times.
     private var hasLoadedFromCloud = false
+    /// Whether the initial display order has been loaded from disk.
+    private var hasLoadedDisplayOrder = false
+    /// Key used for persisting the member display order.
+    private let orderKey = "ScoreboardDisplayOrder"
 
     init() {
         CloudKitManager.shared.$teamMembers
@@ -86,6 +95,17 @@ class LifeScoreboardViewModel: ObservableObject {
         activity.first(where: { $0.name == name })
     }
 
+    // MARK: - Order Persistence
+
+    private func saveOrder() {
+        let names = displayedMembers.map { $0.name }
+        UserDefaults.standard.set(names, forKey: orderKey)
+    }
+
+    private func loadSavedOrder() -> [String] {
+        UserDefaults.standard.stringArray(forKey: orderKey) ?? []
+    }
+
     private func updateLocalEntries(names: [String]) {
         // Remove entries for deleted users
         scores.removeAll { entry in !names.contains(entry.name) }
@@ -99,6 +119,16 @@ class LifeScoreboardViewModel: ObservableObject {
             row.entries = [entry]
             activity.append(row)
         }
+
+        // Keep displayed arrays in sync with membership changes
+        var currentNames = displayedMembers.map { $0.name }
+        currentNames.removeAll { !names.contains($0) }
+        for name in names where !currentNames.contains(name) {
+            currentNames.append(name)
+        }
+        displayedMembers = currentNames.compactMap { n in teamMembers.first { $0.name == n } }
+        displayedActivity = currentNames.compactMap { n in activity.first { $0.name == n } }
+        saveOrder()
     }
 
     /// Fetches all team members from CloudKit and updates ``teamMembers``.
@@ -136,6 +166,7 @@ class LifeScoreboardViewModel: ObservableObject {
                                 projected: values?.projected ?? 0.0
                             )
                         }
+                        self.updateDisplayOrder(with: names)
                         self.lastFetchHash = newHash
                     } else {
                         // Even if nothing changed, keep team member list in sync
@@ -184,6 +215,32 @@ class LifeScoreboardViewModel: ObservableObject {
         }
 
         CloudKitManager.shared.saveScore(entry: entry, pending: pending, projected: projected)
+    }
+
+    /// Updates ``displayedMembers`` and ``displayedActivity`` using the provided
+    /// ordered list of names. This is called after a CloudKit refresh or when
+    /// member names change.
+    private func updateDisplayOrder(with names: [String]) {
+        if !hasLoadedDisplayOrder {
+            let saved = loadSavedOrder()
+            let starting = saved.isEmpty ? names.sorted { score(for: $0) > score(for: $1) } : saved
+            displayedMembers = starting.compactMap { name in
+                teamMembers.first { $0.name == name }
+            }
+            displayedActivity = starting.compactMap { name in
+                activity.first { $0.name == name }
+            }
+            hasLoadedDisplayOrder = true
+        } else {
+            var order = displayedMembers.map { $0.name }
+            order.removeAll { !names.contains($0) }
+            for name in names where !order.contains(name) {
+                order.append(name)
+            }
+            displayedMembers = order.compactMap { n in teamMembers.first { $0.name == n } }
+            displayedActivity = order.compactMap { n in activity.first { $0.name == n } }
+        }
+        saveOrder()
     }
 
     /// Computes a simple signature for the provided members and score records.
