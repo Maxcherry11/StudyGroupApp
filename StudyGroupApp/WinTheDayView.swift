@@ -80,9 +80,7 @@ struct WinTheDayView: View {
             }
         }
         .onAppear {
-            viewModel.fetchMembersFromCloud {
-                viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
-            }
+            viewModel.fetchMembersFromCloud()
             viewModel.fetchCardsFromCloud()
             hasLoaded = true
             shimmerPosition = -1.0
@@ -93,9 +91,7 @@ struct WinTheDayView: View {
     .onChange(of: userManager.currentUser) { _ in }
     .onChange(of: userManager.userList) { _ in
         if hasLoaded {
-            viewModel.fetchMembersFromCloud {
-                viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
-            }
+            viewModel.fetchMembersFromCloud()
         }
     }
     .sheet(isPresented: $emojiPickerVisible) {
@@ -292,9 +288,7 @@ private var teamCardsList: some View {
             .padding(.horizontal, 20)
         }
         .refreshable {
-            viewModel.fetchMembersFromCloud {
-                viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
-            }
+            viewModel.fetchMembersFromCloud()
         }
     }
 }
@@ -408,7 +402,6 @@ private var emojiGrid: some View {
 private func handleSaveAndReorder() {
     withAnimation {
         viewModel.reorderAfterSave()
-        viewModel.saveCardOrderToCloud(for: userManager.currentUser)
     }
 }
 
