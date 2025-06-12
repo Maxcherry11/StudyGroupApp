@@ -136,14 +136,10 @@ struct LifeScoreboardView: View {
             .padding()
         }
         .onAppear {
-            viewModel.fetchTeamMembersFromCloud()
-        }
-        .onReceive(viewModel.$teamMembers) { members in
-            let names = members.map { $0.name }
-            viewModel.load(for: names)
+            viewModel.loadFromCloud()
         }
         .refreshable {
-            viewModel.fetchTeamMembersFromCloud()
+            viewModel.loadFromCloud()
         }
         .background(
             LinearGradient(

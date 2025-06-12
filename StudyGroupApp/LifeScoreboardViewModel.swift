@@ -89,6 +89,34 @@ class LifeScoreboardViewModel: ObservableObject {
         }
     }
 
+    /// Loads team members and their scores directly from CloudKit.
+    /// This bypasses any local defaults so the view always reflects the
+    /// latest saved data.
+    func loadFromCloud() {
+        CloudKitManager.shared.fetchAllTeamMembers { [weak self] members in
+            guard let self = self else { return }
+            let names = members.map { $0.name }
+            CloudKitManager.shared.fetchScores(for: names) { records in
+                DispatchQueue.main.async {
+                    self.teamMembers = members
+                    self.scores = names.map { name in
+                        let value = records[name]?.score ?? 0
+                        return ScoreEntry(name: name, score: value)
+                    }
+                    self.activity = names.map { name in
+                        let values = records[name]
+                        return ActivityRow(
+                            name: name,
+                            score: values?.score ?? 0,
+                            pending: values?.pending ?? 0,
+                            projected: values?.projected ?? 0.0
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     func load(for names: [String]) {
         updateLocalEntries(names: names)
         CloudKitManager.shared.fetchScores(for: names) { records in
