@@ -17,11 +17,29 @@ class LifeScoreboardViewModel: ObservableObject {
     /// Signature of the last CloudKit fetch. Used to avoid UI resets when
     /// returning to the scoreboard if nothing has changed.
     private var lastFetchHash: Int?
+    /// Tracks whether a full load has already occurred. Prevents unnecessary
+    /// re-fetching when the view appears multiple times.
+    private var hasLoadedFromCloud = false
 
     init() {
         CloudKitManager.shared.$teamMembers
             .receive(on: DispatchQueue.main)
-            .assign(to: \.teamMembers, on: self)
+            .sink { [weak self] members in
+                guard let self = self else { return }
+                let newNames = members.map { $0.name }
+                let currentNames = self.teamMembers.map { $0.name }
+
+                // Update local names and trigger a reload only when names change
+                if Set(newNames) != Set(currentNames) {
+                    self.teamMembers = members
+                    self.updateLocalEntries(names: newNames)
+                    if self.hasLoadedFromCloud {
+                        self.loadFromCloud()
+                    }
+                } else {
+                    self.teamMembers = members
+                }
+            }
             .store(in: &cancellables)
     }
 
@@ -126,6 +144,20 @@ class LifeScoreboardViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    /// Performs the initial CloudKit load if it hasn't been done yet.
+    /// Called from the view's `onAppear` so existing data isn't cleared
+    /// when returning to the scoreboard.
+    func loadIfNeeded() {
+        guard !hasLoadedFromCloud else { return }
+        hasLoadedFromCloud = true
+        loadFromCloud()
+    }
+
+    /// Manual refresh entry point used by pull-to-refresh in the view.
+    func refreshFromCloud() {
+        loadFromCloud()
     }
 
     func load(for names: [String]) {

@@ -136,10 +136,10 @@ struct LifeScoreboardView: View {
             .padding()
         }
         .onAppear {
-            viewModel.loadFromCloud()
+            viewModel.loadIfNeeded()
         }
         .refreshable {
-            viewModel.loadFromCloud()
+            viewModel.refreshFromCloud()
         }
         .background(
             LinearGradient(
