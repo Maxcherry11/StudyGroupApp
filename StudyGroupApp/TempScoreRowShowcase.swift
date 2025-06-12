@@ -310,13 +310,16 @@ private struct ActivityCard: View {
     var body: some View {
         ScoreTile(verticalPadding: 8) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Activity")
-                    .font(.system(size: 20, weight: .bold))
-                    .frame(maxWidth: .infinity, alignment: .center)
+                HStack(spacing: 6) {
+                    Spacer()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text("Activity")
+                        .font(.system(size: 20, weight: .bold))
+                        .frame(minWidth: 180, alignment: .center)
+                }
 
                 HStack(spacing: 6) {
-                    Text("Name")
-                        .font(.system(size: 16, weight: .bold))
+                    Spacer()
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text("Pending")
                         .font(.system(size: 16, weight: .bold))
