@@ -15,6 +15,22 @@ class WinTheDayViewModel: ObservableObject {
     @Published var selectedUserName: String = ""
     private let storageKey = "WTDMemberStorage"
     private var hasLoadedDisplayOrder = false
+    /// Signature of the last CloudKit fetch used to detect changes
+    private var lastFetchHash: Int?
+
+    /// Calculates a simple hash representing the current production values for
+    /// the provided team members. This allows quick comparison between
+    /// subsequent CloudKit fetches so the view only reorders when data changes.
+    private func computeHash(for members: [TeamMember]) -> Int {
+        var hasher = Hasher()
+        for m in members {
+            hasher.combine(m.name)
+            hasher.combine(m.quotesToday)
+            hasher.combine(m.salesWTD)
+            hasher.combine(m.salesMTD)
+        }
+        return hasher.finalize()
+    }
 
     /// Sorts ``displayedCards`` a single time based on production metrics.
     /// This mirrors the stable ordering used by Life Scoreboard.
@@ -57,8 +73,22 @@ class WinTheDayViewModel: ObservableObject {
     func fetchMembersFromCloud(completion: (() -> Void)? = nil) {
         CloudKitManager.shared.fetchAllTeamMembers { [weak self] fetched in
             DispatchQueue.main.async {
-                self?.teamMembers = fetched
-                self?.displayedMembers = fetched.sorted { $0.sortIndex < $1.sortIndex }
+                guard let self = self else { return }
+
+                let newHash = self.computeHash(for: fetched)
+                self.teamMembers = fetched
+
+                if self.lastFetchHash != newHash {
+                    self.lastFetchHash = newHash
+                    self.displayedMembers = fetched.sorted {
+                        ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
+                        ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+                    }
+                    for index in self.teamMembers.indices {
+                        self.teamMembers[index].sortIndex = index
+                    }
+                }
+
                 completion?()
             }
         }
@@ -160,12 +190,11 @@ class WinTheDayViewModel: ObservableObject {
             ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
             ($1.quotesToday + $1.salesWTD + $1.salesMTD)
         }
-
         for index in teamMembers.indices {
             teamMembers[index].sortIndex = index
-            CloudKitManager.shared.save(teamMembers[index]) { _ in }
         }
         displayedMembers = teamMembers
+        lastFetchHash = computeHash(for: teamMembers)
     }
 
     func loadCardOrderFromCloud(for user: String) {
