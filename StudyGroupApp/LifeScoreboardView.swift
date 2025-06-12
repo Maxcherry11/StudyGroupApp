@@ -136,14 +136,14 @@ struct LifeScoreboardView: View {
             .padding()
         }
         .onAppear {
-            viewModel.load(for: userManager.userList)
+            viewModel.fetchTeamMembersFromCloud()
         }
-        .onReceive(userManager.$userList) { names in
+        .onReceive(viewModel.$teamMembers) { members in
+            let names = members.map { $0.name }
             viewModel.load(for: names)
         }
         .refreshable {
-            userManager.refresh()
-            viewModel.load(for: userManager.userList)
+            viewModel.fetchTeamMembersFromCloud()
         }
         .background(
             LinearGradient(
@@ -255,8 +255,8 @@ private struct TeamMembersCard: View {
     }
 
     var body: some View {
-        let sortedNames = userManager.userList.sorted { lhs, rhs in
-            viewModel.score(for: lhs) > viewModel.score(for: rhs)
+        let sortedMembers = viewModel.teamMembers.sorted { lhs, rhs in
+            viewModel.score(for: lhs.name) > viewModel.score(for: rhs.name)
         }
 
         return ScoreTile(verticalPadding: 8) {
@@ -265,13 +265,13 @@ private struct TeamMembersCard: View {
                     .font(.system(size: 21, weight: .bold))
                     .frame(maxWidth: .infinity, alignment: .center)
 
-                ForEach(sortedNames, id: \.self) { name in
-                    if let entry = viewModel.scores.first(where: { $0.name == name }),
-                       let row = viewModel.row(for: name) {
+                ForEach(sortedMembers, id: \.id) { member in
+                    if let entry = viewModel.scores.first(where: { $0.name == member.name }),
+                       let row = viewModel.row(for: member.name) {
                         TeamMemberRow(
                             entry: entry,
                             color: color(for: Double(entry.score)),
-                            isCurrentUser: name == userManager.currentUser
+                            isCurrentUser: member.name == userManager.currentUser
                         ) {
                             onSelect(entry, row)
                         }
@@ -344,7 +344,8 @@ private struct ActivityCard: View {
     var onSelect: (LifeScoreboardViewModel.ScoreEntry, LifeScoreboardViewModel.ActivityRow) -> Void
 
     var body: some View {
-        let sortedRows = userManager.userList
+        let sortedRows = viewModel.teamMembers
+            .map { $0.name }
             .compactMap { viewModel.row(for: $0) }
             .sorted { $0.projected > $1.projected }
 
