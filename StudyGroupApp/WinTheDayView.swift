@@ -64,11 +64,11 @@ struct WinTheDayView: View {
     @State private var newQuotesGoal = 10
     @State private var newSalesWTDGoal = 2
     @State private var newSalesMTDGoal = 6
-    // Added as per instructions
+    // Goal Name Editor State
     @State private var showGoalNameEditor = false
-    @State private var quotesLabel = "Quotes WTD"
-    @State private var salesWTDLabel = "Sales WTD"
-    @State private var salesMTDLabel = "Sales MTD"
+    @State private var editingQuotesLabel = ""
+    @State private var editingSalesWTDLabel = ""
+    @State private var editingSalesMTDLabel = ""
 
     var body: some View {
         Group {
@@ -82,6 +82,7 @@ struct WinTheDayView: View {
         .onAppear {
             viewModel.fetchMembersFromCloud()
             viewModel.fetchCardsFromCloud()
+            viewModel.fetchGoalNamesFromCloud()
             hasLoaded = true
             shimmerPosition = -1.0
             withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
@@ -131,13 +132,13 @@ struct WinTheDayView: View {
             Text("Edit Goal Names")
                 .font(.headline)
 
-            TextField("Quotes Label", text: $quotesLabel)
+            TextField("Quotes Label", text: $editingQuotesLabel)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
 
-            TextField("Sales WTD Label", text: $salesWTDLabel)
+            TextField("Sales WTD Label", text: $editingSalesWTDLabel)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
 
-            TextField("Sales MTD Label", text: $salesMTDLabel)
+            TextField("Sales MTD Label", text: $editingSalesMTDLabel)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
 
             HStack {
@@ -146,12 +147,22 @@ struct WinTheDayView: View {
                 }
                 Spacer()
                 Button("Save") {
+                    viewModel.saveGoalNames(
+                        quotes: editingQuotesLabel,
+                        salesWTD: editingSalesWTDLabel,
+                        salesMTD: editingSalesMTDLabel
+                    )
                     showGoalNameEditor = false
                 }
             }
             .padding(.top, 10)
         }
         .padding()
+        .onAppear {
+            editingQuotesLabel = viewModel.goalNames.quotes
+            editingSalesWTDLabel = viewModel.goalNames.salesWTD
+            editingSalesMTDLabel = viewModel.goalNames.salesMTD
+        }
     }
 }
 
@@ -277,9 +288,9 @@ private var teamCardsList: some View {
                         },
                         recentlyCompletedIDs: $recentlyCompletedIDs,
                         teamData: $viewModel.teamMembers,
-                        quotesLabel: quotesLabel,
-                        salesWTDLabel: salesWTDLabel,
-                        salesMTDLabel: salesMTDLabel
+                        quotesLabel: viewModel.goalNames.quotes,
+                        salesWTDLabel: viewModel.goalNames.salesWTD,
+                        salesMTDLabel: viewModel.goalNames.salesMTD
                         )
                         .id(member.id)
                     }
@@ -289,6 +300,7 @@ private var teamCardsList: some View {
         }
         .refreshable {
             viewModel.fetchMembersFromCloud()
+            viewModel.fetchGoalNamesFromCloud()
         }
     }
 }

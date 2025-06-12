@@ -10,6 +10,7 @@ class CloudKitManager: ObservableObject {
     private let scoreRecordType = "ScoreRecord"
     private let cardRecordType = "Card"
     private let cardOrderRecordType = "CardOrder"
+    private let goalNameRecordType = "GoalNames"
     private static let userRecordType = "TeamMember"
 
     /// Cached members fetched from CloudKit. Updates to this array reflect
@@ -522,6 +523,29 @@ class CloudKitManager: ObservableObject {
     static func saveCard(_ card: Card) {
         let record = card.toCKRecord()
         CloudKitManager.container.publicCloudDatabase.save(record) { _, _ in }
+    }
+
+    // MARK: - Goal Name Sync
+
+    func fetchGoalNames(completion: @escaping (GoalNames?) -> Void) {
+        let id = CKRecord.ID(recordName: "GoalNames")
+        database.fetch(withRecordID: id) { record, _ in
+            DispatchQueue.main.async {
+                if let record = record, let names = GoalNames(record: record) {
+                    completion(names)
+                } else {
+                    completion(nil)
+                }
+            }
+        }
+    }
+
+    func saveGoalNames(_ names: GoalNames) {
+        let id = CKRecord.ID(recordName: "GoalNames")
+        database.fetch(withRecordID: id) { existing, _ in
+            let record = names.toRecord(existing: existing)
+            self.database.save(record) { _, _ in }
+        }
     }
 
 }
