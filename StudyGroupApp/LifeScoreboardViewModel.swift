@@ -14,10 +14,15 @@ class LifeScoreboardViewModel: ObservableObject {
 
     /// Key used for persisting scoreboard data locally
     private let storageKey = "LifeScoreboardStorage"
+    /// Key used for persisting team members locally
+    private let memberStorageKey = "LifeScoreboardMembers"
     /// Signature of the last CloudKit fetch used to detect changes
     private var lastFetchHash: Int?
+    /// Signature of the last team member fetch
+    private var lastMemberHash: Int?
 
     init() {
+        teamMembers = loadLocalMembers().sorted { $0.sortIndex < $1.sortIndex }
         let stored = loadLocalScores().sorted { $0.sortIndex < $1.sortIndex }
         for item in stored {
             let entry = ScoreEntry(name: item.name, score: item.score, sortIndex: item.sortIndex)
@@ -27,6 +32,7 @@ class LifeScoreboardViewModel: ObservableObject {
             activity.append(row)
         }
         lastFetchHash = computeHash(for: stored)
+        lastMemberHash = computeMemberHash(for: teamMembers)
     }
 
     struct ScoreEntry: Identifiable, Hashable, Codable {
@@ -117,6 +123,33 @@ class LifeScoreboardViewModel: ObservableObject {
             return []
         }
         return decoded
+    }
+
+    private func saveLocalMembers() {
+        let models = teamMembers.map { $0.codable }
+        if let data = try? JSONEncoder().encode(models) {
+            UserDefaults.standard.set(data, forKey: memberStorageKey)
+        }
+    }
+
+    private func loadLocalMembers() -> [TeamMember] {
+        guard let data = UserDefaults.standard.data(forKey: memberStorageKey),
+              let decoded = try? JSONDecoder().decode([TeamMember.CodableModel].self, from: data) else {
+            return []
+        }
+        return decoded.map { TeamMember(codable: $0) }
+    }
+
+    private func computeMemberHash(for members: [TeamMember]) -> Int {
+        var hasher = Hasher()
+        for m in members {
+            hasher.combine(m.name)
+            hasher.combine(m.quotesGoal)
+            hasher.combine(m.salesWTDGoal)
+            hasher.combine(m.salesMTDGoal)
+            hasher.combine(m.emoji)
+        }
+        return hasher.finalize()
     }
 
     private func updateLocalEntries(names: [String]) {
@@ -269,15 +302,24 @@ class LifeScoreboardViewModel: ObservableObject {
     func fetchTeamMembersFromCloud() {
         CloudKitManager.shared.fetchAllTeamMembers { [weak self] fetched in
             guard let self = self else { return }
+            let newHash = self.computeMemberHash(for: fetched)
 
-            let entries = self.buildScoreEntries(from: fetched)
-            let rows = self.buildActivityRows(from: entries)
+            if self.lastMemberHash != newHash {
+                let entries = self.buildScoreEntries(from: fetched)
+                let rows = self.buildActivityRows(from: entries)
 
-            DispatchQueue.main.async {
-                self.teamMembers = fetched
-                self.scores = entries
-                self.activity = rows
-                self.load(for: fetched.map { $0.name })
+                DispatchQueue.main.async {
+                    self.teamMembers = fetched
+                    self.scores = entries
+                    self.activity = rows
+                    self.lastMemberHash = newHash
+                    self.saveLocalMembers()
+                    self.load(for: fetched.map { $0.name })
+                }
+            } else {
+                DispatchQueue.main.async {
+                    self.load(for: self.teamMembers.map { $0.name })
+                }
             }
         }
     }
