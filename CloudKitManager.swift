@@ -73,7 +73,7 @@ class CloudKitManager: ObservableObject {
 
     /// Creates a new ``TeamMember`` record in CloudKit and updates ``teamMembers``.
     func addTeamMember(name: String, emoji: String = "🙂", completion: @escaping (Bool) -> Void = { _ in }) {
-        var member = TeamMember(name: name)
+        let member = TeamMember(name: name)
         member.emoji = emoji
         save(member) { id in
             DispatchQueue.main.async {
