@@ -23,6 +23,8 @@ class WinTheDayViewModel: ObservableObject {
     /// Signature of the last CloudKit fetch used to detect changes
     private var lastFetchHash: Int?
     private var lastGoalHash: Int?
+    private let weeklyResetKey = "WTDWeeklyReset"
+    private let monthlyResetKey = "WTDMonthlyReset"
 
     /// Calculates a simple hash representing the current production values for
     /// the provided team members. This allows quick comparison between
@@ -97,6 +99,7 @@ class WinTheDayViewModel: ObservableObject {
                     self.teamMembers = fetched
                 }
 
+                self.performResetsIfNeeded()
                 completion?()
             }
         }
@@ -273,6 +276,45 @@ class WinTheDayViewModel: ObservableObject {
         lastGoalHash = Self.computeGoalHash(for: goalNames)
         saveLocalGoalNames()
         CloudKitManager.shared.saveGoalNames(goalNames)
+    }
+
+    // MARK: - Periodic Reset Logic
+
+    /// Resets weekly and monthly values when a new period starts.
+    func performResetsIfNeeded() {
+        let calendar = Calendar.current
+        let now = Date()
+
+        let lastWeekly = UserDefaults.standard.object(forKey: weeklyResetKey) as? Date ?? .distantPast
+        if let startOfWeek = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)),
+           startOfWeek > lastWeekly {
+            resetWeeklyValues()
+            UserDefaults.standard.set(startOfWeek, forKey: weeklyResetKey)
+        }
+
+        let lastMonthly = UserDefaults.standard.object(forKey: monthlyResetKey) as? Date ?? .distantPast
+        if let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)),
+           startOfMonth > lastMonthly {
+            resetMonthlyValues()
+            UserDefaults.standard.set(startOfMonth, forKey: monthlyResetKey)
+        }
+    }
+
+    private func resetWeeklyValues() {
+        for index in teamMembers.indices {
+            teamMembers[index].quotesToday = 0
+            teamMembers[index].salesWTD = 0
+            saveMember(teamMembers[index]) { _ in }
+        }
+        teamMembers = teamMembers.map { $0 }
+    }
+
+    private func resetMonthlyValues() {
+        for index in teamMembers.indices {
+            teamMembers[index].salesMTD = 0
+            saveMember(teamMembers[index]) { _ in }
+        }
+        teamMembers = teamMembers.map { $0 }
     }
 
 
