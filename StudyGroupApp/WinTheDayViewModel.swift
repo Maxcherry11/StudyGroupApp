@@ -85,21 +85,33 @@ class WinTheDayViewModel: ObservableObject {
 
                 let newHash = self.computeHash(for: fetched)
 
+                // Ensure local list matches CloudKit IDs while keeping order
+                self.updateLocalEntries(names: fetched.map { $0.name })
+
+                // Update values on existing members
+                for member in fetched {
+                    if let index = self.teamMembers.firstIndex(where: { $0.name == member.name }) {
+                        self.teamMembers[index].quotesToday = member.quotesToday
+                        self.teamMembers[index].salesWTD = member.salesWTD
+                        self.teamMembers[index].salesMTD = member.salesMTD
+                        self.teamMembers[index].quotesGoal = member.quotesGoal
+                        self.teamMembers[index].salesWTDGoal = member.salesWTDGoal
+                        self.teamMembers[index].salesMTDGoal = member.salesMTDGoal
+                        self.teamMembers[index].emoji = member.emoji
+                    }
+                }
+
                 if self.lastFetchHash != newHash {
-                    self.teamMembers = fetched.sorted {
-                        ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-                        ($1.quotesToday + $1.salesWTD + $1.salesMTD)
-                    }
-                    for index in self.teamMembers.indices {
-                        self.teamMembers[index].sortIndex = index
-                    }
-                    self.displayedMembers = self.teamMembers
+                    // Reorder locally when values have changed
+                    self.reorderCards()
                     self.lastFetchHash = newHash
                 } else {
-                    self.teamMembers = fetched
+                    // Maintain existing order
+                    self.displayedMembers = self.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
                 }
 
                 self.performResetsIfNeeded()
+                self.saveLocal()
                 completion?()
             }
         }
