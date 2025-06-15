@@ -260,7 +260,7 @@ private var teamCardsList: some View {
     ScrollViewReader { scrollProxy in
         ScrollView {
             VStack(spacing: 10) {
-
+                
                 ForEach(viewModel.teamData, id: \.id) { member in
                     if let idx = viewModel.teamMembers.firstIndex(where: { $0.id == member.id }) {
                         let name = viewModel.teamMembers[idx].name
@@ -295,6 +295,7 @@ private var teamCardsList: some View {
                 }
             }
             .padding(.horizontal, 20)
+            .animation(.easeInOut, value: viewModel.teamData.map { $0.id })
         }
         .refreshable {
             viewModel.fetchMembersFromCloud()

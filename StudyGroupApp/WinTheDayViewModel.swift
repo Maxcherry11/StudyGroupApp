@@ -71,9 +71,11 @@ class WinTheDayViewModel: ObservableObject {
         }
     }
 
-    /// Reorders ``displayedCards`` after the user saves edits.
+    /// Reorders cards and updates ``teamData`` after the user saves edits.
+    /// This keeps the visible list in sync with the latest production values.
     func reorderAfterSave() {
         reorderCards()
+        teamData = teamMembers
     }
 
     // MARK: - Card Sync Helpers
