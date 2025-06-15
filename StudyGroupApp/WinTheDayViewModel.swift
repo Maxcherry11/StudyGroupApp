@@ -19,7 +19,7 @@ class WinTheDayViewModel: ObservableObject {
     @Published var cards: [Card] = []
     @Published var displayedCards: [Card] = []
     @Published var selectedUserName: String = ""
-    @Published var goalNames: GoalNames
+    @Published var goalNames: GoalNames = GoalNames()
     private let storageKey = "WTDMemberStorage"
     private static let goalNameKey = "WTDGoalNames"
     private var hasLoadedDisplayOrder = false
