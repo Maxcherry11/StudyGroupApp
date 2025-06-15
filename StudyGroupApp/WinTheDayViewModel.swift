@@ -6,11 +6,13 @@ class WinTheDayViewModel: ObservableObject {
     @Published var teamData: [TeamMember] = []
 
     init() {
-        self.teamMembers = []
+        let stored = loadLocalMembers().sorted { $0.sortIndex < $1.sortIndex }
+        self.teamMembers = stored
+        self.displayedMembers = stored
         let names = Self.loadLocalGoalNames()
         self.goalNames = names
         self.lastGoalHash = Self.computeGoalHash(for: names)
-        fetchMembersFromCloud()
+        self.lastFetchHash = computeHash(for: stored)
     }
     @Published var teamMembers: [TeamMember] = []
     @Published var displayedMembers: [TeamMember] = []
@@ -26,7 +28,7 @@ class WinTheDayViewModel: ObservableObject {
     private var lastGoalHash: Int?
     private let weeklyResetKey = "WTDWeeklyReset"
     private let monthlyResetKey = "WTDMonthlyReset"
-    @Published var isLoaded: Bool = false
+    private var hasFetchedMembers = false
 
     /// Calculates a simple hash representing the current production values for
     /// the provided team members. This allows quick comparison between
@@ -78,6 +80,12 @@ class WinTheDayViewModel: ObservableObject {
         }
     }
 
+    /// Convenience wrapper mirroring LifeScoreboardViewModel.fetchTeamMembersFromCloud
+    /// for fetching the latest production values without altering local order.
+    func fetchScores() {
+        fetchMembersFromCloud()
+    }
+
     /// Fetches all ``TeamMember`` records from CloudKit and updates ``teamMembers``.
     /// This mirrors the behavior used on the splash screen so both views stay in sync.
     func fetchMembersFromCloud(completion: (() -> Void)? = nil) {
@@ -87,10 +95,8 @@ class WinTheDayViewModel: ObservableObject {
 
                 let newHash = self.computeHash(for: fetched)
 
-                // Ensure local list matches CloudKit IDs while keeping order
                 self.updateLocalEntries(names: fetched.map { $0.name })
 
-                // Update values on existing members
                 for member in fetched {
                     if let index = self.teamMembers.firstIndex(where: { $0.name == member.name }) {
                         self.teamMembers[index].quotesToday = member.quotesToday
@@ -103,24 +109,22 @@ class WinTheDayViewModel: ObservableObject {
                     }
                 }
 
-                if self.isLoaded {
+                if self.hasFetchedMembers {
                     if self.lastFetchHash != newHash {
                         self.reorderCards()
                         self.lastFetchHash = newHash
-                    } else {
-                        self.displayedMembers = self.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
                     }
-                    self.performResetsIfNeeded()
-                    self.saveLocal()
-                    completion?()
                 } else {
-                    self.displayedMembers = self.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
+                    self.teamMembers.sort { $0.sortIndex < $1.sortIndex }
+                    self.displayedMembers = self.teamMembers
                     self.lastFetchHash = newHash
-                    self.saveLocal()
-                    self.isLoaded = true
                     self.initializeResetDatesIfNeeded()
-                    completion?()
+                    self.hasFetchedMembers = true
                 }
+
+                self.performResetsIfNeeded()
+                self.saveLocal()
+                completion?()
             }
         }
     }
@@ -180,18 +184,24 @@ class WinTheDayViewModel: ObservableObject {
     }
 
     private func updateLocalEntries(names: [String]) {
-        teamMembers.removeAll { !names.contains($0.name) }
+        teamMembers.removeAll { member in !names.contains(member.name) }
+
         let stored = loadLocalMembers()
+        var maxIndex = teamMembers.map { $0.sortIndex }.max() ?? -1
+
         for name in names where !teamMembers.contains(where: { $0.name == name }) {
             if let saved = stored.first(where: { $0.name == name }) {
                 teamMembers.append(saved)
+                maxIndex = max(maxIndex, saved.sortIndex)
             } else {
-                teamMembers.append(TeamMember(name: name))
+                var newMember = TeamMember(name: name)
+                maxIndex += 1
+                newMember.sortIndex = maxIndex
+                teamMembers.append(newMember)
             }
         }
-        for (index, _) in teamMembers.enumerated() {
-            teamMembers[index].sortIndex = index
-        }
+
+        teamMembers.sort { $0.sortIndex < $1.sortIndex }
     }
 
     func load(names: [String], completion: (() -> Void)? = nil) {
@@ -206,11 +216,16 @@ class WinTheDayViewModel: ObservableObject {
                 return
             }
 
-            for (index, name) in names.enumerated() {
+            for name in names {
                 if let m = members.first(where: { $0.name == name }) {
-                    if index < self.teamMembers.count {
-                        self.teamMembers[index] = m
-                        self.teamMembers[index].sortIndex = index
+                    if let idx = self.teamMembers.firstIndex(where: { $0.name == name }) {
+                        self.teamMembers[idx].quotesToday = m.quotesToday
+                        self.teamMembers[idx].salesWTD = m.salesWTD
+                        self.teamMembers[idx].salesMTD = m.salesMTD
+                        self.teamMembers[idx].quotesGoal = m.quotesGoal
+                        self.teamMembers[idx].salesWTDGoal = m.salesWTDGoal
+                        self.teamMembers[idx].salesMTDGoal = m.salesMTDGoal
+                        self.teamMembers[idx].emoji = m.emoji
                     }
                 }
             }
