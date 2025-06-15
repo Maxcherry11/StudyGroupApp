@@ -5,6 +5,9 @@ import SwiftUI
 class WinTheDayViewModel: ObservableObject {
     @Published var teamData: [TeamMember] = []
 
+    /// Prevents repeatedly overwriting ``teamData`` when the view reappears.
+    private var hasLoadedCloudKit = false
+
     init() {
         let stored = loadLocalMembers().sorted { $0.sortIndex < $1.sortIndex }
         self.teamMembers = stored
@@ -113,6 +116,9 @@ class WinTheDayViewModel: ObservableObject {
                     if self.lastFetchHash != newHash {
                         self.reorderCards()
                         self.lastFetchHash = newHash
+                        self.teamData = self.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
+                    } else if !self.hasLoadedCloudKit {
+                        self.teamData = self.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
                     }
                 } else {
                     self.teamMembers.sort { $0.sortIndex < $1.sortIndex }
@@ -120,7 +126,10 @@ class WinTheDayViewModel: ObservableObject {
                     self.lastFetchHash = newHash
                     self.initializeResetDatesIfNeeded()
                     self.hasFetchedMembers = true
+                    self.teamData = self.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
                 }
+
+                self.hasLoadedCloudKit = true
 
                 self.performResetsIfNeeded()
                 self.saveLocal()
