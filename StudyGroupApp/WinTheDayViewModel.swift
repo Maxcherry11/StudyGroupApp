@@ -97,10 +97,10 @@ class WinTheDayViewModel: ObservableObject {
     /// Ordering mirrors ``LifeScoreboardViewModel`` so cards remain stable
     /// between view loads.
     func fetchMembersFromCloud(completion: (() -> Void)? = nil) {
-        CloudKitManager.shared.fetchAllTeamMembers { [weak self] fetched in
+        CloudKitManager.shared.fetchAllTeamMembers { [weak self] fetchedTeam in
             guard let self = self else { return }
 
-            let sorted = fetched.sorted { $0.quotesGoal > $1.quotesGoal }
+            let sorted = fetchedTeam.sorted { $0.quotesGoal > $1.quotesGoal }
             let newHash = self.computeHash(for: sorted)
 
             self.updateLocalEntries(names: sorted.map { $0.name })
@@ -128,8 +128,18 @@ class WinTheDayViewModel: ObservableObject {
             }
 
             self.performResetsIfNeeded()
-            self.isLoaded = true
-            completion?()
+
+            DispatchQueue.main.async {
+                print("🔄 Reordering teamData based on CloudKit data")
+                self.teamData = fetchedTeam.sorted { $0.quotesGoal > $1.quotesGoal }
+                self.isLoaded = true
+
+                for member in self.teamData {
+                    print("➡️ \(member.name): \(member.quotesGoal)")
+                }
+
+                completion?()
+            }
         }
     }
 
