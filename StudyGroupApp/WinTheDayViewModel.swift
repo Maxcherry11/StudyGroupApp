@@ -4,19 +4,22 @@ import SwiftUI
 
 class WinTheDayViewModel: ObservableObject {
     @Published var teamData: [TeamMember] = []
+    /// Set to true once CloudKit data has been loaded and sorted
+    @Published var isLoaded = false
 
-    /// Prevents repeatedly overwriting ``teamData`` when the view reappears.
-    private var hasLoadedCloudKit = false
 
     init() {
         let stored = loadLocalMembers().sorted { $0.sortIndex < $1.sortIndex }
         self.teamMembers = stored
         self.displayedMembers = stored
-        self.teamData = [] // empty until CloudKit returns
+        // Use locally stored order as a placeholder until CloudKit loads
+        self.teamData = stored
         let names = Self.loadLocalGoalNames()
         self.goalNames = names
         self.lastGoalHash = Self.computeGoalHash(for: names)
         self.lastFetchHash = computeHash(for: stored)
+        // Fetch the latest values from CloudKit immediately
+        fetchMembersFromCloud()
     }
     @Published var teamMembers: [TeamMember] = []
     @Published var displayedMembers: [TeamMember] = []
@@ -85,29 +88,24 @@ class WinTheDayViewModel: ObservableObject {
     }
 
     /// Convenience wrapper mirroring LifeScoreboardViewModel.fetchTeamMembersFromCloud
-    /// for fetching the latest production values without altering local order.
+    /// for fetching the latest production values.
     func fetchScores() {
-        fetchMembersFromCloud { [weak self] in
-            guard let self = self else { return }
-            if !self.hasLoadedCloudKit {
-                self.teamData = self.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
-                self.hasLoadedCloudKit = true
-            }
-        }
+        fetchMembersFromCloud()
     }
 
-    /// Fetches all ``TeamMember`` records from CloudKit and updates ``teamMembers``.
-    /// This mirrors the behavior used on the splash screen so both views stay in sync.
+    /// Fetches all ``TeamMember`` records from CloudKit and updates ordering.
+    /// Ordering is based on CloudKit values and only updates when data changes.
     func fetchMembersFromCloud(completion: (() -> Void)? = nil) {
         CloudKitManager.shared.fetchAllTeamMembers { [weak self] fetched in
             DispatchQueue.main.async {
                 guard let self = self else { return }
 
-                let newHash = self.computeHash(for: fetched)
+                let sorted = fetched.sorted { $0.quotesGoal > $1.quotesGoal }
+                let newHash = self.computeHash(for: sorted)
 
-                self.updateLocalEntries(names: fetched.map { $0.name })
-
-                for member in fetched {
+                // Update local entries to ensure any new members are present
+                self.updateLocalEntries(names: sorted.map { $0.name })
+                for member in sorted {
                     if let index = self.teamMembers.firstIndex(where: { $0.name == member.name }) {
                         self.teamMembers[index].quotesToday = member.quotesToday
                         self.teamMembers[index].salesWTD = member.salesWTD
@@ -119,28 +117,17 @@ class WinTheDayViewModel: ObservableObject {
                     }
                 }
 
-                if self.hasFetchedMembers {
-                    if self.lastFetchHash != newHash {
-                        self.reorderCards()
-                        self.lastFetchHash = newHash
-                    }
-                    if !self.hasLoadedCloudKit {
-                        self.teamData = self.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
-                        self.hasLoadedCloudKit = true
-                    }
-                } else {
-                    self.teamMembers.sort { $0.sortIndex < $1.sortIndex }
+                if self.lastFetchHash != newHash || !self.isLoaded {
+                    self.teamMembers.sort { $0.quotesGoal > $1.quotesGoal }
                     self.displayedMembers = self.teamMembers
+                    self.teamData = self.teamMembers
                     self.lastFetchHash = newHash
                     self.initializeResetDatesIfNeeded()
-                    self.hasFetchedMembers = true
-                    if !self.hasLoadedCloudKit {
-                        self.teamData = self.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
-                        self.hasLoadedCloudKit = true
-                    }
+                    self.saveLocal()
                 }
+
                 self.performResetsIfNeeded()
-                self.saveLocal()
+                self.isLoaded = true
                 completion?()
             }
         }

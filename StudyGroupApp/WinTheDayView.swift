@@ -58,7 +58,6 @@ struct WinTheDayView: View {
     @State private var emojiPickerVisible = false
     @State private var emojiEditingID: UUID?
     @State private var recentlyCompletedIDs: Set<UUID> = []
-    @State private var hasLoaded = false
     // Production Goal Editor State
     @State private var showProductionGoalEditor = false
     @State private var newQuotesGoal = 10
@@ -72,7 +71,7 @@ struct WinTheDayView: View {
 
     var body: some View {
         Group {
-            if hasLoaded {
+            if viewModel.isLoaded {
                 contentVStack
                     .background(winTheDayBackground)
             } else {
@@ -83,7 +82,6 @@ struct WinTheDayView: View {
             viewModel.fetchMembersFromCloud()
             viewModel.fetchCardsFromCloud()
             viewModel.fetchGoalNamesFromCloud()
-            hasLoaded = true
             shimmerPosition = -1.0
             withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
                 shimmerPosition = 1.5
@@ -91,7 +89,7 @@ struct WinTheDayView: View {
         }
     .onChange(of: userManager.currentUser) { _ in }
     .onChange(of: userManager.userList) { _ in
-        if hasLoaded {
+        if viewModel.isLoaded {
             viewModel.fetchMembersFromCloud()
         }
     }
@@ -263,7 +261,7 @@ private var teamCardsList: some View {
         ScrollView {
             VStack(spacing: 10) {
 
-                ForEach(viewModel.teamMembers, id: \.id) { member in
+                ForEach(viewModel.teamData, id: \.id) { member in
                     if let idx = viewModel.teamMembers.firstIndex(where: { $0.id == member.id }) {
                         let name = viewModel.teamMembers[idx].name
                         let isEditable = name == userManager.currentUser
@@ -287,7 +285,7 @@ private var teamCardsList: some View {
                             }
                         },
                         recentlyCompletedIDs: $recentlyCompletedIDs,
-                        teamData: $viewModel.teamMembers,
+                        teamData: $viewModel.teamData,
                         quotesLabel: viewModel.goalNames.quotes,
                         salesWTDLabel: viewModel.goalNames.salesWTD,
                         salesMTDLabel: viewModel.goalNames.salesMTD
@@ -309,7 +307,7 @@ private var teamCardsList: some View {
 
 private var fallbackMessage: some View {
     Group {
-        if viewModel.teamMembers.isEmpty {
+        if viewModel.teamData.isEmpty {
             EmptyView()
         }
     }
