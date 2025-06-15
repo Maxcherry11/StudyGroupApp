@@ -10,6 +10,7 @@ class WinTheDayViewModel: ObservableObject {
         let names = Self.loadLocalGoalNames()
         self.goalNames = names
         self.lastGoalHash = Self.computeGoalHash(for: names)
+        fetchMembersFromCloud()
     }
     @Published var teamMembers: [TeamMember] = []
     @Published var displayedMembers: [TeamMember] = []
@@ -25,6 +26,7 @@ class WinTheDayViewModel: ObservableObject {
     private var lastGoalHash: Int?
     private let weeklyResetKey = "WTDWeeklyReset"
     private let monthlyResetKey = "WTDMonthlyReset"
+    @Published var isLoaded: Bool = false
 
     /// Calculates a simple hash representing the current production values for
     /// the provided team members. This allows quick comparison between
@@ -101,18 +103,24 @@ class WinTheDayViewModel: ObservableObject {
                     }
                 }
 
-                if self.lastFetchHash != newHash {
-                    // Reorder locally when values have changed
-                    self.reorderCards()
-                    self.lastFetchHash = newHash
+                if self.isLoaded {
+                    if self.lastFetchHash != newHash {
+                        self.reorderCards()
+                        self.lastFetchHash = newHash
+                    } else {
+                        self.displayedMembers = self.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
+                    }
+                    self.performResetsIfNeeded()
+                    self.saveLocal()
+                    completion?()
                 } else {
-                    // Maintain existing order
                     self.displayedMembers = self.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
+                    self.lastFetchHash = newHash
+                    self.saveLocal()
+                    self.isLoaded = true
+                    self.initializeResetDatesIfNeeded()
+                    completion?()
                 }
-
-                self.performResetsIfNeeded()
-                self.saveLocal()
-                completion?()
             }
         }
     }
@@ -308,6 +316,19 @@ class WinTheDayViewModel: ObservableObject {
         if let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)),
            startOfMonth > lastMonthly {
             resetMonthlyValues()
+            UserDefaults.standard.set(startOfMonth, forKey: monthlyResetKey)
+        }
+    }
+
+    private func initializeResetDatesIfNeeded() {
+        let calendar = Calendar.current
+        let now = Date()
+        if UserDefaults.standard.object(forKey: weeklyResetKey) == nil,
+           let startOfWeek = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) {
+            UserDefaults.standard.set(startOfWeek, forKey: weeklyResetKey)
+        }
+        if UserDefaults.standard.object(forKey: monthlyResetKey) == nil,
+           let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) {
             UserDefaults.standard.set(startOfMonth, forKey: monthlyResetKey)
         }
     }
