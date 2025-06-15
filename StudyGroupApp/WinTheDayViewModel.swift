@@ -46,6 +46,7 @@ class WinTheDayViewModel: ObservableObject {
             hasher.combine(m.quotesToday)
             hasher.combine(m.salesWTD)
             hasher.combine(m.salesMTD)
+            hasher.combine(m.quotesGoal)
         }
         return hasher.finalize()
     }
@@ -102,7 +103,6 @@ class WinTheDayViewModel: ObservableObject {
             let sorted = fetched.sorted { $0.quotesGoal > $1.quotesGoal }
             let newHash = self.computeHash(for: sorted)
 
-            // Ensure all local entries exist
             self.updateLocalEntries(names: sorted.map { $0.name })
 
             for member in sorted {
@@ -117,7 +117,7 @@ class WinTheDayViewModel: ObservableObject {
                 }
             }
 
-            if self.lastFetchHash != newHash || !self.isLoaded {
+            if self.lastFetchHash != newHash {
                 self.teamMembers = sorted
                 for idx in self.teamMembers.indices { self.teamMembers[idx].sortIndex = idx }
                 self.displayedMembers = self.teamMembers
@@ -190,21 +190,14 @@ class WinTheDayViewModel: ObservableObject {
         teamMembers.removeAll { member in !names.contains(member.name) }
 
         let stored = loadLocalMembers()
-        var maxIndex = teamMembers.map { $0.sortIndex }.max() ?? -1
 
         for name in names where !teamMembers.contains(where: { $0.name == name }) {
             if let saved = stored.first(where: { $0.name == name }) {
                 teamMembers.append(saved)
-                maxIndex = max(maxIndex, saved.sortIndex)
             } else {
-                var newMember = TeamMember(name: name)
-                maxIndex += 1
-                newMember.sortIndex = maxIndex
-                teamMembers.append(newMember)
+                teamMembers.append(TeamMember(name: name))
             }
         }
-
-        teamMembers.sort { $0.sortIndex < $1.sortIndex }
     }
 
     func load(names: [String], completion: (() -> Void)? = nil) {
