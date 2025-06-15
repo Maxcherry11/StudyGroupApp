@@ -159,7 +159,21 @@ class WinTheDayViewModel: ObservableObject {
     func saveEdits(for member: TeamMember) {
         withAnimation { reorderAfterSave() }
         saveLocal()
-        saveMember(member) { _ in }
+        saveMember(member) { _ in
+            DispatchQueue.main.async {
+                self.teamData.sort {
+                    let scoreA = $0.quotesToday + $0.salesWTD + $0.salesMTD
+                    let scoreB = $1.quotesToday + $1.salesWTD + $1.salesMTD
+                    return scoreA > scoreB
+                }
+
+                print("🔄 Re-sorted after Save:")
+                for member in self.teamData {
+                    let total = member.quotesToday + member.salesWTD + member.salesMTD
+                    print("➡️ \(member.name): \(total)")
+                }
+            }
+        }
     }
 
     private func saveLocal() {
