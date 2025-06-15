@@ -12,6 +12,7 @@ class WinTheDayViewModel: ObservableObject {
         let stored = loadLocalMembers().sorted { $0.sortIndex < $1.sortIndex }
         self.teamMembers = stored
         self.displayedMembers = stored
+        self.teamData = [] // empty until CloudKit returns
         let names = Self.loadLocalGoalNames()
         self.goalNames = names
         self.lastGoalHash = Self.computeGoalHash(for: names)
@@ -86,7 +87,13 @@ class WinTheDayViewModel: ObservableObject {
     /// Convenience wrapper mirroring LifeScoreboardViewModel.fetchTeamMembersFromCloud
     /// for fetching the latest production values without altering local order.
     func fetchScores() {
-        fetchMembersFromCloud()
+        fetchMembersFromCloud { [weak self] in
+            guard let self = self else { return }
+            if !self.hasLoadedCloudKit {
+                self.teamData = self.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
+                self.hasLoadedCloudKit = true
+            }
+        }
     }
 
     /// Fetches all ``TeamMember`` records from CloudKit and updates ``teamMembers``.
@@ -116,9 +123,10 @@ class WinTheDayViewModel: ObservableObject {
                     if self.lastFetchHash != newHash {
                         self.reorderCards()
                         self.lastFetchHash = newHash
+                    }
+                    if !self.hasLoadedCloudKit {
                         self.teamData = self.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
-                    } else if !self.hasLoadedCloudKit {
-                        self.teamData = self.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
+                        self.hasLoadedCloudKit = true
                     }
                 } else {
                     self.teamMembers.sort { $0.sortIndex < $1.sortIndex }
@@ -126,11 +134,11 @@ class WinTheDayViewModel: ObservableObject {
                     self.lastFetchHash = newHash
                     self.initializeResetDatesIfNeeded()
                     self.hasFetchedMembers = true
-                    self.teamData = self.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
+                    if !self.hasLoadedCloudKit {
+                        self.teamData = self.teamMembers.sorted { $0.sortIndex < $1.sortIndex }
+                        self.hasLoadedCloudKit = true
+                    }
                 }
-
-                self.hasLoadedCloudKit = true
-
                 self.performResetsIfNeeded()
                 self.saveLocal()
                 completion?()
