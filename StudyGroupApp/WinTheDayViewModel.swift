@@ -130,14 +130,19 @@ class WinTheDayViewModel: ObservableObject {
             self.performResetsIfNeeded()
 
             DispatchQueue.main.async {
-                print("🔄 Reordering teamData based on CloudKit data")
-                self.teamData = fetchedTeam.sorted { $0.quotesGoal > $1.quotesGoal }
-                self.isLoaded = true
-
-                for member in self.teamData {
-                    print("➡️ \(member.name): \(member.quotesGoal)")
+                self.teamData = fetchedTeam.sorted {
+                    let scoreA = $0.quotesToday + $0.salesWTD + $0.salesMTD
+                    let scoreB = $1.quotesToday + $1.salesWTD + $1.salesMTD
+                    return scoreA > scoreB
                 }
 
+                print("🔄 Sorted teamData by actual progress:")
+                for member in self.teamData {
+                    let total = member.quotesToday + member.salesWTD + member.salesMTD
+                    print("➡️ \(member.name): \(total)")
+                }
+
+                self.isLoaded = true
                 completion?()
             }
         }
