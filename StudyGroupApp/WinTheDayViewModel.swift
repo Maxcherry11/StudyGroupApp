@@ -35,7 +35,6 @@ class WinTheDayViewModel: ObservableObject {
     private var lastGoalHash: Int?
     private let weeklyResetKey = "WTDWeeklyReset"
     private let monthlyResetKey = "WTDMonthlyReset"
-    private var hasFetchedMembers = false
 
     /// Calculates a simple hash representing the current production values for
     /// the provided team members. This allows quick comparison between
@@ -94,42 +93,43 @@ class WinTheDayViewModel: ObservableObject {
     }
 
     /// Fetches all ``TeamMember`` records from CloudKit and updates ordering.
-    /// Ordering is based on CloudKit values and only updates when data changes.
+    /// Ordering mirrors ``LifeScoreboardViewModel`` so cards remain stable
+    /// between view loads.
     func fetchMembersFromCloud(completion: (() -> Void)? = nil) {
         CloudKitManager.shared.fetchAllTeamMembers { [weak self] fetched in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
+            guard let self = self else { return }
 
-                let sorted = fetched.sorted { $0.quotesGoal > $1.quotesGoal }
-                let newHash = self.computeHash(for: sorted)
+            let sorted = fetched.sorted { $0.quotesGoal > $1.quotesGoal }
+            let newHash = self.computeHash(for: sorted)
 
-                // Update local entries to ensure any new members are present
-                self.updateLocalEntries(names: sorted.map { $0.name })
-                for member in sorted {
-                    if let index = self.teamMembers.firstIndex(where: { $0.name == member.name }) {
-                        self.teamMembers[index].quotesToday = member.quotesToday
-                        self.teamMembers[index].salesWTD = member.salesWTD
-                        self.teamMembers[index].salesMTD = member.salesMTD
-                        self.teamMembers[index].quotesGoal = member.quotesGoal
-                        self.teamMembers[index].salesWTDGoal = member.salesWTDGoal
-                        self.teamMembers[index].salesMTDGoal = member.salesMTDGoal
-                        self.teamMembers[index].emoji = member.emoji
-                    }
+            // Ensure all local entries exist
+            self.updateLocalEntries(names: sorted.map { $0.name })
+
+            for member in sorted {
+                if let index = self.teamMembers.firstIndex(where: { $0.name == member.name }) {
+                    self.teamMembers[index].quotesToday = member.quotesToday
+                    self.teamMembers[index].salesWTD = member.salesWTD
+                    self.teamMembers[index].salesMTD = member.salesMTD
+                    self.teamMembers[index].quotesGoal = member.quotesGoal
+                    self.teamMembers[index].salesWTDGoal = member.salesWTDGoal
+                    self.teamMembers[index].salesMTDGoal = member.salesMTDGoal
+                    self.teamMembers[index].emoji = member.emoji
                 }
-
-                if self.lastFetchHash != newHash || !self.isLoaded {
-                    self.teamMembers.sort { $0.quotesGoal > $1.quotesGoal }
-                    self.displayedMembers = self.teamMembers
-                    self.teamData = self.teamMembers
-                    self.lastFetchHash = newHash
-                    self.initializeResetDatesIfNeeded()
-                    self.saveLocal()
-                }
-
-                self.performResetsIfNeeded()
-                self.isLoaded = true
-                completion?()
             }
+
+            if self.lastFetchHash != newHash || !self.isLoaded {
+                self.teamMembers = sorted
+                for idx in self.teamMembers.indices { self.teamMembers[idx].sortIndex = idx }
+                self.displayedMembers = self.teamMembers
+                self.teamData = self.teamMembers
+                self.lastFetchHash = newHash
+                self.initializeResetDatesIfNeeded()
+                self.saveLocal()
+            }
+
+            self.performResetsIfNeeded()
+            self.isLoaded = true
+            completion?()
         }
     }
 
@@ -142,10 +142,9 @@ class WinTheDayViewModel: ObservableObject {
 
     /// Saves edits for a given ``TeamMember`` and updates ordering.
     func saveEdits(for member: TeamMember) {
+        withAnimation { reorderAfterSave() }
+        saveLocal()
         saveMember(member) { _ in }
-        withAnimation {
-            reorderAfterSave()
-        }
     }
 
     private func saveLocal() {
