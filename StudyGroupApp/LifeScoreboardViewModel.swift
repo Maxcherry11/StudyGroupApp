@@ -294,12 +294,62 @@ class LifeScoreboardViewModel: ObservableObject {
         }
     }
 
+    /// Ensures all `TeamMember` records contain Life Scoreboard fields.
+    /// Missing values are initialized to `0` without overwriting existing data.
+    func syncScoreboardFields() {
+        let container = CKContainer.default()
+        let database = container.publicCloudDatabase
+        let query = CKQuery(recordType: "TeamMember", predicate: NSPredicate(value: true))
+
+        database.perform(query, inZoneWith: nil) { records, error in
+            if let error = error {
+                print("⚠️ CloudKit fetch error: \(error)")
+                return
+            }
+
+            guard let records = records else { return }
+
+            for record in records {
+                var needsUpdate = false
+
+                if record.object(forKey: "pending") == nil {
+                    record["pending"] = 0 as CKRecordValue
+                    needsUpdate = true
+                }
+
+                if record.object(forKey: "projected") == nil {
+                    record["projected"] = 0 as CKRecordValue
+                    needsUpdate = true
+                }
+
+                if record.object(forKey: "actual") == nil {
+                    record["actual"] = 0 as CKRecordValue
+                    needsUpdate = true
+                }
+
+                if needsUpdate {
+                    database.save(record) { _, err in
+                        if let err = err {
+                            print("⚠️ Failed to seed Life Scoreboard fields for \(record.recordID.recordName): \(err)")
+                        } else {
+                            let name = record["name"] as? String ?? "unknown"
+                            print("✅ Seeded missing Life Scoreboard fields for \(name)")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - Team Member Sync
 
     /// Fetches all `TeamMember` records from CloudKit and initializes
     /// the local scoreboard state. The resulting order is based on the
     /// members' saved scores so rows remain stable between view loads.
     func fetchTeamMembersFromCloud() {
+        // Ensure Life Scoreboard fields exist before loading data
+        syncScoreboardFields()
+
         CloudKitManager.shared.fetchAllTeamMembers { [weak self] fetched in
             guard let self = self else { return }
             let newHash = self.computeMemberHash(for: fetched)
