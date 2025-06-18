@@ -161,21 +161,26 @@ extension TeamMember {
     }
 
     func toRecord(existing: CKRecord? = nil) -> CKRecord {
-        let desiredID = CKRecord.ID(recordName: name)
-        let record: CKRecord
-        if let existing = existing, existing.recordID.recordName == name {
-            record = existing
-        } else {
-            record = CKRecord(recordType: Self.recordType, recordID: desiredID)
+        guard !name.isEmpty else {
+            fatalError("❌ Cannot save TeamMember without a name.")
         }
+
+        let record = existing ?? CKRecord(recordType: "TeamMember", recordID: CKRecord.ID(recordName: name))
+
         record["name"] = name as CKRecordValue
-        record["quotesToday"] = quotesToday as CKRecordValue
-        record["salesWTD"] = salesWTD as CKRecordValue
-        record["salesMTD"] = salesMTD as CKRecordValue
-        record["quotesGoal"] = quotesGoal as CKRecordValue
-        record["salesWTDGoal"] = salesWTDGoal as CKRecordValue
-        record["salesMTDGoal"] = salesMTDGoal as CKRecordValue
         record["emoji"] = emoji as CKRecordValue
+        record["pending"] = pending as CKRecordValue
+        record["projected"] = projected as CKRecordValue
+        record["quotesGoal"] = quotesGoal as CKRecordValue
+        record["quotesToday"] = quotesToday as CKRecordValue
+        record["salesMTD"] = salesMTD as CKRecordValue
+        record["salesMTDGoal"] = salesMTDGoal as CKRecordValue
+        record["salesWTD"] = salesWTD as CKRecordValue
+        record["salesWTDGoal"] = salesWTDGoal as CKRecordValue
+        record["score"] = score as CKRecordValue
+        record["sortIndex"] = sortIndex as CKRecordValue
+        record["testFlag"] = testFlag as CKRecordValue
+
         return record
     }
 }
