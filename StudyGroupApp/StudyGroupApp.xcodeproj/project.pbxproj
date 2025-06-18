@@ -9,8 +9,9 @@
 /* Begin PBXBuildFile section */
 		4DC20FA6D8614B33B40C5DB3 /* TempScoreRowShowcase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EADEA15A39A4A2E911AD6C8 /* TempScoreRowShowcase.swift */; };
 		64C6F0F5FC38411D819C0BE3 /* UserManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331336D4828944B798561421 /* UserManager.swift */; };
-		A1B2C3D42DEFCAFE00000001 /* Card.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D32DEFCAFE00000001 /* Card.swift */; };
-		ABCDE12345ABCDE12345ABCE /* GoalNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCDE12345ABCDE12345ABCD /* GoalNames.swift */; };
+                A1B2C3D42DEFCAFE00000001 /* Card.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D32DEFCAFE00000001 /* Card.swift */; };
+                167AB56E4291FC388E6FD5C7 /* CardModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7EA411A31E5BFD7BCDCD242 /* CardModel.swift */; };
+                ABCDE12345ABCDE12345ABCE /* GoalNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCDE12345ABCDE12345ABCD /* GoalNames.swift */; };
 		B653C50B2DE22E7D001B905F /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B653C5032DE22E7D001B905F /* Preview Assets.xcassets */; };
 		B653C50C2DE22E7D001B905F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B653C5002DE22E7D001B905F /* Assets.xcassets */; };
 		B653C5312DE23D36001B905F /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C5282DE23D36001B905F /* MainTabView.swift */; };
@@ -32,8 +33,9 @@
 		12B75D2389F8474FB89FF01B /* CodexNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexNotes.swift; sourceTree = "<group>"; };
 		2EADEA15A39A4A2E911AD6C8 /* TempScoreRowShowcase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempScoreRowShowcase.swift; sourceTree = "<group>"; };
 		331336D4828944B798561421 /* UserManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserManager.swift; sourceTree = "<group>"; };
-		A1B2C3D32DEFCAFE00000001 /* Card.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Card.swift; sourceTree = "<group>"; };
-		ABCDE12345ABCDE12345ABCD /* GoalNames.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalNames.swift; sourceTree = "<group>"; };
+                A1B2C3D32DEFCAFE00000001 /* Card.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Card.swift; sourceTree = "<group>"; };
+                A7EA411A31E5BFD7BCDCD242 /* CardModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardModel.swift; sourceTree = "<group>"; };
+                ABCDE12345ABCDE12345ABCD /* GoalNames.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalNames.swift; sourceTree = "<group>"; };
 		B60BBEEA2DE53B8D00646B2F /* StudyGroupApp-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "StudyGroupApp-Info.plist"; sourceTree = "<group>"; };
 		B653C4F22DE22D8D001B905F /* StudyGroupApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StudyGroupApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B653C5002DE22E7D001B905F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -79,11 +81,12 @@
 				B653C54A2DE26ED8001B905F /* CloudKitManager.swift */,
 				FEED00002DEFCAFE00000002 /* SplashViewModel.swift */,
 				331336D4828944B798561421 /* UserManager.swift */,
-				B653C5282DE23D36001B905F /* MainTabView.swift */,
-				B653C53E2DE2407A001B905F /* TeamMember.swift */,
-				A1B2C3D32DEFCAFE00000001 /* Card.swift */,
-				ABCDE12345ABCDE12345ABCD /* GoalNames.swift */,
-				B653C52E2DE23D36001B905F /* WinTheDayViewModel.swift */,
+                                B653C5282DE23D36001B905F /* MainTabView.swift */,
+                                B653C53E2DE2407A001B905F /* TeamMember.swift */,
+                                A1B2C3D32DEFCAFE00000001 /* Card.swift */,
+                                A7EA411A31E5BFD7BCDCD242 /* CardModel.swift */,
+                                ABCDE12345ABCDE12345ABCD /* GoalNames.swift */,
+                                B653C52E2DE23D36001B905F /* WinTheDayViewModel.swift */,
 				B653C4F32DE22D8D001B905F /* Products */,
 				B653C5002DE22E7D001B905F /* Assets.xcassets */,
 				B653C5042DE22E7D001B905F /* Preview Content */,
@@ -192,8 +195,9 @@
 				B653C5412DE2409D001B905F /* StudyGroupApp.swift in Sources */,
 				B653C53D2DE2403E001B905F /* WinTheDayView.swift in Sources */,
 				B653C53F2DE2407A001B905F /* TeamMember.swift in Sources */,
-				A1B2C3D42DEFCAFE00000001 /* Card.swift in Sources */,
-				ABCDE12345ABCDE12345ABCE /* GoalNames.swift in Sources */,
+                                A1B2C3D42DEFCAFE00000001 /* Card.swift in Sources */,
+                                167AB56E4291FC388E6FD5C7 /* CardModel.swift in Sources */,
+                                ABCDE12345ABCDE12345ABCE /* GoalNames.swift in Sources */,
 				B653C5312DE23D36001B905F /* MainTabView.swift in Sources */,
 				B653C5322DE23D36001B905F /* WinTheDayViewModel.swift in Sources */,
 				B653C54D2DE270A5001B905F /* UserSelectorView.swift in Sources */,
