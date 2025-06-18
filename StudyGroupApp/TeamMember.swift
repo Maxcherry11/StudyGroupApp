@@ -146,7 +146,7 @@ extension TeamMember {
         }
 
         self.init(
-            id: UUID(uuidString: record.recordID.recordName) ?? UUID(),
+            id: UUID(),
             name: name,
             quotesToday: quotesToday,
             salesWTD: salesWTD,
@@ -160,7 +160,7 @@ extension TeamMember {
     }
 
     func toRecord(existing: CKRecord? = nil) -> CKRecord {
-        let record = existing ?? CKRecord(recordType: Self.recordType, recordID: CKRecord.ID(recordName: id.uuidString))
+        let record = existing ?? CKRecord(recordType: Self.recordType, recordID: CKRecord.ID(recordName: name))
         record["name"] = name as CKRecordValue
         record["quotesToday"] = quotesToday as CKRecordValue
         record["salesWTD"] = salesWTD as CKRecordValue
