@@ -143,9 +143,13 @@ class CloudKitManager: ObservableObject {
     }
 
     private func prepareModifyOperation(for member: TeamMember, existingRecord: CKRecord?, completion: @escaping (CKRecord.ID?) -> Void) -> CKModifyRecordsOperation {
-        let record = member.toRecord(existing: existingRecord)
+        let newRecord = member.toRecord()
+        var recordIDsToDelete: [CKRecord.ID]? = nil
+        if let existing = existingRecord, existing.recordID.recordName != member.name {
+            recordIDsToDelete = [existing.recordID]
+        }
 
-        let modifyOperation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
+        let modifyOperation = CKModifyRecordsOperation(recordsToSave: [newRecord], recordIDsToDelete: recordIDsToDelete)
         modifyOperation.modifyRecordsResultBlock = { result in
             DispatchQueue.main.async {
                 switch result {
@@ -154,7 +158,7 @@ class CloudKitManager: ObservableObject {
                     completion(nil)
                 case .success:
                     print("✅ Successfully saved member: \(member.name)")
-                    completion(record.recordID)
+                    completion(newRecord.recordID)
                 }
             }
         }

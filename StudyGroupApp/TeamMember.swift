@@ -134,6 +134,7 @@ extension TeamMember {
     convenience init?(record: CKRecord) {
         guard
             let name = record["name"] as? String,
+            !name.isEmpty,
             let quotesToday = record["quotesToday"] as? Int,
             let salesWTD = record["salesWTD"] as? Int,
             let salesMTD = record["salesMTD"] as? Int,
@@ -160,7 +161,13 @@ extension TeamMember {
     }
 
     func toRecord(existing: CKRecord? = nil) -> CKRecord {
-        let record = existing ?? CKRecord(recordType: Self.recordType, recordID: CKRecord.ID(recordName: name))
+        let desiredID = CKRecord.ID(recordName: name)
+        let record: CKRecord
+        if let existing = existing, existing.recordID.recordName == name {
+            record = existing
+        } else {
+            record = CKRecord(recordType: Self.recordType, recordID: desiredID)
+        }
         record["name"] = name as CKRecordValue
         record["quotesToday"] = quotesToday as CKRecordValue
         record["salesWTD"] = salesWTD as CKRecordValue
