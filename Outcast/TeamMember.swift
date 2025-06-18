@@ -87,7 +87,7 @@ extension TeamMember {
         }
 
         self.init(
-            id: UUID(uuidString: record.recordID.recordName) ?? UUID(),
+            id: UUID(),
             name: name,
             quotesToday: quotesToday,
             salesWTD: salesWTD,

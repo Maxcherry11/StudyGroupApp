@@ -163,7 +163,7 @@ class CloudKitManager: ObservableObject {
     }
 
     func delete(_ member: TeamMember) {
-        let id = CKRecord.ID(recordName: member.id.uuidString)
+        let id = CKRecord.ID(recordName: member.name)
         database.delete(withRecordID: id) { _, error in
             if let error = error {
                 print("❌ Error deleting: \(error.localizedDescription)")

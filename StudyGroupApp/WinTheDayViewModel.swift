@@ -298,8 +298,8 @@ class WinTheDayViewModel: ObservableObject {
         CloudKitManager.shared.fetchCardOrder(for: user) { [weak self] savedOrder in
             guard let self = self else { return }
             if let savedOrder = savedOrder {
-                let ordered = savedOrder.compactMap { idString in
-                    self.teamMembers.first { $0.id.uuidString == idString }
+                let ordered = savedOrder.compactMap { name in
+                    self.teamMembers.first { $0.name == name }
                 }
                 self.displayedMembers = ordered
             } else {
@@ -313,7 +313,7 @@ class WinTheDayViewModel: ObservableObject {
     }
 
     func saveCardOrderToCloud(for user: String) {
-        let order = displayedMembers.map { $0.id.uuidString }
+        let order = displayedMembers.map { $0.name }
         CloudKitManager.shared.saveCardOrder(for: user, order: order)
     }
 
