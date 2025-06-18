@@ -56,6 +56,9 @@ class UserManager: ObservableObject {
     func addUser(_ name: String) {
         guard !userList.contains(name) else { return }
         CloudKitManager.saveUser(name) { [weak self] in
+            // Create a default Win the Day card for the new user
+            let defaultCard = CardModel(userName: name)
+            CloudKitManager.shared.save(card: defaultCard)
             self?.fetchUsersFromCloud()
         }
     }

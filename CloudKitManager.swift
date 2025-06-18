@@ -536,6 +536,18 @@ class CloudKitManager: ObservableObject {
         CloudKitManager.container.publicCloudDatabase.save(record) { _, _ in }
     }
 
+    /// Saves a Win the Day ``CardModel`` using the user's name as the record ID.
+    func save(card: CardModel) {
+        let record = card.toRecord()
+        database.save(record) { _, error in
+            if let error = error {
+                print("❌ Error saving card: \(error.localizedDescription)")
+            } else {
+                print("✅ Card saved for \(card.userName)")
+            }
+        }
+    }
+
     // MARK: - Goal Name Sync
 
     func fetchGoalNames(completion: @escaping (GoalNames?) -> Void) {
