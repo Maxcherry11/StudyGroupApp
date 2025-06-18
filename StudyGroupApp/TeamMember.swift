@@ -18,6 +18,10 @@ class TeamMember: Identifiable, ObservableObject {
     @Published var salesMTDGoal: Int
     @Published var emoji: String
     @Published var sortIndex: Int
+    @Published var pending: Int
+    @Published var projected: Double
+    @Published var actual: Int
+    @Published var score: Int
 
     init(
         id: UUID = UUID(),
@@ -29,7 +33,11 @@ class TeamMember: Identifiable, ObservableObject {
         salesWTDGoal: Int,
         salesMTDGoal: Int,
         emoji: String,
-        sortIndex: Int
+        sortIndex: Int,
+        pending: Int = 0,
+        projected: Double = 0.0,
+        actual: Int = 0,
+        score: Int = 0
     ) {
         self.id = id
         self.name = name
@@ -41,6 +49,10 @@ class TeamMember: Identifiable, ObservableObject {
         self.salesMTDGoal = salesMTDGoal
         self.emoji = emoji
         self.sortIndex = sortIndex
+        self.pending = pending
+        self.projected = projected
+        self.actual = actual
+        self.score = score
     }
 
     convenience init(name: String) {
@@ -53,7 +65,11 @@ class TeamMember: Identifiable, ObservableObject {
             salesWTDGoal: 1,
             salesMTDGoal: 1,
             emoji: "🙂",
-            sortIndex: 0
+            sortIndex: 0,
+            pending: 0,
+            projected: 0.0,
+            actual: 0,
+            score: 0
         )
     }
 
@@ -66,7 +82,11 @@ class TeamMember: Identifiable, ObservableObject {
         salesWTDGoal: 1,
         salesMTDGoal: 1,
         emoji: "🧠",
-        sortIndex: 0
+        sortIndex: 0,
+        pending: 0,
+        projected: 0.0,
+        actual: 0,
+        score: 0
     )
     static let ron: TeamMember = TeamMember(
         name: "Ron",
@@ -77,7 +97,11 @@ class TeamMember: Identifiable, ObservableObject {
         salesWTDGoal: 2,
         salesMTDGoal: 2,
         emoji: "🏌️",
-        sortIndex: 1
+        sortIndex: 1,
+        pending: 0,
+        projected: 0.0,
+        actual: 0,
+        score: 0
     )
 }
 
@@ -93,6 +117,10 @@ extension TeamMember {
         var salesMTDGoal: Int
         var emoji: String
         var sortIndex: Int
+        var pending: Int
+        var projected: Double
+        var actual: Int
+        var score: Int
     }
 
     var codable: CodableModel {
@@ -106,7 +134,11 @@ extension TeamMember {
             salesWTDGoal: salesWTDGoal,
             salesMTDGoal: salesMTDGoal,
             emoji: emoji,
-            sortIndex: sortIndex
+            sortIndex: sortIndex,
+            pending: pending,
+            projected: projected,
+            actual: actual,
+            score: score
         )
     }
 
@@ -121,7 +153,11 @@ extension TeamMember {
             salesWTDGoal: codable.salesWTDGoal,
             salesMTDGoal: codable.salesMTDGoal,
             emoji: codable.emoji,
-            sortIndex: codable.sortIndex
+            sortIndex: codable.sortIndex,
+            pending: codable.pending,
+            projected: codable.projected,
+            actual: codable.actual,
+            score: codable.score
         )
     }
 }
@@ -146,6 +182,11 @@ extension TeamMember {
             return nil
         }
 
+        let pending = record["pending"] as? Int ?? 0
+        let projected = record["projected"] as? Double ?? 0.0
+        let actual = record["actual"] as? Int ?? 0
+        let score = record["score"] as? Int ?? 0
+
         self.init(
             id: UUID(),
             name: name,
@@ -156,27 +197,32 @@ extension TeamMember {
             salesWTDGoal: salesWTDGoal,
             salesMTDGoal: salesMTDGoal,
             emoji: emoji,
-            sortIndex: 0
+            sortIndex: 0,
+            pending: pending,
+            projected: projected,
+            actual: actual,
+            score: score
         )
     }
 
     func toRecord(existing: CKRecord? = nil) -> CKRecord {
-        guard !name.isEmpty else {
-            fatalError("❌ Cannot save TeamMember without a name.")
-        }
-
-        let record = existing ?? CKRecord(recordType: "TeamMember", recordID: CKRecord.ID(recordName: name))
-
-        record["name"] = name as CKRecordValue
-        record["emoji"] = emoji as CKRecordValue
-        record["quotesGoal"] = quotesGoal as CKRecordValue
-        record["quotesToday"] = quotesToday as CKRecordValue
-        record["salesMTD"] = salesMTD as CKRecordValue
-        record["salesMTDGoal"] = salesMTDGoal as CKRecordValue
-        record["salesWTD"] = salesWTD as CKRecordValue
-        record["salesWTDGoal"] = salesWTDGoal as CKRecordValue
-        record["sortIndex"] = sortIndex as CKRecordValue
-
+        let record = existing ?? CKRecord(
+            recordType: "TeamMember",
+            recordID: CKRecord.ID(recordName: self.name)
+        )
+        record["name"] = self.name
+        record["emoji"] = self.emoji
+        record["pending"] = self.pending as CKRecordValue
+        record["projected"] = self.projected as CKRecordValue
+        record["actual"] = self.actual as CKRecordValue
+        record["quotesGoal"] = self.quotesGoal as CKRecordValue
+        record["quotesToday"] = self.quotesToday as CKRecordValue
+        record["salesMTD"] = self.salesMTD as CKRecordValue
+        record["salesMTDGoal"] = self.salesMTDGoal as CKRecordValue
+        record["salesWTD"] = self.salesWTD as CKRecordValue
+        record["salesWTDGoal"] = self.salesWTDGoal as CKRecordValue
+        record["score"] = self.score as CKRecordValue
+        record["sortIndex"] = self.sortIndex as CKRecordValue
         return record
     }
 }
