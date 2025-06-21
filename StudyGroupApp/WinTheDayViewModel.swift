@@ -262,6 +262,14 @@ class WinTheDayViewModel: ObservableObject {
         }
     }
 
+    /*
+     Deprecated: This method previously fetched a filtered list of team members
+     and updated ``teamMembers`` using ``updateLocalEntries(names:)``. That
+     filtering caused `teamData` to contain only the provided names, which
+     removed other members from the array. The app now fetches all members using
+     ``fetchMembersFromCloud()`` and relies on ``selectedUserName`` only for UI
+     highlighting. This method is kept for reference but should no longer be
+     called.
     func load(names: [String], completion: (() -> Void)? = nil) {
         updateLocalEntries(names: names)
         CloudKitManager.shared.fetchTeam { [weak self] members in
@@ -293,6 +301,7 @@ class WinTheDayViewModel: ObservableObject {
             }
         }
     }
+    */
 
     func saveMember(_ member: TeamMember, completion: ((CKRecord.ID?) -> Void)? = nil) {
         CloudKitManager.shared.save(member) { id in
