@@ -75,7 +75,7 @@ class CloudKitManager: ObservableObject {
     /// The new member's production goals are initialized to match the existing
     /// team, if any members are already present.
     func addTeamMember(name: String, emoji: String = "🙂", completion: @escaping (Bool) -> Void = { _ in }) {
-        var member = TeamMember(name: name)
+        let member = TeamMember(name: name)
 
         // Mirror the goals of the first existing member so new cards start with
         // the same targets as the rest of the team. This prevents newly added

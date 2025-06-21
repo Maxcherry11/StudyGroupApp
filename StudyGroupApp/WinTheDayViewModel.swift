@@ -270,14 +270,9 @@ class WinTheDayViewModel: ObservableObject {
         saveLocal()
     }
 
-    var filteredMembers: [TeamMember] {
-        teamMembers.filter {
-            guard let name = $0.name.lowercased().replacingOccurrences(of: ".", with: "") as String? else {
-                return false
-            }
-            return name == selectedUserName.lowercased().replacingOccurrences(of: ".", with: "")
-        }
-    }
+var filteredMembers: [TeamMember] {
+    teamMembers
+}
 
     /// Reorders team members by current production (quotes + sales) and updates
     /// their persisted `sortIndex`. This mirrors the stable ordering logic used
