@@ -10,7 +10,8 @@ import CloudKit
 
 struct UserSelectorView: View {
     @EnvironmentObject var userManager: UserManager
-    @ObservedObject private var cloud = CloudKitManager.shared
+    /// Use the WinTheDayViewModel so the splash screen mirrors the main app data
+    @StateObject private var viewModel = WinTheDayViewModel()
     @State private var navigate = false
 
     @State private var newUserName = ""
@@ -30,11 +31,11 @@ struct UserSelectorView: View {
                                 .fontWeight(.bold)
 
                             List {
-                                ForEach(cloud.teamMembers, id: \.id) { member in
+                                ForEach(viewModel.teamMembers, id: \.id) { member in
                                     Button(action: {
-                                        // Set current user before fetching additional info
+                                        // Set the active user and proceed into the app
                                         userManager.currentUser = member.name
-                                        cloud.fetchUsers()
+                                        viewModel.selectedUserName = member.name
                                         print("👤 Selected: \(member.name)")
                                         navigate = true
                                     }) {
@@ -74,14 +75,14 @@ struct UserSelectorView: View {
                                     // Use CloudKitManager's helper so the new member
                                     // inherits existing production goals.
                                     CloudKitManager.shared.addTeamMember(name: trimmed) { _ in
-                                        cloud.fetchTeam { _ in }
+                                        viewModel.fetchMembersFromCloud()
                                     }
                                     newUserName = ""
                                 })
                                 Button("Cancel", role: .cancel) { }
                             }
 
-                            NavigationLink(destination: MainTabView().environmentObject(userManager), isActive: $navigate) {
+                            NavigationLink(destination: MainTabView().environmentObject(userManager).environmentObject(viewModel), isActive: $navigate) {
                                 EmptyView()
                             }
                             .hidden()
@@ -94,18 +95,18 @@ struct UserSelectorView: View {
             }
             .onAppear {
                 userManager.fetchUsersFromCloud()
-                cloud.fetchAllTeamMembers()
+                viewModel.fetchMembersFromCloud()
             }
         }
     }
 
     private func deleteUser(at offsets: IndexSet) {
         for index in offsets {
-            let member = cloud.teamMembers[index]
+            let member = viewModel.teamMembers[index]
             userManager.deleteUser(member.name)
             CloudKitManager.shared.deleteScoreRecord(for: member.name)
-            cloud.deleteByName(member.name) { _ in
-                cloud.fetchTeam { _ in }
+            CloudKitManager.shared.deleteByName(member.name) { _ in
+                viewModel.fetchMembersFromCloud()
             }
         }
     }
@@ -113,4 +114,5 @@ struct UserSelectorView: View {
 
 #Preview {
     UserSelectorView()
+        .environmentObject(UserManager.shared)
 }
