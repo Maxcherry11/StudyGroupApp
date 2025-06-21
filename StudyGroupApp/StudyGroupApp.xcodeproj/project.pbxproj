@@ -20,9 +20,8 @@
 		B653C53F2DE2407A001B905F /* TeamMember.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C53E2DE2407A001B905F /* TeamMember.swift */; };
 		B653C5412DE2409D001B905F /* StudyGroupApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C5402DE2409D001B905F /* StudyGroupApp.swift */; };
 		B653C54B2DE26ED8001B905F /* CloudKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C54A2DE26ED8001B905F /* CloudKitManager.swift */; };
-                B653C54D2DE270A5001B905F /* UserSelectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C54C2DE270A5001B905F /* UserSelectorView.swift */; };
-                FEED00042DEFCAFE00000003 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED00032DEFCAFE00000003 /* SplashView.swift */; };
-                B6C560BE2DEFC65500F64256 /* LifeScoreboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C560BD2DEFC65500F64256 /* LifeScoreboardView.swift */; };
+		B653C54D2DE270A5001B905F /* UserSelectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C54C2DE270A5001B905F /* UserSelectorView.swift */; };
+		B6C560BE2DEFC65500F64256 /* LifeScoreboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C560BD2DEFC65500F64256 /* LifeScoreboardView.swift */; };
 		B6C560C02DEFC75800F64256 /* LifeScoreboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C560BF2DEFC75800F64256 /* LifeScoreboardViewModel.swift */; };
 		B6C560C62DEFCC0E00F64256 /* ActivityEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C560C52DEFCC0E00F64256 /* ActivityEditorView.swift */; };
 		B6CB206A2DE3D90A00CE7A18 /* LaunchScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6CB20692DE3D90A00CE7A18 /* LaunchScreenView.swift */; };
@@ -54,9 +53,8 @@
 		B6C560BF2DEFC75800F64256 /* LifeScoreboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifeScoreboardViewModel.swift; sourceTree = "<group>"; };
 		B6C560C52DEFCC0E00F64256 /* ActivityEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityEditorView.swift; sourceTree = "<group>"; };
 		B6CB20682DE3B35B00CE7A18 /* StudyGroupApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StudyGroupApp.entitlements; sourceTree = "<group>"; };
-                B6CB20692DE3D90A00CE7A18 /* LaunchScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScreenView.swift; sourceTree = "<group>"; };
-                FEED00032DEFCAFE00000003 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
-                FEED00002DEFCAFE00000002 /* SplashViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashViewModel.swift; sourceTree = "<group>"; };
+		B6CB20692DE3D90A00CE7A18 /* LaunchScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScreenView.swift; sourceTree = "<group>"; };
+		FEED00002DEFCAFE00000002 /* SplashViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashViewModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -77,11 +75,10 @@
 				B6C560C52DEFCC0E00F64256 /* ActivityEditorView.swift */,
 				B6C560BF2DEFC75800F64256 /* LifeScoreboardViewModel.swift */,
 				B60BBEEA2DE53B8D00646B2F /* StudyGroupApp-Info.plist */,
-                                B6CB20692DE3D90A00CE7A18 /* LaunchScreenView.swift */,
-                                B6CB20682DE3B35B00CE7A18 /* StudyGroupApp.entitlements */,
-                                FEED00032DEFCAFE00000003 /* SplashView.swift */,
-                                B653C54C2DE270A5001B905F /* UserSelectorView.swift */,
-                                B653C54A2DE26ED8001B905F /* CloudKitManager.swift */,
+				B6CB20692DE3D90A00CE7A18 /* LaunchScreenView.swift */,
+				B6CB20682DE3B35B00CE7A18 /* StudyGroupApp.entitlements */,
+				B653C54C2DE270A5001B905F /* UserSelectorView.swift */,
+				B653C54A2DE26ED8001B905F /* CloudKitManager.swift */,
 				FEED00002DEFCAFE00000002 /* SplashViewModel.swift */,
 				331336D4828944B798561421 /* UserManager.swift */,
                                 B653C5282DE23D36001B905F /* MainTabView.swift */,
@@ -193,9 +190,8 @@
 			files = (
 				B6C560C02DEFC75800F64256 /* LifeScoreboardViewModel.swift in Sources */,
 				B653C54B2DE26ED8001B905F /* CloudKitManager.swift in Sources */,
-                                FEED00012DEFCAFE00000002 /* SplashViewModel.swift in Sources */,
-                                FEED00042DEFCAFE00000003 /* SplashView.swift in Sources */,
-                                64C6F0F5FC38411D819C0BE3 /* UserManager.swift in Sources */,
+				FEED00012DEFCAFE00000002 /* SplashViewModel.swift in Sources */,
+				64C6F0F5FC38411D819C0BE3 /* UserManager.swift in Sources */,
 				B653C5412DE2409D001B905F /* StudyGroupApp.swift in Sources */,
 				B653C53D2DE2403E001B905F /* WinTheDayView.swift in Sources */,
 				B653C53F2DE2407A001B905F /* TeamMember.swift in Sources */,
