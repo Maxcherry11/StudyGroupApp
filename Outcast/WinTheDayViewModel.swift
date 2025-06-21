@@ -86,12 +86,7 @@ class WinTheDayViewModel: ObservableObject {
     }
 
     var filteredMembers: [TeamMember] {
-        teamMembers.filter {
-            guard let name = $0.name.lowercased().replacingOccurrences(of: ".", with: "") as String? else {
-                return false
-            }
-            return name == selectedUserName.lowercased().replacingOccurrences(of: ".", with: "")
-        }
+        teamMembers
     }
 
     func uploadTestMembersToCloudKit() {
