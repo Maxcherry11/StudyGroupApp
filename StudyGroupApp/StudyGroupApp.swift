@@ -13,7 +13,7 @@ struct StudyGroupApp: App {
                     LaunchScreenView()
                         .transition(.opacity)
                 } else {
-                    SplashView()
+                    UserSelectorView()
                         .environmentObject(userManager)
                         .transition(.opacity)
                 }
