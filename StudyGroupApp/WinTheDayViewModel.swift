@@ -95,6 +95,37 @@ class WinTheDayViewModel: ObservableObject {
         fetchMembersFromCloud()
     }
 
+    /// Loads all `TeamMember` records from CloudKit and populates
+    /// ``teamData`` without altering the selected user.
+    func fetchTeam() {
+        CloudKitManager.shared.fetchTeam { [weak self] members in
+            guard let self = self else { return }
+
+            DispatchQueue.main.async {
+                self.teamData = members.sorted {
+                    let scoreA = $0.quotesToday + $0.salesWTD + $0.salesMTD
+                    let scoreB = $1.quotesToday + $1.salesWTD + $1.salesMTD
+                    return scoreA > scoreB
+                }
+
+                self.teamMembers = self.teamData
+                self.displayedMembers = self.teamData
+                print("✅ Loaded \(self.teamData.count) TeamMember records from CloudKit")
+            }
+        }
+    }
+
+    /// Sets ``selectedUserName`` based on a CloudKit lookup without
+    /// modifying ``teamData``.
+    func fetchUsers(_ name: String) {
+        CloudKitManager.shared.fetchFiltered(byUserName: name) { [weak self] members in
+            guard let self = self else { return }
+            DispatchQueue.main.async {
+                self.selectedUserName = members.first?.name ?? name
+            }
+        }
+    }
+
     /// Fetches all ``TeamMember`` records from CloudKit and updates ordering.
     /// Ordering mirrors ``LifeScoreboardViewModel`` so cards remain stable
     /// between view loads.
