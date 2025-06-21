@@ -95,7 +95,7 @@ struct UserSelectorView: View {
             }
             .onAppear {
                 userManager.fetchUsersFromCloud()
-                viewModel.fetchMembersFromCloud()
+                viewModel.fetchTeam()
             }
         }
     }

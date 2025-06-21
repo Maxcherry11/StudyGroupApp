@@ -262,46 +262,6 @@ class WinTheDayViewModel: ObservableObject {
         }
     }
 
-    /*
-     Deprecated: This method previously fetched a filtered list of team members
-     and updated ``teamMembers`` using ``updateLocalEntries(names:)``. That
-     filtering caused `teamData` to contain only the provided names, which
-     removed other members from the array. The app now fetches all members using
-     ``fetchMembersFromCloud()`` and relies on ``selectedUserName`` only for UI
-     highlighting. This method is kept for reference but should no longer be
-     called.
-    func load(names: [String], completion: (() -> Void)? = nil) {
-        updateLocalEntries(names: names)
-        CloudKitManager.shared.fetchTeam { [weak self] members in
-            guard let self = self else { return }
-            if members.isEmpty {
-                DispatchQueue.main.async {
-                    self.saveLocal()
-                    completion?()
-                }
-                return
-            }
-
-            for name in names {
-                if let m = members.first(where: { $0.name == name }) {
-                    if let idx = self.teamMembers.firstIndex(where: { $0.name == name }) {
-                        self.teamMembers[idx].quotesToday = m.quotesToday
-                        self.teamMembers[idx].salesWTD = m.salesWTD
-                        self.teamMembers[idx].salesMTD = m.salesMTD
-                        self.teamMembers[idx].quotesGoal = m.quotesGoal
-                        self.teamMembers[idx].salesWTDGoal = m.salesWTDGoal
-                        self.teamMembers[idx].salesMTDGoal = m.salesMTDGoal
-                        self.teamMembers[idx].emoji = m.emoji
-                    }
-                }
-            }
-            DispatchQueue.main.async {
-                self.saveLocal()
-                completion?()
-            }
-        }
-    }
-    */
 
     func saveMember(_ member: TeamMember, completion: ((CKRecord.ID?) -> Void)? = nil) {
         CloudKitManager.shared.save(member) { id in
