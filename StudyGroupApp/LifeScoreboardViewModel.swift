@@ -301,42 +301,46 @@ class LifeScoreboardViewModel: ObservableObject {
         let database = container.publicCloudDatabase
         let query = CKQuery(recordType: "TeamMember", predicate: NSPredicate(value: true))
 
-        database.perform(query, inZoneWith: nil) { records, error in
-            if let error = error {
-                print("⚠️ CloudKit fetch error: \(error)")
-                return
-            }
-
-            guard let records = records else { return }
-
-            for record in records {
-                var needsUpdate = false
-
-                if record.object(forKey: "pending") == nil {
-                    record["pending"] = 0 as CKRecordValue
-                    needsUpdate = true
+        database.fetch(withQuery: query,
+                        inZoneWith: nil,
+                        desiredKeys: nil,
+                        resultsLimit: CKQueryOperation.maximumResults) { result in
+            switch result {
+            case .success(let (matchResults, _)):
+                let records = matchResults.compactMap { _, recordResult in
+                    try? recordResult.get()
                 }
+                for record in records {
+                    var needsUpdate = false
 
-                if record.object(forKey: "projected") == nil {
-                    record["projected"] = 0 as CKRecordValue
-                    needsUpdate = true
-                }
+                    if record.object(forKey: "pending") == nil {
+                        record["pending"] = 0 as CKRecordValue
+                        needsUpdate = true
+                    }
 
-                if record.object(forKey: "actual") == nil {
-                    record["actual"] = 0 as CKRecordValue
-                    needsUpdate = true
-                }
+                    if record.object(forKey: "projected") == nil {
+                        record["projected"] = 0 as CKRecordValue
+                        needsUpdate = true
+                    }
 
-                if needsUpdate {
-                    database.save(record) { _, err in
-                        if let err = err {
-                            print("⚠️ Failed to seed Life Scoreboard fields for \(record.recordID.recordName): \(err)")
-                        } else {
-                            let name = record["name"] as? String ?? "unknown"
-                            print("✅ Seeded missing Life Scoreboard fields for \(name)")
+                    if record.object(forKey: "actual") == nil {
+                        record["actual"] = 0 as CKRecordValue
+                        needsUpdate = true
+                    }
+
+                    if needsUpdate {
+                        database.save(record) { _, err in
+                            if let err = err {
+                                print("⚠️ Failed to seed Life Scoreboard fields for \(record.recordID.recordName): \(err)")
+                            } else {
+                                let name = record["name"] as? String ?? "unknown"
+                                print("✅ Seeded missing Life Scoreboard fields for \(name)")
+                            }
                         }
                     }
                 }
+            case .failure(let error):
+                print("⚠️ CloudKit fetch error: \(error)")
             }
         }
     }
@@ -383,65 +387,69 @@ class LifeScoreboardViewModel: ObservableObject {
 
         // Step 1: Fetch existing records
         let query = CKQuery(recordType: "TeamMember", predicate: NSPredicate(value: true))
-        database.perform(query, inZoneWith: nil) { records, error in
-            if let error = error {
-                print("❌ Failed to fetch TeamMember records: \(error)")
-                return
-            }
-
-            guard let records = records else { return }
-
-            var recordsToDelete: [CKRecord.ID] = []
-            var existingNames: Set<String> = []
-
-            for record in records {
-                if let name = record["name"] as? String, !name.trimmingCharacters(in: .whitespaces).isEmpty {
-                    existingNames.insert(name)
-                } else {
-                    recordsToDelete.append(record.recordID)
+        database.fetch(withQuery: query,
+                       inZoneWith: nil,
+                       desiredKeys: nil,
+                       resultsLimit: CKQueryOperation.maximumResults) { result in
+            switch result {
+            case .success(let (matchResults, _)):
+                let records = matchResults.compactMap { _, recordResult in
+                    try? recordResult.get()
                 }
-            }
+                var recordsToDelete: [CKRecord.ID] = []
+                var existingNames: Set<String> = []
 
-            // Step 2: Delete unnamed records
-            let deleteOp = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: recordsToDelete)
-            deleteOp.savePolicy = .allKeys
-            deleteOp.modifyRecordsCompletionBlock = { _, deleted, error in
-                if let error = error {
-                    print("❌ Failed to delete unnamed records: \(error)")
-                } else {
-                    print("🧹 Deleted \(deleted?.count ?? 0) unnamed TeamMember records")
-                }
-            }
-
-            // Step 3: Save or update records for each known user
-            var recordsToSave: [CKRecord] = []
-
-            for member in self.teamMembers {
-                guard !member.name.trimmingCharacters(in: .whitespaces).isEmpty else { continue }
-
-                let recordID = CKRecord.ID(recordName: member.name)
-                let record = CKRecord(recordType: "TeamMember", recordID: recordID)
-                record["name"] = member.name as CKRecordValue
-                record["emoji"] = member.emoji as CKRecordValue
-                record["sortIndex"] = member.sortIndex as CKRecordValue
-                recordsToSave.append(record)
-            }
-
-            let saveOp = CKModifyRecordsOperation(recordsToSave: recordsToSave, recordIDsToDelete: nil)
-            saveOp.savePolicy = .allKeys
-            saveOp.modifyRecordsCompletionBlock = { saved, _, error in
-                if let error = error {
-                    print("❌ Failed to save TeamMember records: \(error)")
-                } else {
-                    print("✅ Synced \(saved?.count ?? 0) TeamMember records to CloudKit")
-                    DispatchQueue.main.async {
-                        self.fetchTeamMembersFromCloud()
+                for record in records {
+                    if let name = record["name"] as? String, !name.trimmingCharacters(in: .whitespaces).isEmpty {
+                        existingNames.insert(name)
+                    } else {
+                        recordsToDelete.append(record.recordID)
                     }
                 }
-            }
 
-            // Run operations
-            OperationQueue.main.addOperations([deleteOp, saveOp], waitUntilFinished: false)
+                // Step 2: Delete unnamed records
+                let deleteOp = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: recordsToDelete)
+                deleteOp.savePolicy = .allKeys
+                deleteOp.modifyRecordsCompletionBlock = { _, deleted, error in
+                    if let error = error {
+                        print("❌ Failed to delete unnamed records: \(error)")
+                    } else {
+                        print("🧹 Deleted \(deleted?.count ?? 0) unnamed TeamMember records")
+                    }
+                }
+
+                // Step 3: Save or update records for each known user
+                var recordsToSave: [CKRecord] = []
+
+                for member in self.teamMembers {
+                    guard !member.name.trimmingCharacters(in: .whitespaces).isEmpty else { continue }
+
+                    let recordID = CKRecord.ID(recordName: member.name)
+                    let record = CKRecord(recordType: "TeamMember", recordID: recordID)
+                    record["name"] = member.name as CKRecordValue
+                    record["emoji"] = member.emoji as CKRecordValue
+                    record["sortIndex"] = member.sortIndex as CKRecordValue
+                    recordsToSave.append(record)
+                }
+
+                let saveOp = CKModifyRecordsOperation(recordsToSave: recordsToSave, recordIDsToDelete: nil)
+                saveOp.savePolicy = .allKeys
+                saveOp.modifyRecordsCompletionBlock = { saved, _, error in
+                    if let error = error {
+                        print("❌ Failed to save TeamMember records: \(error)")
+                    } else {
+                        print("✅ Synced \(saved?.count ?? 0) TeamMember records to CloudKit")
+                        DispatchQueue.main.async {
+                            self.fetchTeamMembersFromCloud()
+                        }
+                    }
+                }
+
+                // Run operations
+                OperationQueue.main.addOperations([deleteOp, saveOp], waitUntilFinished: false)
+            case .failure(let error):
+                print("❌ Failed to fetch TeamMember records: \(error)")
+            }
         }
     }
 

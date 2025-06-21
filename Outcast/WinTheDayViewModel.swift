@@ -42,19 +42,35 @@ class WinTheDayViewModel: ObservableObject {
 
     func fetchTeamMembers() {
         let query = CKQuery(recordType: "TeamMember", predicate: NSPredicate(value: true))
-        database.perform(query, inZoneWith: nil) { records, error in
-            if let records = records {
+        database.fetch(withQuery: query,
+                       inZoneWith: nil,
+                       desiredKeys: nil,
+                       resultsLimit: CKQueryOperation.maximumResults) { result in
+            switch result {
+            case .success(let (matchResults, _)):
+                let records = matchResults.compactMap { _, recordResult in
+                    try? recordResult.get()
+                }
                 DispatchQueue.main.async {
                     self.teamData = records.compactMap { TeamMember(record: $0) }
                 }
+            case .failure:
+                break
             }
         }
     }
 
     func wipeAndResetCloudKit() {
         let query = CKQuery(recordType: "TeamMember", predicate: NSPredicate(value: true))
-        database.perform(query, inZoneWith: nil) { records, error in
-            if let records = records {
+        database.fetch(withQuery: query,
+                       inZoneWith: nil,
+                       desiredKeys: nil,
+                       resultsLimit: CKQueryOperation.maximumResults) { result in
+            switch result {
+            case .success(let (matchResults, _)):
+                let records = matchResults.compactMap { _, recordResult in
+                    try? recordResult.get()
+                }
                 let operations = records.map { CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: [$0.recordID]) }
                 let operationQueue = OperationQueue()
                 operationQueue.addOperations(operations, waitUntilFinished: true)
@@ -63,17 +79,14 @@ class WinTheDayViewModel: ObservableObject {
                     self.teamData.removeAll()
                     // Add any default team members or reset logic here
                 }
+            case .failure:
+                break
             }
         }
     }
 
     var filteredMembers: [TeamMember] {
-        teamMembers.filter {
-            guard let name = $0.name.lowercased().replacingOccurrences(of: ".", with: "") as String? else {
-                return false
-            }
-            return name == selectedUserName.lowercased().replacingOccurrences(of: ".", with: "")
-        }
+        teamMembers
     }
 
     func uploadTestMembersToCloudKit() {

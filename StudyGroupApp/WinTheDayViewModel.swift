@@ -269,11 +269,6 @@ class WinTheDayViewModel: ObservableObject {
         }
         saveLocal()
     }
-
-var filteredMembers: [TeamMember] {
-    teamMembers
-}
-
     /// Reorders team members by current production (quotes + sales) and updates
     /// their persisted `sortIndex`. This mirrors the stable ordering logic used
     /// in LifeScoreboardViewModel.
