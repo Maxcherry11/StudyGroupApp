@@ -358,12 +358,16 @@ class LifeScoreboardViewModel: ObservableObject {
             guard let self = self else { return }
             let newHash = self.computeMemberHash(for: fetched)
 
+            DispatchQueue.main.async {
+                // Always update the local member list so removed names disappear
+                self.teamMembers = fetched
+            }
+
             if self.lastMemberHash != newHash {
                 let entries = self.buildScoreEntries(from: fetched)
                 let rows = self.buildActivityRows(from: entries)
 
                 DispatchQueue.main.async {
-                    self.teamMembers = fetched
                     self.scores = entries
                     self.activity = rows
                     self.lastMemberHash = newHash
@@ -372,7 +376,7 @@ class LifeScoreboardViewModel: ObservableObject {
                 }
             } else {
                 DispatchQueue.main.async {
-                    self.load(for: self.teamMembers.map { $0.name })
+                    self.load(for: fetched.map { $0.name })
                 }
             }
         }
