@@ -424,7 +424,7 @@ class LifeScoreboardViewModel: ObservableObject {
                 for member in self.teamMembers {
                     guard !member.name.trimmingCharacters(in: .whitespaces).isEmpty else { continue }
 
-                    let recordID = CKRecord.ID(recordName: member.name)
+                    let recordID = CKRecord.ID(recordName: "member-\(member.name)")
                     let record = CKRecord(recordType: "TeamMember", recordID: recordID)
                     record["name"] = member.name as CKRecordValue
                     record["emoji"] = member.emoji as CKRecordValue
