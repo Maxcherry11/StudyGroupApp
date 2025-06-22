@@ -10,12 +10,15 @@ import SwiftUI
 
 struct MainTabView: View {
     @EnvironmentObject var userManager: UserManager
+    /// Shared WinTheDayViewModel passed from the splash screen so card state
+    /// persists when entering the main tabs.
+    @EnvironmentObject var viewModel: WinTheDayViewModel
     init() {
         UITabBar.appearance().backgroundColor = UIColor.systemGray6
     }
     var body: some View {
         TabView {
-            WinTheDayView(viewModel: WinTheDayViewModel())
+            WinTheDayView(viewModel: viewModel)
                 .tabItem {
                     Image(systemName: "checkmark.seal.fill")
                     Text("Win the Day")
