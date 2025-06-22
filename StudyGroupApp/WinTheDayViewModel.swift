@@ -86,47 +86,8 @@ class WinTheDayViewModel: ObservableObject {
     // MARK: - Card Sync Helpers
 
     func fetchCardsFromCloud() {
-        guard !selectedUserName.isEmpty else {
-            print("⚠️ fetchCardsFromCloud aborted: selectedUserName is empty.")
-            loadLocalCards()
-            return
-        }
-
-        print("🕒 \(Date()) — 🔍 Starting fetchCardsFromCloud()")
-
-        let predicate = NSPredicate(format: "name == %@", selectedUserName)
-        let query = CKQuery(recordType: "Card", predicate: predicate)
-
-        CloudKitManager.container.publicCloudDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: CKQueryOperation.maximumResults) { result in
-            switch result {
-            case .success(let (matchResults, _)):
-                let records = matchResults.compactMap { _, recordResult in
-                    try? recordResult.get()
-                }
-
-                let loadedCards = records.compactMap { Card(record: $0) }
-                DispatchQueue.main.async {
-                    self.cards = loadedCards.sorted(by: { $0.orderIndex < $1.orderIndex })
-                    print("✅ fetchCardsFromCloud loaded \(self.cards.count) cards")
-                    self.saveCardsToLocal()
-                }
-
-            case .failure(let error):
-                if let ckError = error as? CKError {
-                    print("❌ CloudKit error (\(ckError.code)): \(ckError.localizedDescription)")
-                    switch ckError.code {
-                    case .unknownItem, .invalidArguments, .badContainer, .internalError:
-                        print("📦 Falling back to local cards")
-                        self.loadLocalCards()
-                    default:
-                        print("⚠️ Unexpected CloudKit error: \(ckError)")
-                    }
-                } else {
-                    print("❌ Unknown error fetching cards: \(error)")
-                    self.loadLocalCards()
-                }
-            }
-        }
+        print("📦 Skipping CloudKit fetch. Loading local cards instead.")
+        loadLocalCards()
     }
 
     private func loadLocalCards() {
@@ -228,6 +189,10 @@ class WinTheDayViewModel: ObservableObject {
 
             self.performResetsIfNeeded()
 
+            // Ensure cards for all users BEFORE UI refresh (and before main queue)
+            let userManager = UserManager.shared
+            self.ensureCardsForAllUsers(userManager.userList)
+
             DispatchQueue.main.async {
                 self.teamData = fetchedTeam.sorted {
                     let scoreA = $0.quotesToday + $0.salesWTD + $0.salesMTD
@@ -242,9 +207,7 @@ class WinTheDayViewModel: ObservableObject {
                 }
 
                 self.isLoaded = true
-                self.fetchCardsFromCloud()
-            let userManager = UserManager.shared
-            self.ensureCardsForAllUsers(userManager.userList)
+                // self.fetchCardsFromCloud() // Commented out as per instructions
                 completion?()
             }
         }
