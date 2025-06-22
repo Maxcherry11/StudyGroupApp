@@ -18,10 +18,7 @@ class CloudKitManager: ObservableObject {
     @Published var teamMembers: [TeamMember] = []
 
     private func isValid(_ member: TeamMember) -> Bool {
-        !member.name.trimmingCharacters(in: .whitespaces).isEmpty &&
-        member.quotesGoal > 0 &&
-        member.salesWTDGoal > 0 &&
-        member.salesMTDGoal > 0
+        !member.name.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     func fetchTeam(completion: @escaping ([TeamMember]) -> Void) {
