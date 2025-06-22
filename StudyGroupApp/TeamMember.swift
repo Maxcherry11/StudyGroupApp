@@ -168,19 +168,17 @@ extension TeamMember {
     static let recordType = "TeamMember"
 
     convenience init?(record: CKRecord) {
-        guard
-            let name = record["name"] as? String,
-            !name.isEmpty,
-            let quotesToday = record["quotesToday"] as? Int,
-            let salesWTD = record["salesWTD"] as? Int,
-            let salesMTD = record["salesMTD"] as? Int,
-            let quotesGoal = record["quotesGoal"] as? Int,
-            let salesWTDGoal = record["salesWTDGoal"] as? Int,
-            let salesMTDGoal = record["salesMTDGoal"] as? Int,
-            let emoji = record["emoji"] as? String
-        else {
+        guard let name = record["name"] as? String, !name.isEmpty else {
             return nil
         }
+
+        let quotesToday = record["quotesToday"] as? Int ?? 0
+        let salesWTD = record["salesWTD"] as? Int ?? 0
+        let salesMTD = record["salesMTD"] as? Int ?? 0
+        let quotesGoal = record["quotesGoal"] as? Int ?? 0
+        let salesWTDGoal = record["salesWTDGoal"] as? Int ?? 0
+        let salesMTDGoal = record["salesMTDGoal"] as? Int ?? 0
+        let emoji = record["emoji"] as? String ?? "🙂"
 
         let pending = record["pending"] as? Int ?? 0
         let projected = record["projected"] as? Double ?? 0.0
