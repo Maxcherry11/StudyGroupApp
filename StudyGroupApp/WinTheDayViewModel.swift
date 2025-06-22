@@ -151,7 +151,8 @@ class WinTheDayViewModel: ObservableObject {
         updateLocalEntries(names: names)
         initializeResetDatesIfNeeded()
         performResetsIfNeeded()
-        lastFetchHash = computeHash(for: teamMembers)
+        reorderCards()
+        teamData = teamMembers
         isLoaded = true
         saveLocal()
 
