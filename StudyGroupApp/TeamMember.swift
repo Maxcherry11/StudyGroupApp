@@ -206,7 +206,7 @@ extension TeamMember {
     func toRecord(existing: CKRecord? = nil) -> CKRecord {
         let record = existing ?? CKRecord(
             recordType: "TeamMember",
-            recordID: CKRecord.ID(recordName: self.name)
+            recordID: CKRecord.ID(recordName: "member-\(self.name)")
         )
         record["name"] = self.name
         record["emoji"] = self.emoji
