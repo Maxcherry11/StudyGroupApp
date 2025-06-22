@@ -80,7 +80,6 @@ struct WinTheDayView: View {
         }
         .onAppear {
             viewModel.fetchMembersFromCloud()
-            viewModel.fetchCardsFromCloud()
             viewModel.fetchGoalNamesFromCloud()
             viewModel.ensureCardsForAllUsers(userManager.userList)
             shimmerPosition = -1.0

@@ -85,15 +85,13 @@ class WinTheDayViewModel: ObservableObject {
 
     // MARK: - Card Sync Helpers
 
-    func fetchCardsFromCloud() {
-        loadLocalCards()
-    }
 
     private func loadLocalCards() {
         if let data = UserDefaults.standard.data(forKey: cardsStorageKey),
            let cached = try? JSONDecoder().decode([Card].self, from: data) {
             DispatchQueue.main.async {
                 self.cards = cached.sorted(by: { $0.orderIndex < $1.orderIndex })
+                self.displayedCards = self.cards
                 print("📦 Loaded cards from local cache.")
             }
         } else {
@@ -150,9 +148,7 @@ class WinTheDayViewModel: ObservableObject {
     /// ``LifeScoreboardViewModel`` so the view does not depend on CloudKit.
     func fetchMembersFromCloud(completion: (() -> Void)? = nil) {
         let names = UserManager.shared.userList
-
         updateLocalEntries(names: names)
-        }
         initializeResetDatesIfNeeded()
         performResetsIfNeeded()
         lastFetchHash = computeHash(for: teamMembers)
@@ -165,7 +161,6 @@ class WinTheDayViewModel: ObservableObject {
             print("➡️ \(member.name): \(total)")
         }
 
-        fetchCardsFromCloud()
         ensureCardsForAllUsers(names)
         completion?()
     }
@@ -438,7 +433,7 @@ class WinTheDayViewModel: ObservableObject {
 
         CKContainer(identifier: "iCloud.com.dj.Outcast").publicCloudDatabase.add(operation)
     }
-} // End of class WinTheDayViewModel
+} // end of class WinTheDayViewModel
 
 extension TeamMember {
     static let testMembers: [TeamMember] = [
