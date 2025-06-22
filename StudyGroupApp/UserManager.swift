@@ -89,11 +89,14 @@ class UserManager: ObservableObject {
         CloudKitManager.fetchAllUserNames { names in
             DispatchQueue.main.async {
                 print("📥 Received users from CloudKit: \(names)")
-                self.userList = names
-                self.allUsers = names
-                self.saveUsers()
-                if !names.contains(self.currentUser) {
-                    self.currentUser = names.first ?? ""
+                let sorted = names
+                if sorted != self.userList {
+                    self.userList = sorted
+                    self.allUsers = sorted
+                    self.saveUsers()
+                }
+                if !sorted.contains(self.currentUser) {
+                    self.currentUser = sorted.first ?? ""
                 }
             }
         }
