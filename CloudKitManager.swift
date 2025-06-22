@@ -17,6 +17,19 @@ class CloudKitManager: ObservableObject {
     /// immediately in any views observing the manager.
     @Published var teamMembers: [TeamMember] = []
 
+    // MARK: - Record ID Helpers
+    private func memberID(for name: String) -> CKRecord.ID {
+        CKRecord.ID(recordName: "member-\(name)")
+    }
+
+    private func scoreID(for name: String) -> CKRecord.ID {
+        CKRecord.ID(recordName: "score-\(name)")
+    }
+
+    private func cardID(for name: String) -> CKRecord.ID {
+        CKRecord.ID(recordName: "card-\(name)")
+    }
+
     private func isValid(_ member: TeamMember) -> Bool {
         !member.name.trimmingCharacters(in: .whitespaces).isEmpty
     }
@@ -159,7 +172,7 @@ class CloudKitManager: ObservableObject {
     }
 
     func delete(_ member: TeamMember) {
-        let id = CKRecord.ID(recordName: member.name)
+        let id = memberID(for: member.name)
         database.delete(withRecordID: id) { _, error in
             if let error = error {
                 print("❌ Error deleting: \(error.localizedDescription)")
@@ -299,7 +312,7 @@ class CloudKitManager: ObservableObject {
     }
 
     func saveScore(entry: LifeScoreboardViewModel.ScoreEntry, pending: Int, projected: Double) {
-        let recordID = CKRecord.ID(recordName: entry.name)
+        let recordID = scoreID(for: entry.name)
         database.fetch(withRecordID: recordID) { existing, _ in
             let record = existing ?? CKRecord(recordType: self.scoreRecordType, recordID: recordID)
             record["name"] = entry.name as CKRecordValue
@@ -318,7 +331,7 @@ class CloudKitManager: ObservableObject {
     }
 
     func createScoreRecord(for name: String) {
-        let recordID = CKRecord.ID(recordName: name)
+        let recordID = scoreID(for: name)
         let record = CKRecord(recordType: scoreRecordType, recordID: recordID)
         record["name"] = name as CKRecordValue
         record["score"] = 0 as CKRecordValue
@@ -334,7 +347,7 @@ class CloudKitManager: ObservableObject {
     }
 
     func deleteScoreRecord(for name: String) {
-        let id = CKRecord.ID(recordName: name)
+        let id = scoreID(for: name)
         database.delete(withRecordID: id) { _, error in
             if let error = error {
                 print("❌ Error deleting score record: \(error.localizedDescription)")
@@ -350,7 +363,7 @@ class CloudKitManager: ObservableObject {
             completion([:])
             return
         }
-        let ids = names.map { CKRecord.ID(recordName: $0) }
+        let ids = names.map { scoreID(for: $0) }
         var results: [String: (Int, Int, Double)] = [:]
         let operation = CKFetchRecordsOperation(recordIDs: ids)
         operation.perRecordResultBlock = { recordID, result in
@@ -510,7 +523,7 @@ class CloudKitManager: ObservableObject {
 
     /// Saves the provided user name to CloudKit.
     static func saveUser(_ name: String, completion: @escaping () -> Void) {
-        let record = CKRecord(recordType: userRecordType, recordID: CKRecord.ID(recordName: name))
+        let record = CKRecord(recordType: userRecordType, recordID: CloudKitManager.shared.memberID(for: name))
         record["name"] = name as CKRecordValue
         CloudKitManager.container.publicCloudDatabase.save(record) { _, error in
             if let error = error {
@@ -524,7 +537,7 @@ class CloudKitManager: ObservableObject {
 
     /// Deletes the user with the given name from CloudKit.
     static func deleteUser(_ name: String) {
-        let id = CKRecord.ID(recordName: name)
+        let id = CloudKitManager.shared.memberID(for: name)
         CloudKitManager.container.publicCloudDatabase.delete(withRecordID: id) { _, _ in }
     }
 

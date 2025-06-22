@@ -25,7 +25,7 @@ struct CardModel: Identifiable {
     }
 
     func toRecord() -> CKRecord {
-        let record = CKRecord(recordType: "CardModel", recordID: CKRecord.ID(recordName: userName))
+        let record = CKRecord(recordType: "CardModel", recordID: CKRecord.ID(recordName: "card-\(userName)"))
         record["userName"] = userName as CKRecordValue
         record["emoji"] = emoji as CKRecordValue
         record["goal1"] = goal1 as CKRecordValue
