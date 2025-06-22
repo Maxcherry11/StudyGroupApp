@@ -20,7 +20,7 @@ class WinTheDayViewModel: ObservableObject {
         self.goalNames = names
         self.lastGoalHash = Self.computeGoalHash(for: names)
         self.lastFetchHash = computeHash(for: stored)
-        // Fetch the latest values from CloudKit immediately
+        // Initialize members from the splash screen user list
         fetchMembersFromCloud()
     }
     @Published var teamMembers: [TeamMember] = []
@@ -86,47 +86,7 @@ class WinTheDayViewModel: ObservableObject {
     // MARK: - Card Sync Helpers
 
     func fetchCardsFromCloud() {
-        guard !selectedUserName.isEmpty else {
-            print("⚠️ fetchCardsFromCloud aborted: selectedUserName is empty.")
-            loadLocalCards()
-            return
-        }
-
-        print("🕒 \(Date()) — 🔍 Starting fetchCardsFromCloud()")
-
-        let predicate = NSPredicate(format: "name == %@", selectedUserName)
-        let query = CKQuery(recordType: "Card", predicate: predicate)
-
-        CloudKitManager.container.publicCloudDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: CKQueryOperation.maximumResults) { result in
-            switch result {
-            case .success(let (matchResults, _)):
-                let records = matchResults.compactMap { _, recordResult in
-                    try? recordResult.get()
-                }
-
-                let loadedCards = records.compactMap { Card(record: $0) }
-                DispatchQueue.main.async {
-                    self.cards = loadedCards.sorted(by: { $0.orderIndex < $1.orderIndex })
-                    print("✅ fetchCardsFromCloud loaded \(self.cards.count) cards")
-                    self.saveCardsToLocal()
-                }
-
-            case .failure(let error):
-                if let ckError = error as? CKError {
-                    print("❌ CloudKit error (\(ckError.code)): \(ckError.localizedDescription)")
-                    switch ckError.code {
-                    case .unknownItem, .invalidArguments, .badContainer, .internalError:
-                        print("📦 Falling back to local cards")
-                        self.loadLocalCards()
-                    default:
-                        print("⚠️ Unexpected CloudKit error: \(ckError)")
-                    }
-                } else {
-                    print("❌ Unknown error fetching cards: \(error)")
-                    self.loadLocalCards()
-                }
-            }
-        }
+        loadLocalCards()
     }
 
     private func loadLocalCards() {
@@ -185,69 +145,36 @@ class WinTheDayViewModel: ObservableObject {
         }
     }
 
-    /// Fetches all ``TeamMember`` records from CloudKit and updates ordering.
-    /// Ordering mirrors ``LifeScoreboardViewModel`` so cards remain stable
-    /// between view loads.
+    /// Loads team members using the names from ``UserManager`` and updates the
+    /// local cache. This mirrors the local-loading behavior of
+    /// ``LifeScoreboardViewModel`` so the view does not depend on CloudKit.
     func fetchMembersFromCloud(completion: (() -> Void)? = nil) {
-        CloudKitManager.shared.fetchAllTeamMembers { [weak self] fetchedTeam in
-            guard let self = self else { return }
+        let names = UserManager.shared.userList
 
-            var sorted = fetchedTeam.sorted { $0.quotesGoal > $1.quotesGoal }
+        updateLocalEntries(names: names)
 
-            if sorted.isEmpty {
-                sorted = TeamMember.testMembers
-                for member in sorted {
-                    self.saveMember(member) { _ in }
-                }
-            }
-            let newHash = self.computeHash(for: sorted)
-
-            self.updateLocalEntries(names: sorted.map { $0.name })
-
-            for member in sorted {
-                if let index = self.teamMembers.firstIndex(where: { $0.name == member.name }) {
-                    self.teamMembers[index].quotesToday = member.quotesToday
-                    self.teamMembers[index].salesWTD = member.salesWTD
-                    self.teamMembers[index].salesMTD = member.salesMTD
-                    self.teamMembers[index].quotesGoal = member.quotesGoal
-                    self.teamMembers[index].salesWTDGoal = member.salesWTDGoal
-                    self.teamMembers[index].salesMTDGoal = member.salesMTDGoal
-                    self.teamMembers[index].emoji = member.emoji
-                }
-            }
-
-            if self.lastFetchHash != newHash {
-                self.teamMembers = sorted
-                for idx in self.teamMembers.indices { self.teamMembers[idx].sortIndex = idx }
-                self.displayedMembers = self.teamMembers
-                self.teamData = self.teamMembers
-                self.lastFetchHash = newHash
-                self.initializeResetDatesIfNeeded()
-                self.saveLocal()
-            }
-
-            self.performResetsIfNeeded()
-
-            DispatchQueue.main.async {
-                self.teamData = fetchedTeam.sorted {
-                    let scoreA = $0.quotesToday + $0.salesWTD + $0.salesMTD
-                    let scoreB = $1.quotesToday + $1.salesWTD + $1.salesMTD
-                    return scoreA > scoreB
-                }
-
-                print("🔄 Sorted teamData by actual progress:")
-                for member in self.teamData {
-                    let total = member.quotesToday + member.salesWTD + member.salesMTD
-                    print("➡️ \(member.name): \(total)")
-                }
-
-                self.isLoaded = true
-                self.fetchCardsFromCloud()
-            let userManager = UserManager.shared
-            self.ensureCardsForAllUsers(userManager.userList)
-                completion?()
-            }
+        teamMembers.sort { $0.sortIndex < $1.sortIndex }
+        displayedMembers = teamMembers
+        teamData = teamMembers.sorted {
+            let scoreA = $0.quotesToday + $0.salesWTD + $0.salesMTD
+            let scoreB = $1.quotesToday + $1.salesWTD + $1.salesMTD
+            return scoreA > scoreB
         }
+        initializeResetDatesIfNeeded()
+        performResetsIfNeeded()
+        lastFetchHash = computeHash(for: teamMembers)
+        isLoaded = true
+        saveLocal()
+
+        print("🔄 Sorted teamData by actual progress:")
+        for member in teamData {
+            let total = member.quotesToday + member.salesWTD + member.salesMTD
+            print("➡️ \(member.name): \(total)")
+        }
+
+        fetchCardsFromCloud()
+        ensureCardsForAllUsers(names)
+        completion?()
     }
 
     func saveEdits(for card: Card) {
@@ -353,7 +280,9 @@ class WinTheDayViewModel: ObservableObject {
             if let saved = stored.first(where: { $0.name == name }) {
                 teamMembers.append(saved)
             } else {
-                teamMembers.append(TeamMember(name: name))
+                let member = TeamMember(name: name)
+                member.sortIndex = teamMembers.count
+                teamMembers.append(member)
             }
         }
     }
