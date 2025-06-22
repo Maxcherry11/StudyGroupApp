@@ -133,7 +133,14 @@ class WinTheDayViewModel: ObservableObject {
         CloudKitManager.shared.fetchAllTeamMembers { [weak self] fetchedTeam in
             guard let self = self else { return }
 
-            let sorted = fetchedTeam.sorted { $0.quotesGoal > $1.quotesGoal }
+            var sorted = fetchedTeam.sorted { $0.quotesGoal > $1.quotesGoal }
+
+            if sorted.isEmpty {
+                sorted = TeamMember.testMembers
+                for member in sorted {
+                    self.saveMember(member) { _ in }
+                }
+            }
             let newHash = self.computeHash(for: sorted)
 
             self.updateLocalEntries(names: sorted.map { $0.name })
