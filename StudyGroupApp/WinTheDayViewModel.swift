@@ -244,7 +244,7 @@ class WinTheDayViewModel: ObservableObject {
                 self.isLoaded = true
                 self.fetchCardsFromCloud()
             let userManager = UserManager.shared
-            self.ensureCardsForAllUsers(userManager.users)
+            self.ensureCardsForAllUsers(userManager.userList)
                 completion?()
             }
         }
@@ -484,7 +484,7 @@ class WinTheDayViewModel: ObservableObject {
     func ensureCardsForAllUsers(_ users: [String]) {
         for name in users {
             if !cards.contains(where: { $0.name == name }) {
-                let card = Card(name: name, emoji: "\u2728")
+                let card = Card(name: name, emoji: "\u{2728}")
                 cards.append(card)
             }
         }
