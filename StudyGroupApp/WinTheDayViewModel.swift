@@ -87,36 +87,64 @@ class WinTheDayViewModel: ObservableObject {
 
     func fetchCardsFromCloud() {
         guard !selectedUserName.isEmpty else {
-            print("❌ fetchCardsFromCloud failed: selectedUserName is empty")
+            print("⚠️ fetchCardsFromCloud aborted: selectedUserName is empty.")
+            loadLocalCards()
             return
         }
 
-        isLoading = true
-        let predicate = NSPredicate(format: "user == %@", selectedUserName)
+        print("🕒 \(Date()) — 🔍 Starting fetchCardsFromCloud()")
+
+        let predicate = NSPredicate(format: "name == %@", selectedUserName)
         let query = CKQuery(recordType: "Card", predicate: predicate)
 
-        CloudKitManager.container.publicCloudDatabase.fetch(
-            withQuery: query,
-            inZoneWith: nil,
-            desiredKeys: nil,
-            resultsLimit: CKQueryOperation.maximumResults
-        ) { result in
-            DispatchQueue.main.async {
-                self.isLoading = false
-                switch result {
-                case .success(let (matchResults, _)):
-                    let records = matchResults.compactMap { _, r in try? r.get() }
-                    let fetchedCards = records.compactMap { Card(record: $0) }
-                    print("✅ Loaded \(fetchedCards.count) cards for user: \(self.selectedUserName)")
-                    self.cards = fetchedCards.sorted { $0.orderIndex < $1.orderIndex }
-                    self.displayedCards = self.cards
+        CloudKitManager.container.publicCloudDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: CKQueryOperation.maximumResults) { result in
+            switch result {
+            case .success(let (matchResults, _)):
+                let records = matchResults.compactMap { _, recordResult in
+                    try? recordResult.get()
+                }
 
-                case .failure(let error):
-                    print("❌ Error fetching cards: \(error.localizedDescription)")
-                    self.cards = []
-                    self.displayedCards = []
+                let loadedCards = records.compactMap { Card(record: $0) }
+                DispatchQueue.main.async {
+                    self.cards = loadedCards.sorted(by: { $0.orderIndex < $1.orderIndex })
+                    print("✅ fetchCardsFromCloud loaded \(self.cards.count) cards")
+                    self.saveCardsToLocal()
+                }
+
+            case .failure(let error):
+                if let ckError = error as? CKError {
+                    print("❌ CloudKit error (\(ckError.code)): \(ckError.localizedDescription)")
+                    switch ckError.code {
+                    case .unknownItem, .invalidArguments, .badContainer, .internalError:
+                        print("📦 Falling back to local cards")
+                        self.loadLocalCards()
+                    default:
+                        print("⚠️ Unexpected CloudKit error: \(ckError)")
+                    }
+                } else {
+                    print("❌ Unknown error fetching cards: \(error)")
+                    self.loadLocalCards()
                 }
             }
+        }
+    }
+
+    private func loadLocalCards() {
+        if let data = UserDefaults.standard.data(forKey: "cachedCards"),
+           let cached = try? JSONDecoder().decode([Card].self, from: data) {
+            DispatchQueue.main.async {
+                self.cards = cached.sorted(by: { $0.orderIndex < $1.orderIndex })
+                print("📦 Loaded cards from local cache.")
+            }
+        } else {
+            print("⚠️ No cached cards found.")
+        }
+    }
+
+    private func saveCardsToLocal() {
+        if let data = try? JSONEncoder().encode(cards) {
+            UserDefaults.standard.set(data, forKey: "cachedCards")
+            print("✅ Cards saved to local cache.")
         }
     }
 
