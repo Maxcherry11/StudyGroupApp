@@ -480,6 +480,26 @@ class CloudKitManager: ObservableObject {
         }
     }
 
+    /// Fetches all user names stored in CloudKit without filtering by name.
+    static func fetchAllUserNames(completion: @escaping ([String]) -> Void) {
+        print("🕒 \(Date()) — \u{1F50D} Starting fetchAllUserNames()")
+        let query = CKQuery(recordType: userRecordType, predicate: NSPredicate(value: true))
+        CloudKitManager.container.publicCloudDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: ["name"], resultsLimit: CKQueryOperation.maximumResults) { result in
+            switch result {
+            case .success(let (matchResults, _)):
+                let records = matchResults.compactMap { _, recordResult in
+                    try? recordResult.get()
+                }
+                let names = records.compactMap { $0["name"] as? String }
+                print("🕒 \(Date()) — ✅ fetchAllUserNames() loaded \(names.count) users")
+                completion(names.sorted())
+            case .failure(let error):
+                print("🕒 \(Date()) — ❌ fetchAllUserNames() failed: \(error.localizedDescription)")
+                completion([])
+            }
+        }
+    }
+
     /// Convenience wrapper that uses ``UserManager``'s current user.
     /// Calls ``fetchUsers(for:completion:)`` and simply prints the results.
     func fetchUsers() {

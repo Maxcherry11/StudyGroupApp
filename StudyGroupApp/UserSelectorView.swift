@@ -93,10 +93,6 @@ struct UserSelectorView: View {
                     .frame(height: geometry.size.height)
                 }
             }
-            .onAppear {
-                userManager.fetchUsersFromCloud()
-                viewModel.fetchTeam()
-            }
         }
     }
 

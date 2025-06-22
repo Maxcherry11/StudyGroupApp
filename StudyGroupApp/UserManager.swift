@@ -80,7 +80,7 @@ class UserManager: ObservableObject {
     }
 
     func fetchUsersFromCloud() {
-        CloudKitManager.fetchUsers(for: currentUser) { names in
+        CloudKitManager.fetchAllUserNames { names in
             DispatchQueue.main.async {
                 print("📥 Received users from CloudKit: \(names)")
                 self.userList = names
