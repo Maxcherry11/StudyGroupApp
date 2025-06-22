@@ -65,6 +65,10 @@ struct UserSelectorView: View {
                                 .padding(.top, 24)
                             }
                             .listStyle(PlainListStyle())
+                            .refreshable {
+                                userManager.refresh()
+                                viewModel.fetchMembersFromCloud()
+                            }
                             .alert("Add User", isPresented: $showAddUserAlert) {
                                 TextField("Name", text: $newUserName)
                                 Button("Add", action: {
