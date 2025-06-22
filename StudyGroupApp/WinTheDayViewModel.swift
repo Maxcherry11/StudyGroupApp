@@ -183,6 +183,7 @@ class WinTheDayViewModel: ObservableObject {
                 }
 
                 self.isLoaded = true
+                self.fetchCardsFromCloud()
                 completion?()
             }
         }
