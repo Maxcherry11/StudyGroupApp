@@ -215,7 +215,8 @@ class WinTheDayViewModel: ObservableObject {
 
                 self.isLoaded = true
                 self.fetchCardsFromCloud()
-                self.ensureCardsForAllUsers(self.teamMembers.map { $0.name })
+            let userManager = UserManager.shared
+            self.ensureCardsForAllUsers(userManager.users)
                 completion?()
             }
         }
