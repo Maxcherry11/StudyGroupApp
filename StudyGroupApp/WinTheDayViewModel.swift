@@ -130,7 +130,7 @@ class WinTheDayViewModel: ObservableObject {
     }
 
     private func loadLocalCards() {
-        if let data = UserDefaults.standard.data(forKey: "cachedCards"),
+        if let data = UserDefaults.standard.data(forKey: cardsStorageKey),
            let cached = try? JSONDecoder().decode([Card].self, from: data) {
             DispatchQueue.main.async {
                 self.cards = cached.sorted(by: { $0.orderIndex < $1.orderIndex })
@@ -143,7 +143,7 @@ class WinTheDayViewModel: ObservableObject {
 
     private func saveCardsToLocal() {
         if let data = try? JSONEncoder().encode(cards) {
-            UserDefaults.standard.set(data, forKey: "cachedCards")
+            UserDefaults.standard.set(data, forKey: cardsStorageKey)
             print("✅ Cards saved to local cache.")
         }
     }
