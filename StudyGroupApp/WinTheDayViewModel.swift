@@ -14,6 +14,8 @@ class WinTheDayViewModel: ObservableObject {
         self.displayedMembers = stored
         // Use locally stored order as a placeholder until CloudKit loads
         self.teamData = stored
+        self.cards = loadCardsFromDevice()
+        self.displayedCards = self.cards
         let names = Self.loadLocalGoalNames()
         self.goalNames = names
         self.lastGoalHash = Self.computeGoalHash(for: names)
@@ -31,6 +33,7 @@ class WinTheDayViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     private let storageKey = "WTDMemberStorage"
     private static let goalNameKey = "WTDGoalNames"
+    private let cardsStorageKey = "WTDCardsStorage"
     private var hasLoadedDisplayOrder = false
     /// Signature of the last CloudKit fetch used to detect changes
     private var lastFetchHash: Int?
@@ -212,6 +215,7 @@ class WinTheDayViewModel: ObservableObject {
 
                 self.isLoaded = true
                 self.fetchCardsFromCloud()
+                self.ensureCardsForAllUsers(self.teamMembers.map { $0.name })
                 completion?()
             }
         }
@@ -258,6 +262,33 @@ class WinTheDayViewModel: ObservableObject {
             return []
         }
         return decoded.map { TeamMember(codable: $0) }
+    }
+
+    // MARK: - Card Persistence
+
+    private struct StoredCard: Codable {
+        var id: String
+        var name: String
+        var emoji: String
+        var production: Int
+        var orderIndex: Int
+    }
+
+    private func saveCardsToDevice() {
+        let stored = cards.map { card in
+            StoredCard(id: card.id, name: card.name, emoji: card.emoji, production: card.production, orderIndex: card.orderIndex)
+        }
+        if let data = try? JSONEncoder().encode(stored) {
+            UserDefaults.standard.set(data, forKey: cardsStorageKey)
+        }
+    }
+
+    private func loadCardsFromDevice() -> [Card] {
+        guard let data = UserDefaults.standard.data(forKey: cardsStorageKey),
+              let decoded = try? JSONDecoder().decode([StoredCard].self, from: data) else {
+            return []
+        }
+        return decoded.map { Card(id: $0.id, name: $0.name, emoji: $0.emoji, production: $0.production, orderIndex: $0.orderIndex) }
     }
 
     // MARK: - Goal Name Persistence
@@ -416,6 +447,19 @@ class WinTheDayViewModel: ObservableObject {
             saveMember(teamMembers[index]) { _ in }
         }
         teamMembers = teamMembers.map { $0 }
+    }
+
+    /// Ensures a placeholder card exists for each provided user name.
+    /// Local cards are persisted so the UI can appear immediately before
+    /// CloudKit records sync down.
+    func ensureCardsForAllUsers(_ users: [String]) {
+        for name in users {
+            if !cards.contains(where: { $0.name == name }) {
+                let card = Card(name: name, emoji: "\u2728")
+                cards.append(card)
+            }
+        }
+        saveCardsToDevice()
     }
 
 
