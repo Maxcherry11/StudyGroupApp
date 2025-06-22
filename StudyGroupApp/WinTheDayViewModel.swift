@@ -20,6 +20,7 @@ class WinTheDayViewModel: ObservableObject {
         self.goalNames = names
         self.lastGoalHash = Self.computeGoalHash(for: names)
         self.lastFetchHash = computeHash(for: stored)
+        self.lastMemberHash = computeMemberHash(for: stored)
         // Initialize members from the splash screen user list
         fetchMembersFromCloud()
     }
@@ -38,6 +39,7 @@ class WinTheDayViewModel: ObservableObject {
     /// Signature of the last CloudKit fetch used to detect changes
     private var lastFetchHash: Int?
     private var lastGoalHash: Int?
+    private var lastMemberHash: Int?
     private let weeklyResetKey = "WTDWeeklyReset"
     private let monthlyResetKey = "WTDMonthlyReset"
 
@@ -52,6 +54,21 @@ class WinTheDayViewModel: ObservableObject {
             hasher.combine(m.salesWTD)
             hasher.combine(m.salesMTD)
             hasher.combine(m.quotesGoal)
+        }
+        return hasher.finalize()
+    }
+
+    /// Computes a signature for the provided members similar to
+    /// ``LifeScoreboardViewModel``. This is used to detect changes in
+    /// the member list so ordering stays consistent with the splash screen.
+    private func computeMemberHash(for members: [TeamMember]) -> Int {
+        var hasher = Hasher()
+        for m in members {
+            hasher.combine(m.name)
+            hasher.combine(m.quotesGoal)
+            hasher.combine(m.salesWTDGoal)
+            hasher.combine(m.salesMTDGoal)
+            hasher.combine(m.emoji)
         }
         return hasher.finalize()
     }
@@ -163,6 +180,7 @@ class WinTheDayViewModel: ObservableObject {
         initializeResetDatesIfNeeded()
         performResetsIfNeeded()
         lastFetchHash = computeHash(for: teamMembers)
+        lastMemberHash = computeMemberHash(for: teamMembers)
         isLoaded = true
         saveLocal()
 
@@ -285,6 +303,8 @@ class WinTheDayViewModel: ObservableObject {
                 teamMembers.append(member)
             }
         }
+
+        teamMembers.sort { $0.sortIndex < $1.sortIndex }
     }
 
 
