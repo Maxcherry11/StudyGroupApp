@@ -1,7 +1,9 @@
 import CloudKit
 import Foundation
 
-struct Card: Identifiable, Hashable {
+/// Represents a single Win the Day card. The type conforms to `Codable`
+/// so it can be persisted with `JSONEncoder`/`JSONDecoder`.
+struct Card: Identifiable, Hashable, Codable {
     var id: String
     var name: String
     var emoji: String
