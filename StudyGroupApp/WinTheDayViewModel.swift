@@ -480,12 +480,15 @@ class WinTheDayViewModel: ObservableObject {
 
     /// Ensures a placeholder card exists for each provided user name.
     /// Local cards are persisted so the UI can appear immediately before
-    /// CloudKit records sync down.
+    /// CloudKit records sync down. Any newly created cards are also
+    /// uploaded to CloudKit using a stable record ID to initialize the
+    /// `Card` record type if needed.
     func ensureCardsForAllUsers(_ users: [String]) {
-        for name in users {
+        for (index, name) in users.enumerated() {
             if !cards.contains(where: { $0.name == name }) {
-                let card = Card(name: name, emoji: "\u{2728}")
+                let card = Card(id: "card-\(name)", name: name, emoji: "\u{2728}", orderIndex: index)
                 cards.append(card)
+                CloudKitManager.saveCard(card)
             }
         }
         saveCardsToDevice()
