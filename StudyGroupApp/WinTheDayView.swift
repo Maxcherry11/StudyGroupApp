@@ -82,6 +82,7 @@ struct WinTheDayView: View {
             viewModel.fetchMembersFromCloud()
             viewModel.fetchCardsFromCloud()
             viewModel.fetchGoalNamesFromCloud()
+            viewModel.ensureCardsForAllUsers(userManager.userList)
             shimmerPosition = -1.0
             withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
                 shimmerPosition = 1.5
@@ -92,6 +93,7 @@ struct WinTheDayView: View {
         if viewModel.isLoaded {
             viewModel.fetchMembersFromCloud()
         }
+        viewModel.ensureCardsForAllUsers(userManager.userList)
     }
     .sheet(isPresented: $emojiPickerVisible) {
         emojiPickerSheet
@@ -300,6 +302,7 @@ private var teamCardsList: some View {
         .refreshable {
             viewModel.fetchMembersFromCloud()
             viewModel.fetchGoalNamesFromCloud()
+            viewModel.ensureCardsForAllUsers(userManager.userList)
         }
     }
 }
