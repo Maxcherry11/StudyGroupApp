@@ -6,12 +6,15 @@ struct Card: Identifiable, Hashable {
     var name: String
     var emoji: String
     var production: Int
+    /// Determines display order when loading from CloudKit
+    var orderIndex: Int
 
-    init(id: String = UUID().uuidString, name: String, emoji: String = "", production: Int = 0) {
+    init(id: String = UUID().uuidString, name: String, emoji: String = "", production: Int = 0, orderIndex: Int = 0) {
         self.id = id
         self.name = name
         self.emoji = emoji
         self.production = production
+        self.orderIndex = orderIndex
     }
 
     init?(record: CKRecord) {
@@ -20,10 +23,12 @@ struct Card: Identifiable, Hashable {
               let production = record["production"] as? Int else {
             return nil
         }
+        let orderIndex = record["orderIndex"] as? Int ?? 0
         self.id = record.recordID.recordName
         self.name = name
         self.emoji = emoji
         self.production = production
+        self.orderIndex = orderIndex
     }
 
     func toCKRecord(existing: CKRecord? = nil) -> CKRecord {
@@ -31,6 +36,7 @@ struct Card: Identifiable, Hashable {
         record["name"] = name as CKRecordValue
         record["emoji"] = emoji as CKRecordValue
         record["production"] = production as CKRecordValue
+        record["orderIndex"] = orderIndex as CKRecordValue
         return record
     }
 }

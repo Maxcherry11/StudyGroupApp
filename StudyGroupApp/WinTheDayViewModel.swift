@@ -27,6 +27,8 @@ class WinTheDayViewModel: ObservableObject {
     @Published var displayedCards: [Card] = []
     @Published var selectedUserName: String = ""
     @Published var goalNames: GoalNames = GoalNames()
+    /// Indicates whether a card sync operation is in progress
+    @Published var isLoading: Bool = false
     private let storageKey = "WTDMemberStorage"
     private static let goalNameKey = "WTDGoalNames"
     private var hasLoadedDisplayOrder = false
@@ -81,10 +83,36 @@ class WinTheDayViewModel: ObservableObject {
     // MARK: - Card Sync Helpers
 
     func fetchCardsFromCloud() {
-        CloudKitManager.fetchCards { fetched in
+        guard !selectedUserName.isEmpty else {
+            print("❌ fetchCardsFromCloud failed: selectedUserName is empty")
+            return
+        }
+
+        isLoading = true
+        let predicate = NSPredicate(format: "user == %@", selectedUserName)
+        let query = CKQuery(recordType: "Card", predicate: predicate)
+
+        CloudKitManager.container.publicCloudDatabase.fetch(
+            withQuery: query,
+            inZoneWith: nil,
+            desiredKeys: nil,
+            resultsLimit: CKQueryOperation.maximumResults
+        ) { result in
             DispatchQueue.main.async {
-                self.cards = fetched
-                self.displayedCards = fetched.sorted { $0.production > $1.production }
+                self.isLoading = false
+                switch result {
+                case .success(let (matchResults, _)):
+                    let records = matchResults.compactMap { _, r in try? r.get() }
+                    let fetchedCards = records.compactMap { Card(record: $0) }
+                    print("✅ Loaded \(fetchedCards.count) cards for user: \(self.selectedUserName)")
+                    self.cards = fetchedCards.sorted { $0.orderIndex < $1.orderIndex }
+                    self.displayedCards = self.cards
+
+                case .failure(let error):
+                    print("❌ Error fetching cards: \(error.localizedDescription)")
+                    self.cards = []
+                    self.displayedCards = []
+                }
             }
         }
     }
