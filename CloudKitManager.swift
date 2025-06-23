@@ -312,20 +312,17 @@ class CloudKitManager: ObservableObject {
     }
 
     func saveScore(entry: LifeScoreboardViewModel.ScoreEntry, pending: Int, projected: Double) {
-        let recordID = scoreID(for: entry.name)
-        database.fetch(withRecordID: recordID) { existing, _ in
-            let record = existing ?? CKRecord(recordType: self.scoreRecordType, recordID: recordID)
-            record["name"] = entry.name as CKRecordValue
-            record["score"] = entry.score as CKRecordValue
-            record["pending"] = pending as CKRecordValue
-            record["projected"] = projected as CKRecordValue
-
-            self.database.save(record) { _, error in
-                if let error = error {
-                    print("❌ Error saving score: \(error.localizedDescription)")
-                } else {
-                    print("✅ Saved score for \(entry.name)")
-                }
+        let recordID = CKRecord.ID(recordName: "score-\(entry.name)")
+        let record = CKRecord(recordType: "Score", recordID: recordID)
+        record["name"] = entry.name as CKRecordValue
+        record["actual"] = entry.actual as CKRecordValue
+        record["pending"] = pending as CKRecordValue
+        record["projected"] = projected as CKRecordValue
+        self.database.save(record) { _, error in
+            if let error = error {
+                print("❌ Error saving score: \(error.localizedDescription)")
+            } else {
+                print("✅ Saved score for \(entry.name)")
             }
         }
     }
