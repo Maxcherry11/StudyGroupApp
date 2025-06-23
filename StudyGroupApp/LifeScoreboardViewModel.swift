@@ -2,7 +2,8 @@ import CloudKit
 import Foundation
 
 class LifeScoreboardViewModel: ObservableObject {
-    private let container = CKContainer.default()
+    /// CloudKit container shared with WinTheDay
+    private let container = CloudKitManager.container
     private let recordType = "ScoreRecord"
 
     /// All team members fetched from CloudKit
@@ -297,7 +298,8 @@ class LifeScoreboardViewModel: ObservableObject {
     /// Ensures all `TeamMember` records contain Life Scoreboard fields.
     /// Missing values are initialized to `0` without overwriting existing data.
     func syncScoreboardFields() {
-        let container = CKContainer.default()
+        // Use the same container as WinTheDay
+        let container = CloudKitManager.container
         let database = container.publicCloudDatabase
         let query = CKQuery(recordType: "TeamMember", predicate: NSPredicate(value: true))
 
@@ -386,7 +388,8 @@ class LifeScoreboardViewModel: ObservableObject {
     /// under their name-based record ID. This guarantees consistent sync across
     /// devices and removes duplicates.
     func syncTeamMembersToCloudKit() {
-        let container = CKContainer.default()
+        // Use the same container as WinTheDay
+        let container = CloudKitManager.container
         let database = container.publicCloudDatabase
 
         // Step 1: Fetch existing records
