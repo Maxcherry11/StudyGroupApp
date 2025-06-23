@@ -277,14 +277,16 @@ class LifeScoreboardViewModel: ObservableObject {
         reorderLocal()
         saveLocal()
 
+        let container = CloudKitManager.container
         let recordID = CKRecord.ID(recordName: "score-\(entry.name)")
+
         container.publicCloudDatabase.fetch(withRecordID: recordID) { existingRecord, _ in
             if let record = existingRecord {
                 record["actual"] = entry.score as CKRecordValue
                 record["pending"] = pending as CKRecordValue
                 record["projected"] = projected as CKRecordValue
 
-                self.container.publicCloudDatabase.save(record) { savedRecord, error in
+                container.publicCloudDatabase.save(record) { savedRecord, error in
                     if let error = error {
                         print("❌ Error saving updated score record: \(error)")
                     } else {
