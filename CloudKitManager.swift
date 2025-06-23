@@ -315,7 +315,9 @@ class CloudKitManager: ObservableObject {
         let recordID = CKRecord.ID(recordName: "score-\(entry.name)")
         let record = CKRecord(recordType: "Score", recordID: recordID)
         record["name"] = entry.name as CKRecordValue
-        record["actual"] = entry.actual as CKRecordValue
+        // `ScoreEntry` doesn't store an `actual` field, so use its `score`
+        // when updating the CloudKit record.
+        record["actual"] = entry.score as CKRecordValue
         record["pending"] = pending as CKRecordValue
         record["projected"] = projected as CKRecordValue
         self.database.save(record) { _, error in
