@@ -76,8 +76,11 @@ struct UserSelectorView: View {
                                     guard !trimmed.isEmpty, !userManager.userList.contains(trimmed) else { return }
                                     userManager.addUser(trimmed)
                                     CloudKitManager.shared.createScoreRecord(for: trimmed)
-                                    CloudKitManager.shared.createTeamMemberRecords(for: trimmed)
-                                    viewModel.fetchMembersFromCloud()
+                                    // Use CloudKitManager's helper so the new member
+                                    // inherits existing production goals.
+                                    CloudKitManager.shared.addTeamMember(name: trimmed) { _ in
+                                        viewModel.fetchMembersFromCloud()
+                                    }
                                     newUserName = ""
                                 })
                                 Button("Cancel", role: .cancel) { }

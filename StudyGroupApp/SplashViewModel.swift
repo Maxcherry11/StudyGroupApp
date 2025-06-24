@@ -14,10 +14,11 @@ class SplashViewModel: ObservableObject {
         }
     }
 
-    /// Adds a new member by creating paired Win and Scoreboard records then refreshes ``teamMembers``.
+    /// Adds a new member record and refreshes ``teamMembers``.
     func addMember(name: String, emoji: String = "🙂") {
-        CloudKitManager.shared.createTeamMemberRecords(for: name)
-        fetchMembersFromCloud()
+        CloudKitManager.shared.addTeamMember(name: name, emoji: emoji) { [weak self] _ in
+            self?.fetchMembersFromCloud()
+        }
     }
 
     /// Deletes the provided member record and refreshes the list.
