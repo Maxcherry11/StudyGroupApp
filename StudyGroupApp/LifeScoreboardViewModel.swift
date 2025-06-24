@@ -336,8 +336,10 @@ class LifeScoreboardViewModel: ObservableObject {
             results.append(member)
         }
 
-        operation.queryCompletionBlock = { _ in
-            DispatchQueue.main.async { completion(results) }
+        operation.queryCompletionBlock = { _, _ in
+            DispatchQueue.main.async {
+                completion(results)
+            }
         }
 
         container.publicCloudDatabase.add(operation)
