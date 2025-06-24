@@ -315,6 +315,34 @@ class LifeScoreboardViewModel: ObservableObject {
         }
     }
 
+    /// Loads only `TeamMember` records containing Life Scoreboard fields.
+    private func fetchScoreboardMembers(completion: @escaping ([TeamMember]) -> Void) {
+        let predicate = NSPredicate(format: "pending >= 0 OR projected >= 0")
+        let query = CKQuery(recordType: "TeamMember", predicate: predicate)
+        let operation = CKQueryOperation(query: query)
+
+        var results: [TeamMember] = []
+
+        operation.recordFetchedBlock = { record in
+            let name = record["name"] as? String ?? "Unknown"
+            let pending = record["pending"] as? Int ?? 0
+            let projected = record["projected"] as? Double ?? 0
+            let actual = record["actual"] as? Int ?? 0
+
+            let member = TeamMember(name: name)
+            member.pending = pending
+            member.projected = projected
+            member.actual = actual
+            results.append(member)
+        }
+
+        operation.queryCompletionBlock = { _ in
+            DispatchQueue.main.async { completion(results) }
+        }
+
+        container.publicCloudDatabase.add(operation)
+    }
+
     /// Ensures all `TeamMember` records contain Life Scoreboard fields.
     /// Missing values are initialized to `0` without overwriting existing data.
     func syncScoreboardFields() {
@@ -376,7 +404,7 @@ class LifeScoreboardViewModel: ObservableObject {
         // Ensure Life Scoreboard fields exist before loading data
         syncScoreboardFields()
 
-        CloudKitManager.shared.fetchAllTeamMembers { [weak self] fetched in
+        fetchScoreboardMembers { [weak self] fetched in
             guard let self = self else { return }
             let newHash = self.computeMemberHash(for: fetched)
 
