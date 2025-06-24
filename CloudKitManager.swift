@@ -311,21 +311,21 @@ class CloudKitManager: ObservableObject {
         database.add(operation)
     }
 
+    // Save the given score entry, updating the matching TeamMember's score fields.
     func saveScore(entry: LifeScoreboardViewModel.ScoreEntry, pending: Int, projected: Double) {
-        let recordID = CKRecord.ID(recordName: "score-\(entry.name)")
-        let record = CKRecord(recordType: "Score", recordID: recordID)
-        record["name"] = entry.name as CKRecordValue
-        // `ScoreEntry` doesn't store an `actual` field, so use its `score`
-        // when updating the CloudKit record.
-        record["actual"] = entry.score as CKRecordValue
-        record["pending"] = pending as CKRecordValue
-        record["projected"] = projected as CKRecordValue
-        self.database.save(record) { _, error in
-            if let error = error {
-                print("❌ Error saving score: \(error.localizedDescription)")
-            } else {
-                print("✅ Saved score for \(entry.name)")
+        let name = entry.name
+        fetchFiltered(byUserName: name) { members in
+            guard let member = members.first else {
+                print("❌ No matching TeamMember found for \(name)")
+                return
             }
+
+            var updated = member
+            updated.actual = entry.score
+            updated.pending = pending
+            updated.projected = projected
+
+            self.save(updated) { _ in }
         }
     }
 
