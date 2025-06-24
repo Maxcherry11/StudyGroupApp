@@ -109,35 +109,6 @@ class CloudKitManager: ObservableObject {
         }
     }
 
-    /// Creates paired Win the Day and Life Scoreboard records for the provided name.
-    /// Only the fields relevant to each feature are included so data stays sandboxed.
-    func createTeamMemberRecords(for name: String) {
-        // WIN THE DAY record
-        let winRecord = CKRecord(recordType: recordType)
-        winRecord["name"] = name as CKRecordValue
-        winRecord["emoji"] = "🙂" as CKRecordValue
-        winRecord["actual"] = 0 as CKRecordValue
-
-        // LIFE SCOREBOARD record
-        let scoreboardRecord = CKRecord(recordType: recordType)
-        scoreboardRecord["name"] = name as CKRecordValue
-        scoreboardRecord["pending"] = 0 as CKRecordValue
-        scoreboardRecord["projected"] = 0 as CKRecordValue
-        scoreboardRecord["actual"] = 0 as CKRecordValue
-
-        let saveOp = CKModifyRecordsOperation(recordsToSave: [winRecord, scoreboardRecord])
-        saveOp.savePolicy = .allKeys
-        saveOp.modifyRecordsCompletionBlock = { _, _, error in
-            if let error = error {
-                print("❌ Failed to save team member records: \(error)")
-            } else {
-                print("✅ Created Win + Scoreboard records for \(name)")
-            }
-        }
-
-        CKContainer.default().publicCloudDatabase.add(saveOp)
-    }
-
     /// Deletes the provided ``TeamMember`` from CloudKit and local cache.
     func deleteTeamMember(_ member: TeamMember, completion: @escaping (Bool) -> Void = { _ in }) {
         delete(member)
