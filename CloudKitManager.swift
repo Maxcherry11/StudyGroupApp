@@ -80,27 +80,34 @@ class CloudKitManager: ObservableObject {
     /// The new member's production goals are initialized to match the existing
     /// team, if any members are already present.
     func addTeamMember(name: String, emoji: String = "🙂", completion: @escaping (Bool) -> Void = { _ in }) {
-        let member = TeamMember(name: name)
+        let createAndSave: (TeamMember?) -> Void = { template in
+            let member = TeamMember(name: name)
 
-        // Mirror the goals of the first existing member so new cards start with
-        // the same targets as the rest of the team. This prevents newly added
-        // cards from defaulting to 1 for each goal.
-        if let template = teamMembers.first {
-            member.quotesGoal = template.quotesGoal
-            member.salesWTDGoal = template.salesWTDGoal
-            member.salesMTDGoal = template.salesMTDGoal
-        }
+            if let template = template {
+                member.quotesGoal = template.quotesGoal
+                member.salesWTDGoal = template.salesWTDGoal
+                member.salesMTDGoal = template.salesMTDGoal
+            }
 
-        member.emoji = emoji
-        save(member) { id in
-            DispatchQueue.main.async {
-                if id != nil {
-                    self.teamMembers.append(member)
-                    completion(true)
-                } else {
-                    completion(false)
+            member.emoji = emoji
+            self.save(member) { id in
+                DispatchQueue.main.async {
+                    if id != nil {
+                        self.teamMembers.append(member)
+                        completion(true)
+                    } else {
+                        completion(false)
+                    }
                 }
             }
+        }
+
+        if teamMembers.isEmpty {
+            fetchTeam { fetched in
+                createAndSave(fetched.first)
+            }
+        } else {
+            createAndSave(teamMembers.first)
         }
     }
 
