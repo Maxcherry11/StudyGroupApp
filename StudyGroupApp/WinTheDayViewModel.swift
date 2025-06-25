@@ -270,6 +270,13 @@ class WinTheDayViewModel: ObservableObject {
                 teamMembers.append(saved)
             } else {
                 let member = TeamMember(name: name)
+                // Mirror the goals of the first existing member so new cards
+                // don't default to 1/1/1 when added locally before CloudKit sync.
+                if let template = teamMembers.first {
+                    member.quotesGoal = template.quotesGoal
+                    member.salesWTDGoal = template.salesWTDGoal
+                    member.salesMTDGoal = template.salesMTDGoal
+                }
                 member.sortIndex = teamMembers.count
                 teamMembers.append(member)
             }
