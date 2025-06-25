@@ -444,14 +444,11 @@ class LifeScoreboardViewModel: ObservableObject {
 
                 let saveOp = CKModifyRecordsOperation(recordsToSave: recordsToSave, recordIDsToDelete: nil)
                 saveOp.savePolicy = .allKeys
-                saveOp.modifyRecordsCompletionBlock = { saved, _, error in
+                saveOp.modifyRecordsCompletionBlock = { _, _, error in
                     if let error = error {
-                        print("❌ Failed to save TeamMember records: \(error)")
+                        print("❌ Error modifying ScoreRecord: \(error.localizedDescription)")
                     } else {
-                        print("✅ Synced \(saved?.count ?? 0) TeamMember records to CloudKit")
-                        DispatchQueue.main.async {
-                            self.fetchTeamMembersFromCloud()
-                        }
+                        print("✅ Successfully created ScoreRecord for: \(self.teamMembers.first?.name ?? "unknown")")
                     }
                 }
 
