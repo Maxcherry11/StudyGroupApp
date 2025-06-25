@@ -7,7 +7,6 @@ class CloudKitManager: ObservableObject {
     static let container = CKContainer(identifier: "iCloud.com.dj.Outcast")
     private let database = CloudKitManager.container.publicCloudDatabase
     private let recordType = "TeamMember"
-    private let scoreRecordType = "ScoreRecord"
     private let cardRecordType = "Card"
     private let cardOrderRecordType = "CardOrder"
     private let goalNameRecordType = "GoalNames"
@@ -20,10 +19,6 @@ class CloudKitManager: ObservableObject {
     // MARK: - Record ID Helpers
     private func memberID(for name: String) -> CKRecord.ID {
         CKRecord.ID(recordName: "member-\(name)")
-    }
-
-    private func scoreID(for name: String) -> CKRecord.ID {
-        CKRecord.ID(recordName: "score-\(name)")
     }
 
     private func cardID(for name: String) -> CKRecord.ID {
@@ -329,32 +324,6 @@ class CloudKitManager: ObservableObject {
         }
     }
 
-    func createScoreRecord(for name: String) {
-        let recordID = scoreID(for: name)
-        let record = CKRecord(recordType: scoreRecordType, recordID: recordID)
-        record["name"] = name as CKRecordValue
-        record["score"] = 0 as CKRecordValue
-        record["pending"] = 0 as CKRecordValue
-        record["projected"] = 0.0 as CKRecordValue
-        database.save(record) { _, error in
-            if let error = error {
-                print("❌ Error creating score record: \(error.localizedDescription)")
-            } else {
-                print("✅ Created score record for \(name)")
-            }
-        }
-    }
-
-    func deleteScoreRecord(for name: String) {
-        let id = scoreID(for: name)
-        database.delete(withRecordID: id) { _, error in
-            if let error = error {
-                print("❌ Error deleting score record: \(error.localizedDescription)")
-            } else {
-                print("🗑️ Deleted score record for \(name)")
-            }
-        }
-    }
 
     func fetchScores(for names: [String], completion: @escaping ([String: (score: Int, pending: Int, projected: Double)]) -> Void) {
         print("\u{1F50D} Starting fetchScores() for names: \(names)")
@@ -362,14 +331,14 @@ class CloudKitManager: ObservableObject {
             completion([:])
             return
         }
-        let ids = names.map { scoreID(for: $0) }
+        let ids = names.map { memberID(for: $0) }
         var results: [String: (Int, Int, Double)] = [:]
         let operation = CKFetchRecordsOperation(recordIDs: ids)
         operation.perRecordResultBlock = { recordID, result in
             switch result {
             case .success(let record):
                 let name = record["name"] as? String ?? recordID.recordName
-                let score = record["score"] as? Int ?? 0
+                let score = record["actual"] as? Int ?? 0
                 let pending = record["pending"] as? Int ?? 0
                 let projected = record["projected"] as? Double ?? 0.0
                 results[name] = (score, pending, projected)
