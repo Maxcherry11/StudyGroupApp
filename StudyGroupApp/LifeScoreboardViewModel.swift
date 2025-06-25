@@ -4,7 +4,6 @@ import Foundation
 class LifeScoreboardViewModel: ObservableObject {
     /// CloudKit container shared with WinTheDay
     private let container = CloudKitManager.container
-    private let recordType = "ScoreRecord"
 
     /// All team members fetched from CloudKit
     @Published var teamMembers: [TeamMember] = []
@@ -278,7 +277,7 @@ class LifeScoreboardViewModel: ObservableObject {
         saveLocal()
 
         let container = CloudKitManager.container
-        let recordID = CKRecord.ID(recordName: "score-\(entry.name)")
+        let recordID = CKRecord.ID(recordName: "member-\(entry.name)")
 
         container.publicCloudDatabase.fetch(withRecordID: recordID) { existingRecord, _ in
             if let record = existingRecord {
@@ -299,21 +298,6 @@ class LifeScoreboardViewModel: ObservableObject {
         }
     }
 
-    func createTestScoreRecord() {
-        let record = CKRecord(recordType: recordType)
-        record["name"] = "D.J." as CKRecordValue
-        record["score"] = 5 as CKRecordValue
-        record["pending"] = 2 as CKRecordValue
-        record["projected"] = 100.0 as CKRecordValue
-
-        container.publicCloudDatabase.save(record) { _, error in
-            if let error = error {
-                print("❌ Error saving test record: \(error.localizedDescription)")
-            } else {
-                print("✅ Test record saved to CloudKit")
-            }
-        }
-    }
     /// Ensures all `TeamMember` records contain Life Scoreboard fields.
     /// Missing values are initialized to `0` without overwriting existing data.
     func syncScoreboardFields() {

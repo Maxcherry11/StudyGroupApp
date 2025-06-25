@@ -75,7 +75,6 @@ struct UserSelectorView: View {
                                     let trimmed = newUserName.trimmingCharacters(in: .whitespacesAndNewlines)
                                     guard !trimmed.isEmpty, !userManager.userList.contains(trimmed) else { return }
                                     userManager.addUser(trimmed)
-                                    CloudKitManager.shared.createScoreRecord(for: trimmed)
                                     // Use CloudKitManager's helper so the new member
                                     // inherits existing production goals.
                                     CloudKitManager.shared.addTeamMember(name: trimmed) { _ in
@@ -104,7 +103,6 @@ struct UserSelectorView: View {
         for index in offsets {
             let member = viewModel.teamMembers[index]
             userManager.deleteUser(member.name)
-            CloudKitManager.shared.deleteScoreRecord(for: member.name)
             CloudKitManager.shared.deleteByName(member.name) { _ in
                 viewModel.fetchMembersFromCloud()
             }
