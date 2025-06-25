@@ -420,11 +420,12 @@ class LifeScoreboardViewModel: ObservableObject {
                 // Step 2: Delete unnamed records
                 let deleteOp = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: recordsToDelete)
                 deleteOp.savePolicy = .allKeys
-                deleteOp.modifyRecordsCompletionBlock = { _, deleted, error in
-                    if let error = error {
+                deleteOp.modifyRecordsResultBlock = { result in
+                    switch result {
+                    case .success(let (_, deleted)):
+                        print("🧹 Deleted \(deleted.count) unnamed TeamMember records")
+                    case .failure(let error):
                         print("❌ Failed to delete unnamed records: \(error)")
-                    } else {
-                        print("🧹 Deleted \(deleted?.count ?? 0) unnamed TeamMember records")
                     }
                 }
 
@@ -444,14 +445,15 @@ class LifeScoreboardViewModel: ObservableObject {
 
                 let saveOp = CKModifyRecordsOperation(recordsToSave: recordsToSave, recordIDsToDelete: nil)
                 saveOp.savePolicy = .allKeys
-                saveOp.modifyRecordsCompletionBlock = { saved, _, error in
-                    if let error = error {
-                        print("❌ Failed to save TeamMember records: \(error)")
-                    } else {
-                        print("✅ Synced \(saved?.count ?? 0) TeamMember records to CloudKit")
+                saveOp.modifyRecordsResultBlock = { result in
+                    switch result {
+                    case .success(let (saved, _)):
+                        print("✅ Synced \(saved.count) TeamMember records to CloudKit")
                         DispatchQueue.main.async {
                             self.fetchTeamMembersFromCloud()
                         }
+                    case .failure(let error):
+                        print("❌ Failed to save TeamMember records: \(error)")
                     }
                 }
 
