@@ -97,12 +97,13 @@ class WinTheDayViewModel: ObservableObject {
         let records = membersToUpload.compactMap { $0.toCKRecord() }
 
         let operation = CKModifyRecordsOperation(recordsToSave: records, recordIDsToDelete: nil)
-        operation.modifyRecordsCompletionBlock = { saved, _, error in
+        operation.modifyRecordsResultBlock = { result in
             DispatchQueue.main.async {
-                if let error = error {
+                switch result {
+                case .success(let (saved, _)):
+                    print("✅ Uploaded \(saved.count) members to CloudKit.")
+                case .failure(let error):
                     print("❌ Upload failed: \(error.localizedDescription)")
-                } else {
-                    print("✅ Uploaded \(saved?.count ?? 0) members to CloudKit.")
                 }
             }
         }
