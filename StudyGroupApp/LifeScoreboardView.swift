@@ -73,6 +73,7 @@ struct LifeScoreboardView: View {
     @ObservedObject var userManager = UserManager.shared
     @State private var selectedEntry: LifeScoreboardViewModel.ScoreEntry?
     @State private var selectedRow: LifeScoreboardViewModel.ActivityRow?
+    @State private var hasLoaded = false
 
     private func yearLabel() -> String {
         let month = Calendar.current.component(.month, from: Date())
@@ -136,7 +137,10 @@ struct LifeScoreboardView: View {
             .padding()
         }
         .onAppear {
-            viewModel.fetchTeamMembersFromCloud()
+            if !hasLoaded {
+                viewModel.fetchTeamMembersFromCloud()
+                hasLoaded = true
+            }
         }
         .refreshable {
             userManager.refresh()
