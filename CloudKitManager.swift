@@ -331,6 +331,19 @@ class CloudKitManager: ObservableObject {
         }
     }
 
+    /// Updates only the emoji for the given member name, preserving all other fields.
+    func updateEmoji(for name: String, emoji: String) {
+        fetchFiltered(byUserName: name) { members in
+            guard var member = members.first else {
+                print("❌ No matching TeamMember found for \(name)")
+                return
+            }
+
+            member.emoji = emoji
+            self.save(member) { _ in }
+        }
+    }
+
 
     func fetchScores(for names: [String], completion: @escaping ([String: (score: Int, pending: Int, projected: Double)]) -> Void) {
         print("\u{1F50D} Starting fetchScores() for names: \(names)")
