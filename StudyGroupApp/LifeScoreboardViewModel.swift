@@ -400,7 +400,8 @@ class LifeScoreboardViewModel: ObservableObject {
         database.fetch(withQuery: query,
                        inZoneWith: nil,
                        desiredKeys: nil,
-                       resultsLimit: CKQueryOperation.maximumResults) { result in
+                       resultsLimit: CKQueryOperation.maximumResults,
+                       completionHandler: { (result: Result<(matchResults: [(CKRecord.ID, Result<CKRecord, Error>)], queryCursor: CKQueryOperation.Cursor?), any Error>) in
             switch result {
             case .success(let (matchResults, _)):
                 let records = matchResults.compactMap { _, recordResult in
@@ -420,11 +421,12 @@ class LifeScoreboardViewModel: ObservableObject {
                 // Step 2: Delete unnamed records
                 let deleteOp = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: recordsToDelete)
                 deleteOp.savePolicy = .allKeys
-                deleteOp.modifyRecordsCompletionBlock = { _, deleted, error in
-                    if let error = error {
-                        print("❌ Failed to delete unnamed records: \(error)")
-                    } else {
+                deleteOp.modifyRecordsResultBlock = { result in
+                    switch result {
+                    case .success(_, let deleted):
                         print("🧹 Deleted \(deleted?.count ?? 0) unnamed TeamMember records")
+                    case .failure(let error):
+                        print("❌ Failed to delete unnamed records: \(error)")
                     }
                 }
 
@@ -457,7 +459,7 @@ class LifeScoreboardViewModel: ObservableObject {
             case .failure(let error):
                 print("❌ Failed to fetch TeamMember records: \(error)")
             }
-        }
+        })
     }
 
     /// Creates score entries from the provided team members using any

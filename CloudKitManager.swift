@@ -322,7 +322,7 @@ class CloudKitManager: ObservableObject {
                 return
             }
 
-            var updated = member
+            let updated = member
             updated.actual = entry.score
             updated.pending = pending
             updated.projected = projected
