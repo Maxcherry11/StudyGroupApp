@@ -396,7 +396,7 @@ private var emojiGrid: some View {
                     if let id = emojiEditingID,
                        let index = viewModel.teamMembers.firstIndex(where: { $0.id == id }) {
                         viewModel.teamMembers[index].emoji = emoji
-                        viewModel.saveMember(viewModel.teamMembers[index])
+                        viewModel.updateEmoji(for: viewModel.teamMembers[index])
                         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
                     }
                     emojiPickerVisible = false
