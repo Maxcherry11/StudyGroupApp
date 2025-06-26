@@ -369,6 +369,22 @@ class CloudKitManager: ObservableObject {
         database.add(operation)
     }
 
+    /// Updates only the emoji value for the given member without overwriting
+    /// their production stats.
+    func updateEmoji(for name: String, emoji: String, completion: @escaping (Bool) -> Void = { _ in }) {
+        let id = memberID(for: name)
+        database.fetch(withRecordID: id) { record, error in
+            guard let record = record, error == nil else {
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            record["emoji"] = emoji as CKRecordValue
+            self.database.save(record) { _, error in
+                DispatchQueue.main.async { completion(error == nil) }
+            }
+        }
+    }
+
     // MARK: - Card Order
     func fetchCardOrder(for user: String, completion: @escaping ([String]?) -> Void) {
         print("\u{1F50D} Starting fetchCardOrder() for user: \(user)")

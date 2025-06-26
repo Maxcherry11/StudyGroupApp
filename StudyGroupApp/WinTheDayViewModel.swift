@@ -290,6 +290,14 @@ class WinTheDayViewModel: ObservableObject {
         }
         saveLocal()
     }
+
+    /// Updates only the emoji for the provided member in CloudKit.
+    func updateEmoji(for member: TeamMember, completion: ((Bool) -> Void)? = nil) {
+        CloudKitManager.shared.updateEmoji(for: member.name, emoji: member.emoji) { success in
+            completion?(success)
+        }
+        saveLocal()
+    }
     /// Reorders team members by current production (quotes + sales) and updates
     /// their persisted `sortIndex`. This mirrors the stable ordering logic used
     /// in LifeScoreboardViewModel.
