@@ -400,7 +400,7 @@ class LifeScoreboardViewModel: ObservableObject {
         database.fetch(withQuery: query,
                        inZoneWith: nil,
                        desiredKeys: nil,
-                       resultsLimit: CKQueryOperation.maximumResults) { result in
+                       resultsLimit: CKQueryOperation.maximumResults) { (result: Result<(matchResults: [CKRecord.ID : Result<CKRecord, Error>], queryCursor: CKQueryOperation.Cursor?), Error>) in
             switch result {
             case .success(let (matchResults, _)):
                 let records = matchResults.compactMap { _, recordResult in
