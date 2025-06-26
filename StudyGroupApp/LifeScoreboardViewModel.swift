@@ -307,14 +307,14 @@ class LifeScoreboardViewModel: ObservableObject {
         let query = CKQuery(recordType: "TeamMember", predicate: NSPredicate(value: true))
 
         database.fetch(withQuery: query,
-                        inZoneWith: nil,
-                        desiredKeys: nil,
-                        resultsLimit: CKQueryOperation.maximumResults) { result in
-            switch result {
-            case .success(let (matchResults, _)):
-                let records = matchResults.compactMap { _, recordResult in
-                    try? recordResult.get()
-                }
+                       inZoneWith: nil,
+                       desiredKeys: nil,
+                       resultsLimit: CKQueryOperation.maximumResults,
+                       completionHandler: { (results: Result<([CKRecord], CKQueryOperation.Cursor?), Error>) in
+            switch results {
+            case .success(let (records, _)):
+                // Handle fetched records
+                print("Fetched \(records.count) records")
                 for record in records {
                     var needsUpdate = false
 
@@ -345,9 +345,9 @@ class LifeScoreboardViewModel: ObservableObject {
                     }
                 }
             case .failure(let error):
-                print("⚠️ CloudKit fetch error: \(error)")
+                print("Error fetching records: \(error)")
             }
-        }
+        })
     }
 
     // MARK: - Team Member Sync
@@ -395,71 +395,33 @@ class LifeScoreboardViewModel: ObservableObject {
         let container = CloudKitManager.container
         let database = container.publicCloudDatabase
 
-        // Step 1: Fetch existing records
-        let query = CKQuery(recordType: "TeamMember", predicate: NSPredicate(value: true))
-        database.fetch(withQuery: query,
-                       inZoneWith: nil,
-                       desiredKeys: nil,
-                       resultsLimit: CKQueryOperation.maximumResults,
-                       completionHandler: { (result: Result<(matchResults: [(CKRecord.ID, Result<CKRecord, Error>)], queryCursor: CKQueryOperation.Cursor?), any Error>) in
+        let predicate = NSPredicate(value: true)
+        let query = CKQuery(recordType: "TeamMember", predicate: predicate)
+
+        let operation = CKQueryOperation(query: query)
+        operation.recordMatchedBlock = { recordID, result in
             switch result {
-            case .success(let (matchResults, _)):
-                let records = matchResults.compactMap { _, recordResult in
-                    try? recordResult.get()
-                }
-                var recordsToDelete: [CKRecord.ID] = []
-                var existingNames: Set<String> = []
-
-                for record in records {
-                    if let name = record["name"] as? String, !name.trimmingCharacters(in: .whitespaces).isEmpty {
-                        existingNames.insert(name)
-                    } else {
-                        recordsToDelete.append(record.recordID)
-                    }
-                }
-
-                // Step 2: Delete unnamed records
-                let deleteOp = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: recordsToDelete)
-                deleteOp.savePolicy = .allKeys
-                deleteOp.modifyRecordsResultBlock = { result in
-                    switch result {
-                    case .success(_, let deleted):
-                        print("🧹 Deleted \(deleted?.count ?? 0) unnamed TeamMember records")
-                    case .failure(let error):
-                        print("❌ Failed to delete unnamed records: \(error)")
-                    }
-                }
-
-                // Step 3: Save or update records for each known user
-                var recordsToSave: [CKRecord] = []
-
-                for member in self.teamMembers {
-                    guard !member.name.trimmingCharacters(in: .whitespaces).isEmpty else { continue }
-
-                    let recordID = CKRecord.ID(recordName: "member-\(member.name)")
-                    let record = CKRecord(recordType: "TeamMember", recordID: recordID)
-                    record["name"] = member.name as CKRecordValue
-                    record["emoji"] = member.emoji as CKRecordValue
-                    record["sortIndex"] = member.sortIndex as CKRecordValue
-                    recordsToSave.append(record)
-                }
-
-                let saveOp = CKModifyRecordsOperation(recordsToSave: recordsToSave, recordIDsToDelete: nil)
-                saveOp.savePolicy = .allKeys
-                saveOp.modifyRecordsCompletionBlock = { _, _, error in
-                    if let error = error {
-                        print("❌ Error modifying ScoreRecord: \(error.localizedDescription)")
-                    } else {
-                        print("✅ Successfully created ScoreRecord for: \(self.teamMembers.first?.name ?? "unknown")")
-                    }
-                }
-
-                // Run operations
-                OperationQueue.main.addOperations([deleteOp, saveOp], waitUntilFinished: false)
+            case .success(let record):
+                print("Matched record ID: \(recordID)")
+                // Handle each record if needed
             case .failure(let error):
-                print("❌ Failed to fetch TeamMember records: \(error)")
+                print("Error for record \(recordID): \(error.localizedDescription)")
             }
-        })
+        }
+
+        operation.queryResultBlock = { [weak self] cursorResult in
+            DispatchQueue.main.async {
+                switch cursorResult {
+                case .success:
+                    print("✅ syncTeamMembersToCloudKit() fetch complete")
+                    // Optionally trigger next sync step
+                case .failure(let error):
+                    print("❌ syncTeamMembersToCloudKit() failed with error: \(error.localizedDescription)")
+                }
+            }
+        }
+
+        database.add(operation)
     }
 
     /// Creates score entries from the provided team members using any
