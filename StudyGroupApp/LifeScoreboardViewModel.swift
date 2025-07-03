@@ -301,53 +301,35 @@ class LifeScoreboardViewModel: ObservableObject {
     /// Ensures all `TeamMember` records contain Life Scoreboard fields.
     /// Missing values are initialized to `0` without overwriting existing data.
     func syncScoreboardFields() {
-        // Use the same container as WinTheDay
-        let container = CloudKitManager.container
-        let database = container.publicCloudDatabase
-        let query = CKQuery(recordType: "TeamMember", predicate: NSPredicate(value: true))
+        let predicate = NSPredicate(value: true)
+        let query = CKQuery(recordType: "TeamMember", predicate: predicate)
 
-        database.fetch(withQuery: query,
-                       inZoneWith: nil,
-                       desiredKeys: nil,
-                       resultsLimit: CKQueryOperation.maximumResults,
-                       completionHandler: { (results: Result<([CKRecord], CKQueryOperation.Cursor?), Error>) in
-            switch results {
-            case .success(let (records, _)):
-                // Handle fetched records
-                print("Fetched \(records.count) records")
-                for record in records {
-                    var needsUpdate = false
+        CloudKitManager.container.publicCloudDatabase.fetch(
+            withQuery: query,
+            inZoneWith: nil,
+            desiredKeys: nil,
+            resultsLimit: CKQueryOperation.maximumResults
+        ) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let (matchResults, _)):
+                    print("✅ syncScoreboardFields() matched \(matchResults.count) records")
 
-                    if record.object(forKey: "pending") == nil {
-                        record["pending"] = 0 as CKRecordValue
-                        needsUpdate = true
-                    }
-
-                    if record.object(forKey: "projected") == nil {
-                        record["projected"] = 0 as CKRecordValue
-                        needsUpdate = true
-                    }
-
-                    if record.object(forKey: "actual") == nil {
-                        record["actual"] = 0 as CKRecordValue
-                        needsUpdate = true
-                    }
-
-                    if needsUpdate {
-                        database.save(record) { _, err in
-                            if let err = err {
-                                print("⚠️ Failed to seed Life Scoreboard fields for \(record.recordID.recordName): \(err)")
-                            } else {
-                                let name = record["name"] as? String ?? "unknown"
-                                print("✅ Seeded missing Life Scoreboard fields for \(name)")
-                            }
+                    for (recordID, recordResult) in matchResults {
+                        switch recordResult {
+                        case .success(let record):
+                            print("📥 Record loaded: \(record)")
+                            // TODO: Parse and assign to your model here
+                        case .failure(let error):
+                            print("⚠️ Record fetch failed for \(recordID): \(error.localizedDescription)")
                         }
                     }
+
+                case .failure(let error):
+                    print("❌ syncScoreboardFields() failed with error: \(error.localizedDescription)")
                 }
-            case .failure(let error):
-                print("Error fetching records: \(error)")
             }
-        })
+        }
     }
 
     // MARK: - Team Member Sync
