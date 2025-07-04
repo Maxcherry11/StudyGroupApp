@@ -26,7 +26,6 @@
 		B6C560C62DEFCC0E00F64256 /* ActivityEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C560C52DEFCC0E00F64256 /* ActivityEditorView.swift */; };
 		B6CB206A2DE3D90A00CE7A18 /* LaunchScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6CB20692DE3D90A00CE7A18 /* LaunchScreenView.swift */; };
 		F24CB4DF149A4B09974A1B6C /* CodexNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B75D2389F8474FB89FF01B /* CodexNotes.swift */; };
-                D1A1FCEE2E7515F700B1C002 /* GoalTilePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A1FCEE2E7515F700B1C001 /* GoalTilePreview.swift */; };
 		FEED00012DEFCAFE00000002 /* SplashViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED00002DEFCAFE00000002 /* SplashViewModel.swift */; };
 /* End PBXBuildFile section */
 
@@ -56,7 +55,6 @@
 		B6CB20682DE3B35B00CE7A18 /* StudyGroupApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StudyGroupApp.entitlements; sourceTree = "<group>"; };
 		B6CB20692DE3D90A00CE7A18 /* LaunchScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScreenView.swift; sourceTree = "<group>"; };
 		FEED00002DEFCAFE00000002 /* SplashViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashViewModel.swift; sourceTree = "<group>"; };
-                D1A1FCEE2E7515F700B1C001 /* GoalTilePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalTilePreview.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -98,7 +96,6 @@
 				B653C53C2DE2403E001B905F /* WinTheDayView.swift */,
 				12B75D2389F8474FB89FF01B /* CodexNotes.swift */,
 				2EADEA15A39A4A2E911AD6C8 /* TempScoreRowShowcase.swift */,
-                                D1A1FCEE2E7515F700B1C001 /* GoalTilePreview.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -209,7 +206,6 @@
 				B6CB206A2DE3D90A00CE7A18 /* LaunchScreenView.swift in Sources */,
 				F24CB4DF149A4B09974A1B6C /* CodexNotes.swift in Sources */,
 				4DC20FA6D8614B33B40C5DB3 /* TempScoreRowShowcase.swift in Sources */,
-                                D1A1FCEE2E7515F700B1C002 /* GoalTilePreview.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
