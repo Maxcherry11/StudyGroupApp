@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CardView: View {
-    @Binding var member: TeamMember
+    @Binding var member: StudyGroupApp.TeamMember
     @State private var editingGoal: GoalProgress?
     @State private var isEditingGoals = false
     @Environment(\.dismiss) private var dismiss
@@ -213,14 +213,14 @@ private func onTimeTargetProgress() -> Double {
 }
 
 #Preview {
-    StatefulPreviewWrapper(TeamMember(name: "Demo", goals: [
+    StatefulPreviewWrapper(StudyGroupApp.TeamMember(name: "Demo", goals: [
         .init(title: "Auto", percent: 0.5),
         .init(title: "Fire", percent: 0.6),
         .init(title: "Life", percent: 0.4),
         .init(title: "Training", percent: 0.7)
     ])) { $member in
         CardView(member: $member)
-            .preferredColorScheme(.dark)
+            .preferredColorScheme(ColorScheme.dark)
     }
 }
     
