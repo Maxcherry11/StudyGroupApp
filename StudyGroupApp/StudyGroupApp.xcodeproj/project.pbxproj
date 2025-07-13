@@ -30,7 +30,8 @@
                 FEED00012DEFCAFE00000002 /* SplashViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED00002DEFCAFE00000002 /* SplashViewModel.swift */; };
                 0CA80AD4EA07B0AC42458D75 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E57DBE9EC5619492E58B917E /* ContentView.swift */; };
                 F77FCF7BFD26428BB2FD30B1 /* TwelveWeekCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BCA94A880334B8CAD097401 /* TwelveWeekCardView.swift */; };
-                1588615A0F6D4073A0300BB7 /* TwelveWeekYearView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADB7B8E7F7FB4F76AD4A1206 /* TwelveWeekYearView.swift */; };
+               1588615A0F6D4073A0300BB7 /* TwelveWeekYearView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADB7B8E7F7FB4F76AD4A1206 /* TwelveWeekYearView.swift */; };
+               F00DBABE2FD3C0DE00000002 /* PreviewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00DBABE2FD3C0DE00000001 /* PreviewHelpers.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -63,6 +64,7 @@
                 E57DBE9EC5619492E58B917E /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
                 3BCA94A880334B8CAD097401 /* TwelveWeekCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwelveWeekCardView.swift; sourceTree = "<group>"; };
                 ADB7B8E7F7FB4F76AD4A1206 /* TwelveWeekYearView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwelveWeekYearView.swift; sourceTree = "<group>"; };
+               F00DBABE2FD3C0DE00000001 /* PreviewHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewHelpers.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -106,11 +108,12 @@
                                 12B75D2389F8474FB89FF01B /* CodexNotes.swift */,
                                 2EADEA15A39A4A2E911AD6C8 /* TempScoreRowShowcase.swift */,
                                 3BCA94A880334B8CAD097401 /* TwelveWeekCardView.swift */,
-                                ADB7B8E7F7FB4F76AD4A1206 /* TwelveWeekYearView.swift */,
-                                E57DBE9EC5619492E58B917E /* ContentView.swift */,
-                        );
-                        sourceTree = "<group>";
-                };
+                               ADB7B8E7F7FB4F76AD4A1206 /* TwelveWeekYearView.swift */,
+                               E57DBE9EC5619492E58B917E /* ContentView.swift */,
+                               F00DBABE2FD3C0DE00000001 /* PreviewHelpers.swift */,
+                       );
+                       sourceTree = "<group>";
+               };
 		B653C4F32DE22D8D001B905F /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -221,10 +224,11 @@
                                 4DC20FA6D8614B33B40C5DB3 /* TempScoreRowShowcase.swift in Sources */,
                                 0CA80AD4EA07B0AC42458D75 /* ContentView.swift in Sources */,
                                 F77FCF7BFD26428BB2FD30B1 /* TwelveWeekCardView.swift in Sources */,
-                                1588615A0F6D4073A0300BB7 /* TwelveWeekYearView.swift in Sources */,
-                        );
-                        runOnlyForDeploymentPostprocessing = 0;
-                };
+                               1588615A0F6D4073A0300BB7 /* TwelveWeekYearView.swift in Sources */,
+                               F00DBABE2FD3C0DE00000002 /* PreviewHelpers.swift in Sources */,
+                       );
+                       runOnlyForDeploymentPostprocessing = 0;
+               };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
