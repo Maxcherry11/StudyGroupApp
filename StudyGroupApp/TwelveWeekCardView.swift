@@ -123,15 +123,28 @@ struct GoalEditView: View {
     @Binding var goal: GoalProgress
 
     var body: some View {
-        NavigationStack {
-            Form {
-                TextField("Title", text: $goal.title)
-                    .padding(8)
-                    .background(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.4)))
-                Slider(value: $goal.percent, in: 0...1)
+        if #available(iOS 16.0, *) {
+            NavigationStack {
+                Form {
+                    TextField("Title", text: $goal.title)
+                        .padding(8)
+                        .background(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.4)))
+                    Slider(value: $goal.percent, in: 0...1)
+                }
+                .navigationTitle("Edit Goal")
+                .navigationBarTitleDisplayMode(.inline)
             }
-            .navigationTitle("Edit Goal")
-            .navigationBarTitleDisplayMode(.inline)
+        } else {
+            NavigationView {
+                Form {
+                    TextField("Title", text: $goal.title)
+                        .padding(8)
+                        .background(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.4)))
+                    Slider(value: $goal.percent, in: 0...1)
+                }
+                .navigationTitle("Edit Goal")
+                .navigationBarTitleDisplayMode(.inline)
+            }
         }
     }
 }
@@ -141,43 +154,86 @@ struct GoalEditListView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            Form {
-                ForEach($goals.indices, id: \.self) { index in
-                    Section(header: Text(goals[index].title).foregroundColor(.gray)) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            TextField("Title", text: $goals[index].title)
-                                .padding(8)
-                                .background(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.4)))
+        if #available(iOS 16.0, *) {
+            NavigationStack {
+                Form {
+                    ForEach($goals.indices, id: \.self) { index in
+                        Section(header: Text(goals[index].title).foregroundColor(.gray)) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                TextField("Title", text: $goals[index].title)
+                                    .padding(8)
+                                    .background(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.4)))
 
-                            HStack {
-                                Slider(value: $goals[index].percent, in: 0...1)
-                                Text("\(Int(goals[index].percent * 100))%")
-                                    .foregroundColor(.gray)
-                                    .font(.subheadline)
-                                    .frame(minWidth: 40, idealWidth: 50, maxWidth: 60, alignment: .trailing)
+                                HStack {
+                                    Slider(value: $goals[index].percent, in: 0...1)
+                                    Text("\(Int(goals[index].percent * 100))%")
+                                        .foregroundColor(.gray)
+                                        .font(.subheadline)
+                                        .frame(minWidth: 40, idealWidth: 50, maxWidth: 60, alignment: .trailing)
+                                }
+                                .frame(height: 40) // fixes layout jitter
                             }
-                            .frame(height: 40) // fixes layout jitter
                         }
                     }
                 }
-            }
-            .navigationTitle("Edit All Goals")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
-                        dismiss()
+                .navigationTitle("Edit All Goals")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Save") {
+                            dismiss()
+                        }
+                    }
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(action: {
+                            dismiss()
+                        }) {
+                            Label("Back", systemImage: "chevron.left")
+                                .labelStyle(.titleOnly)
+                        }
+                        .foregroundColor(.white)
                     }
                 }
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
-                        dismiss()
-                    }) {
-                        Label("Back", systemImage: "chevron.left")
-                            .labelStyle(.titleOnly)
+            }
+        } else {
+            NavigationView {
+                Form {
+                    ForEach($goals.indices, id: \.self) { index in
+                        Section(header: Text(goals[index].title).foregroundColor(.gray)) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                TextField("Title", text: $goals[index].title)
+                                    .padding(8)
+                                    .background(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.4)))
+
+                                HStack {
+                                    Slider(value: $goals[index].percent, in: 0...1)
+                                    Text("\(Int(goals[index].percent * 100))%")
+                                        .foregroundColor(.gray)
+                                        .font(.subheadline)
+                                        .frame(minWidth: 40, idealWidth: 50, maxWidth: 60, alignment: .trailing)
+                                }
+                                .frame(height: 40) // fixes layout jitter
+                            }
+                        }
                     }
-                    .foregroundColor(.white)
+                }
+                .navigationTitle("Edit All Goals")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Save") {
+                            dismiss()
+                        }
+                    }
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(action: {
+                            dismiss()
+                        }) {
+                            Label("Back", systemImage: "chevron.left")
+                                .labelStyle(.titleOnly)
+                        }
+                        .foregroundColor(.white)
+                    }
                 }
             }
         }
@@ -212,15 +268,21 @@ private func onTimeTargetProgress() -> Double {
     return percentElapsed
 }
 
-#Preview {
-    StatefulPreviewWrapper(TeamMember(name: "Demo", goals: [
-        .init(title: "Auto", percent: 0.5),
-        .init(title: "Fire", percent: 0.6),
-        .init(title: "Life", percent: 0.4),
-        .init(title: "Training", percent: 0.7)
-    ])) { $member in
-        CardView(member: $member)
-            .preferredColorScheme(.dark)
-    }
-}
+ #Preview {
+     CardPreviewHost()
+ }
+
+ private struct CardPreviewHost: View {
+     @State private var member = TeamMember(name: "Demo", goals: [
+         .init(title: "Auto", percent: 0.5),
+         .init(title: "Fire", percent: 0.6),
+         .init(title: "Life", percent: 0.4),
+         .init(title: "Training", percent: 0.7)
+     ])
+
+     var body: some View {
+         CardView(member: $member)
+             .preferredColorScheme(.dark)
+     }
+ }
     
