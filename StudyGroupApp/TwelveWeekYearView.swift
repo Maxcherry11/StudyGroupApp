@@ -2,7 +2,7 @@ import SwiftUI
 
 
 struct TwelveWeekYearView: View {
-    @State private var team: [TeamMember] = [
+    @State private var team: [TwelveWeekMember] = [
         .init(name: "Ron B.", goals: [
             .init(title: "Auto", percent: 0.7),
             .init(title: "Fire", percent: 0.6),
@@ -40,7 +40,7 @@ struct TwelveWeekYearView: View {
         return team.map { $0.progress * 100 }.reduce(0, +) / Double(team.count)
     }
 
-    var sortedTeam: [TeamMember] {
+    var sortedTeam: [TwelveWeekMember] {
         team.sorted { $0.progress > $1.progress }
     }
 
