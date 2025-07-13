@@ -30,21 +30,10 @@ struct MainTabView: View {
                     Text("Scoreboard")
                 }
 
-            /*
-            Week12View()
+            TwelveWeekYearView()
                 .tabItem {
-                    Image(systemName: "calendar")
-                    Text("12 Week Year")
+                    Label("12 Week Year", systemImage: "target")
                 }
-            */
         }
-    }
-}
-
-struct Week12View: View {
-    var body: some View {
-        Text("12 Week Year Placeholder")
-            .font(.largeTitle)
-            .padding()
     }
 }
