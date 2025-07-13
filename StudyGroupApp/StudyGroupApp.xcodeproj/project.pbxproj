@@ -17,8 +17,9 @@
 		B653C5312DE23D36001B905F /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C5282DE23D36001B905F /* MainTabView.swift */; };
 		B653C5322DE23D36001B905F /* WinTheDayViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C52E2DE23D36001B905F /* WinTheDayViewModel.swift */; };
 		B653C53D2DE2403E001B905F /* WinTheDayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C53C2DE2403E001B905F /* WinTheDayView.swift */; };
-		B653C53F2DE2407A001B905F /* TeamMember.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C53E2DE2407A001B905F /* TeamMember.swift */; };
-		B653C5412DE2409D001B905F /* StudyGroupApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C5402DE2409D001B905F /* StudyGroupApp.swift */; };
+                B653C53F2DE2407A001B905F /* TeamMember.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C53E2DE2407A001B905F /* TeamMember.swift */; };
+                C0DECAFEDEADBEEF00112234 /* TeamModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DECAFEDEADBEEF00112233 /* TeamModels.swift */; };
+                B653C5412DE2409D001B905F /* StudyGroupApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C5402DE2409D001B905F /* StudyGroupApp.swift */; };
 		B653C54B2DE26ED8001B905F /* CloudKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C54A2DE26ED8001B905F /* CloudKitManager.swift */; };
 		B653C54D2DE270A5001B905F /* UserSelectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C54C2DE270A5001B905F /* UserSelectorView.swift */; };
 		B6C560BE2DEFC65500F64256 /* LifeScoreboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C560BD2DEFC65500F64256 /* LifeScoreboardView.swift */; };
@@ -48,8 +49,9 @@
 		B653C5352DE23DAD001B905F /* Outcast.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Outcast.entitlements; sourceTree = "<group>"; };
 		B653C53B2DE2400B001B905F /* Outcast IOs.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Outcast IOs.entitlements"; sourceTree = "<group>"; };
 		B653C53C2DE2403E001B905F /* WinTheDayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WinTheDayView.swift; sourceTree = "<group>"; };
-		B653C53E2DE2407A001B905F /* TeamMember.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamMember.swift; sourceTree = "<group>"; };
-		B653C5402DE2409D001B905F /* StudyGroupApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyGroupApp.swift; sourceTree = "<group>"; };
+                B653C53E2DE2407A001B905F /* TeamMember.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamMember.swift; sourceTree = "<group>"; };
+                C0DECAFEDEADBEEF00112233 /* TeamModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamModels.swift; sourceTree = "<group>"; };
+                B653C5402DE2409D001B905F /* StudyGroupApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyGroupApp.swift; sourceTree = "<group>"; };
 		B653C54A2DE26ED8001B905F /* CloudKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CloudKitManager.swift; path = ../CloudKitManager.swift; sourceTree = "<group>"; };
 		B653C54C2DE270A5001B905F /* UserSelectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSelectorView.swift; sourceTree = "<group>"; };
 		B6C560BD2DEFC65500F64256 /* LifeScoreboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifeScoreboardView.swift; sourceTree = "<group>"; };
@@ -89,6 +91,7 @@
 				331336D4828944B798561421 /* UserManager.swift */,
                                 B653C5282DE23D36001B905F /* MainTabView.swift */,
                                 B653C53E2DE2407A001B905F /* TeamMember.swift */,
+                                C0DECAFEDEADBEEF00112233 /* TeamModels.swift */,
                                 A1B2C3D32DEFCAFE00000001 /* Card.swift */,
                                 A7EA411A31E5BFD7BCDCD242 /* CardModel.swift */,
                                 ABCDE12345ABCDE12345ABCD /* GoalNames.swift */,
@@ -203,7 +206,8 @@
 				64C6F0F5FC38411D819C0BE3 /* UserManager.swift in Sources */,
 				B653C5412DE2409D001B905F /* StudyGroupApp.swift in Sources */,
 				B653C53D2DE2403E001B905F /* WinTheDayView.swift in Sources */,
-				B653C53F2DE2407A001B905F /* TeamMember.swift in Sources */,
+                                B653C53F2DE2407A001B905F /* TeamMember.swift in Sources */,
+                                C0DECAFEDEADBEEF00112234 /* TeamModels.swift in Sources */,
                                 A1B2C3D42DEFCAFE00000001 /* Card.swift in Sources */,
                                 167AB56E4291FC388E6FD5C7 /* CardModel.swift in Sources */,
                                 ABCDE12345ABCDE12345ABCE /* GoalNames.swift in Sources */,
