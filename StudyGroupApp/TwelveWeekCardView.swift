@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct CardView: View {
+    @Binding var member: TwelveWeekMember
     @State private var editingGoal: GoalProgress?
     @State private var isEditingGoals = false
     @Environment(\.dismiss) private var dismiss
