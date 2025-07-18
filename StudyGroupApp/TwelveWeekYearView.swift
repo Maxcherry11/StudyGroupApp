@@ -65,27 +65,39 @@ struct TwelveWeekYearView: View {
                         .foregroundColor(.white.opacity(0.8))
 
                     VStack(alignment: .leading, spacing: 18) {
-                        ForEach(Array(team.enumerated().sorted { $0.element.progress > $1.element.progress }), id: \.element.id) { index, member in
-                            NavigationLink(destination: CardView(member: $team[index])) {
-                                HStack {
-                                    Text(member.name)
-                                        .font(.system(size: 26, weight: .medium))
-                                        .foregroundColor(.white)
-                                        .frame(width: 100, alignment: .leading)
-                                        .padding(.trailing, 40)
-
-                                    ZStack(alignment: .leading) {
-                                        RoundedRectangle(cornerRadius: 5)
-                                            .fill(Color.white.opacity(0.12))
-                                            .frame(height: 15)
-                                        RoundedRectangle(cornerRadius: 5)
-                                            .fill(Color.blue)
-                                            .frame(width: CGFloat(member.progress) * 200, height: 15)
+                        ForEach(team.sorted(by: { $0.progress > $1.progress })) { member in
+                            if let binding = Binding<TwelveWeekMember>(
+                                get: {
+                                    team.first(where: { $0.id == member.id }) ?? member
+                                },
+                                set: { updated in
+                                    if let i = team.firstIndex(where: { $0.id == updated.id }) {
+                                        team[i] = updated
                                     }
-                                    .frame(width: 200, height: 10)
                                 }
+                            ) {
+                                NavigationLink(destination: CardView(member: binding)) {
+                                    HStack {
+                                        Text(member.name)
+                                            .font(.system(size: 26, weight: .medium))
+                                            .foregroundColor(.white)
+                                            .frame(width: 100, alignment: .leading)
+                                            .padding(.trailing, 40)
+
+                                        ZStack(alignment: .leading) {
+                                            RoundedRectangle(cornerRadius: 5)
+                                                .fill(Color.white.opacity(0.12))
+                                                .frame(height: 15)
+
+                                            RoundedRectangle(cornerRadius: 5)
+                                                .fill(Color.blue)
+                                                .frame(width: CGFloat(member.progress) * 200, height: 15)
+                                        }
+                                        .frame(width: 200, height: 10)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
                             }
-                            .frame(maxWidth: .infinity)
                         }
                     }
                     .padding(.horizontal, 0)
