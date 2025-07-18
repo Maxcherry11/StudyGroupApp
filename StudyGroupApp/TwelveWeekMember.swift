@@ -1,4 +1,3 @@
-
 import Foundation
 
 /// A team member's progress for the 12 Week Year feature.
@@ -22,4 +21,3 @@ struct TwelveWeekMember: Identifiable, Hashable {
         return goals.map { $0.percent }.reduce(0, +) / Double(goals.count)
     }
 }
-
