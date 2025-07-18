@@ -5,7 +5,7 @@ import Foundation
 /// Stores the member name and their collection of `GoalProgress` entries.
 /// Provides a computed `progress` value representing the average percent
 /// complete for all associated goals.
-struct TwelveWeekMember: Identifiable, Hashable {
+struct TwelveWeekMember: Identifiable {
     /// Stable identifier for binding and list use.
     var id = UUID()
 
@@ -19,5 +19,22 @@ struct TwelveWeekMember: Identifiable, Hashable {
     var progress: Double {
         guard !goals.isEmpty else { return 0 }
         return goals.map { $0.percent }.reduce(0, +) / Double(goals.count)
+    }
+}
+
+extension TwelveWeekMember: Hashable {
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(name)
+        for goal in goals {
+            hasher.combine(goal.title)
+            hasher.combine(goal.percent)
+        }
+    }
+
+    static func == (lhs: TwelveWeekMember, rhs: TwelveWeekMember) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.name == rhs.name &&
+        lhs.goals == rhs.goals
     }
 }

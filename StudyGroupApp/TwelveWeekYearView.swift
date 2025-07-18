@@ -1,6 +1,5 @@
 import SwiftUI
 
-
 struct TwelveWeekYearView: View {
     @State private var team: [TwelveWeekMember] = [
         .init(name: "Ron B.", goals: [
@@ -45,7 +44,8 @@ struct TwelveWeekYearView: View {
     }
 
     var body: some View {
-        NavigationView {
+        if #available(iOS 16.0, *) {
+            NavigationStack {
             GeometryReader { geometry in
                 ZStack {
                 RoundedRectangle(cornerRadius: 24)
@@ -66,7 +66,7 @@ struct TwelveWeekYearView: View {
 
                     VStack(alignment: .leading, spacing: 18) {
                         ForEach(team.sorted(by: { $0.progress > $1.progress })) { member in
-                            if let binding = Binding<TwelveWeekMember>(
+                            let binding = Binding<TwelveWeekMember>(
                                 get: {
                                     team.first(where: { $0.id == member.id }) ?? member
                                 },
@@ -75,29 +75,28 @@ struct TwelveWeekYearView: View {
                                         team[i] = updated
                                     }
                                 }
-                            ) {
-                                NavigationLink(destination: CardView(member: binding)) {
-                                    HStack {
-                                        Text(member.name)
-                                            .font(.system(size: 26, weight: .medium))
-                                            .foregroundColor(.white)
-                                            .frame(width: 100, alignment: .leading)
-                                            .padding(.trailing, 40)
+                            )
+                            NavigationLink(destination: CardView(member: binding)) {
+                                HStack {
+                                    Text(member.name)
+                                        .font(.system(size: 26, weight: .medium))
+                                        .foregroundColor(.white)
+                                        .frame(width: 100, alignment: .leading)
+                                        .padding(.trailing, 40)
 
-                                        ZStack(alignment: .leading) {
-                                            RoundedRectangle(cornerRadius: 5)
-                                                .fill(Color.white.opacity(0.12))
-                                                .frame(height: 15)
+                                    ZStack(alignment: .leading) {
+                                        RoundedRectangle(cornerRadius: 5)
+                                            .fill(Color.white.opacity(0.12))
+                                            .frame(height: 15)
 
-                                            RoundedRectangle(cornerRadius: 5)
-                                                .fill(Color.blue)
-                                                .frame(width: CGFloat(member.progress) * 200, height: 15)
-                                        }
-                                        .frame(width: 200, height: 10)
+                                        RoundedRectangle(cornerRadius: 5)
+                                            .fill(Color.blue)
+                                            .frame(width: CGFloat(member.progress) * 200, height: 15)
                                     }
+                                    .frame(width: 200, height: 10)
                                 }
-                                .frame(maxWidth: .infinity)
                             }
+                            .frame(maxWidth: .infinity)
                         }
                     }
                     .padding(.horizontal, 0)
@@ -107,6 +106,13 @@ struct TwelveWeekYearView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea()
         }
+            }
+        } else {
+            Text("Requires iOS 16.0 or later")
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(red: 60/255, green: 90/255, blue: 140/255))
+                .ignoresSafeArea()
         }
     }
 }
@@ -161,4 +167,3 @@ struct TwelveWeekYearView_Previews: PreviewProvider {
             .preferredColorScheme(.dark)
     }
 }
-    

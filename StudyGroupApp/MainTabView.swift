@@ -32,7 +32,7 @@ struct MainTabView: View {
 
             TwelveWeekYearView()
                 .tabItem {
-                    Label("12 Week Year", systemImage: "target")
+                    Label("12 Week Year", systemImage: "calendar")
                 }
         }
     }
