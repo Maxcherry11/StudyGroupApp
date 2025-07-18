@@ -6,3 +6,5 @@ struct GoalProgress: Identifiable {
     var percent: Double
 }
 
+extension GoalProgress: Equatable {}
+
