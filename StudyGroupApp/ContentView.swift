@@ -1,7 +1,3 @@
-import SwiftUI
-
-// MARK: - Models
-
 struct Week: Identifiable {
     let id = UUID()
     let number: Int
@@ -18,7 +14,7 @@ struct Goal {
     }
 }
 
-// MARK: - ContentView
+import SwiftUI
 
 struct ContentView: View {
     @State private var goal = Goal(
@@ -38,7 +34,7 @@ struct ContentView: View {
                     .foregroundColor(.secondary)
                 
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 12) {
-                    ForEach(goal.weeks.indices, id: .self) { i in
+                    ForEach(goal.weeks.indices, id: \.self) { i in
                         Button(action: {
                             withAnimation {
                                 goal.weeks[i].isComplete.toggle()
@@ -65,8 +61,4 @@ struct ContentView: View {
             .navigationTitle("12-Week Year")
         }
     }
-}
-
-#Preview {
-    ContentView()
 }
