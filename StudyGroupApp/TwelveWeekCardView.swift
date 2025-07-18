@@ -211,14 +211,26 @@ private func onTimeTargetProgress() -> Double {
     return percentElapsed
 }
 
-#Preview {
-    StatefulPreviewWrapper(TwelveWeekMember(name: "Demo", goals: [
-        .init(title: "Auto", percent: 0.5),
-        .init(title: "Fire", percent: 0.6),
-        .init(title: "Life", percent: 0.4),
-        .init(title: "Training", percent: 0.7)
-    ])) { $member in
-        CardView(member: $member)
-            .preferredColorScheme(.dark)
+struct TwelveWeekCardView_Previews: PreviewProvider {
+    struct PreviewWrapper: View {
+        @State private var sample = TwelveWeekMember(
+            name: "Demo",
+            goals: [
+                GoalProgress(title: "Auto", percent: 0.5),
+                GoalProgress(title: "Fire", percent: 0.6),
+                GoalProgress(title: "Life", percent: 0.4),
+                GoalProgress(title: "Training", percent: 0.7)
+            ]
+        )
+
+        var body: some View {
+            CardView(member: $sample)
+                .preferredColorScheme(.dark)
+                .padding()
+        }
+    }
+
+    static var previews: some View {
+        PreviewWrapper()
     }
 }
