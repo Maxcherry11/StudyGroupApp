@@ -45,7 +45,7 @@ struct TwelveWeekYearView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             GeometryReader { geometry in
                 ZStack {
                 RoundedRectangle(cornerRadius: 24)
@@ -143,8 +143,10 @@ struct ArcShape: Shape {
     }
 }
 
-#Preview {
-    TwelveWeekYearView()
-        .preferredColorScheme(.dark)
+struct TwelveWeekYearView_Previews: PreviewProvider {
+    static var previews: some View {
+        TwelveWeekYearView()
+            .preferredColorScheme(.dark)
+    }
 }
     
