@@ -34,6 +34,8 @@ struct TwelveWeekYearView: View {
         ])
     ].sorted { $0.progress > $1.progress }
 
+    @State private var selectedMember: TwelveWeekMember? = nil
+
     var overallPercent: Double {
         guard !team.isEmpty else { return 0 }
         return team.map { $0.progress * 100 }.reduce(0, +) / Double(team.count)
@@ -45,7 +47,7 @@ struct TwelveWeekYearView: View {
 
     var body: some View {
         if #available(iOS 16.0, *) {
-            NavigationStack {
+            ZStack {
             GeometryReader { geometry in
                 ZStack {
                 RoundedRectangle(cornerRadius: 24)
@@ -76,27 +78,29 @@ struct TwelveWeekYearView: View {
                                     }
                                 }
                             )
-                            NavigationLink(destination: CardView(member: binding)) {
-                                HStack {
-                                    Text(member.name)
-                                        .font(.system(size: 26, weight: .medium))
-                                        .foregroundColor(.white)
-                                        .frame(width: 100, alignment: .leading)
-                                        .padding(.trailing, 40)
+                            HStack {
+                                Text(member.name)
+                                    .font(.system(size: 26, weight: .medium))
+                                    .foregroundColor(.white)
+                                    .frame(width: 100, alignment: .leading)
+                                    .padding(.trailing, 40)
 
-                                    ZStack(alignment: .leading) {
-                                        RoundedRectangle(cornerRadius: 5)
-                                            .fill(Color.white.opacity(0.12))
-                                            .frame(height: 15)
+                                ZStack(alignment: .leading) {
+                                    RoundedRectangle(cornerRadius: 5)
+                                        .fill(Color.white.opacity(0.12))
+                                        .frame(height: 15)
 
-                                        RoundedRectangle(cornerRadius: 5)
-                                            .fill(Color.blue)
-                                            .frame(width: CGFloat(member.progress) * 200, height: 15)
-                                    }
-                                    .frame(width: 200, height: 10)
+                                    RoundedRectangle(cornerRadius: 5)
+                                        .fill(Color.blue)
+                                        .frame(width: CGFloat(member.progress) * 200, height: 15)
                                 }
+                                .frame(width: 200, height: 10)
                             }
                             .frame(maxWidth: .infinity)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selectedMember = member
+                            }
                         }
                     }
                     .padding(.horizontal, 0)
@@ -106,6 +110,28 @@ struct TwelveWeekYearView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea()
         }
+            }
+            .fullScreenCover(item: $selectedMember) { member in
+                NavigationStack {
+                    let binding = Binding<TwelveWeekMember>(
+                        get: {
+                            team.first(where: { $0.id == member.id }) ?? member
+                        },
+                        set: { updated in
+                            if let i = team.firstIndex(where: { $0.id == updated.id }) {
+                                team[i] = updated
+                            }
+                        }
+                    )
+                    CardView(member: binding)
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarLeading) {
+                                Button("Back") {
+                                    selectedMember = nil
+                                }
+                            }
+                        }
+                }
             }
         } else {
             Text("Requires iOS 16.0 or later")
