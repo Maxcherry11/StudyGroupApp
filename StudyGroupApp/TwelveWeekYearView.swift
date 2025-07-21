@@ -1,53 +1,23 @@
 import SwiftUI
 
 struct TwelveWeekYearView: View {
-    @State private var team: [TwelveWeekMember] = [
-        .init(name: "Ron B.", goals: [
-            .init(title: "Auto", percent: 0.7),
-            .init(title: "Fire", percent: 0.6),
-            .init(title: "Life", percent: 0.5),
-            .init(title: "Training", percent: 0.3)
-        ]),
-        .init(name: "Deanna", goals: [
-            .init(title: "Auto", percent: 0.6),
-            .init(title: "Fire", percent: 0.55),
-            .init(title: "Life", percent: 0.4),
-            .init(title: "Training", percent: 0.45)
-        ]),
-        .init(name: "D.J.", goals: [
-            .init(title: "Auto", percent: 0.5),
-            .init(title: "Fire", percent: 0.4),
-            .init(title: "Life", percent: 0.6),
-            .init(title: "Training", percent: 0.55)
-        ]),
-        .init(name: "Dimitri", goals: [
-            .init(title: "Auto", percent: 0.65),
-            .init(title: "Fire", percent: 0.5),
-            .init(title: "Life", percent: 0.55),
-            .init(title: "Training", percent: 0.4)
-        ]),
-        .init(name: "Megan", goals: [
-            .init(title: "Auto", percent: 0.6),
-            .init(title: "Fire", percent: 0.45),
-            .init(title: "Life", percent: 0.5),
-            .init(title: "Training", percent: 0.35)
-        ])
-    ].sorted { $0.progress > $1.progress }
-
+    @StateObject private var viewModel = TwelveWeekYearViewModel()
+    @ObservedObject private var userManager = UserManager.shared
     @State private var selectedMember: TwelveWeekMember? = nil
 
     var overallPercent: Double {
-        guard !team.isEmpty else { return 0 }
-        return team.map { $0.progress * 100 }.reduce(0, +) / Double(team.count)
+        guard !viewModel.members.isEmpty else { return 0 }
+        return viewModel.members.map { $0.progress * 100 }.reduce(0, +) / Double(viewModel.members.count)
     }
 
     var sortedTeam: [TwelveWeekMember] {
-        team.sorted { $0.progress > $1.progress }
+        viewModel.members.sorted { $0.progress > $1.progress }
     }
 
     var body: some View {
-        if #available(iOS 16.0, *) {
-            ZStack {
+        Group {
+            if #available(iOS 16.0, *) {
+                ZStack {
             GeometryReader { geometry in
                 ZStack {
                 RoundedRectangle(cornerRadius: 24)
@@ -67,14 +37,14 @@ struct TwelveWeekYearView: View {
                         .foregroundColor(.white.opacity(0.8))
 
                     VStack(alignment: .leading, spacing: 18) {
-                        ForEach(team.sorted(by: { $0.progress > $1.progress })) { member in
+                        ForEach(sortedTeam) { member in
                             let binding = Binding<TwelveWeekMember>(
                                 get: {
-                                    team.first(where: { $0.id == member.id }) ?? member
+                                    viewModel.members.first(where: { $0.id == member.id }) ?? member
                                 },
                                 set: { updated in
-                                    if let i = team.firstIndex(where: { $0.id == updated.id }) {
-                                        team[i] = updated
+                                    if let i = viewModel.members.firstIndex(where: { $0.id == updated.id }) {
+                                        viewModel.members[i] = updated
                                     }
                                 }
                             )
@@ -110,20 +80,23 @@ struct TwelveWeekYearView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea()
         }
-            }
-            .fullScreenCover(item: $selectedMember) { member in
-                NavigationStack {
+                }
+                .fullScreenCover(item: $selectedMember) { member in
+                    NavigationStack {
                     let binding = Binding<TwelveWeekMember>(
                         get: {
-                            team.first(where: { $0.id == member.id }) ?? member
+                            viewModel.members.first(where: { $0.id == member.id }) ?? member
                         },
                         set: { updated in
-                            if let i = team.firstIndex(where: { $0.id == updated.id }) {
-                                team[i] = updated
+                            if let i = viewModel.members.firstIndex(where: { $0.id == updated.id }) {
+                                viewModel.members[i] = updated
                             }
                         }
                     )
                     CardView(member: binding)
+                        .onDisappear {
+                            viewModel.saveMember(binding.wrappedValue)
+                        }
                         .toolbar {
                             ToolbarItem(placement: .navigationBarLeading) {
                                 Button("Back") {
@@ -133,12 +106,20 @@ struct TwelveWeekYearView: View {
                         }
                 }
             }
-        } else {
-            Text("Requires iOS 16.0 or later")
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(red: 60/255, green: 90/255, blue: 140/255))
-                .ignoresSafeArea()
+                }
+            } else {
+                Text("Requires iOS 16.0 or later")
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(red: 60/255, green: 90/255, blue: 140/255))
+                    .ignoresSafeArea()
+            }
+        }
+        .onAppear {
+            viewModel.fetchMembersFromCloud()
+        }
+        .onChange(of: userManager.userList) { _ in
+            viewModel.fetchMembersFromCloud()
         }
     }
 }

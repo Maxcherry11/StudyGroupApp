@@ -65,12 +65,15 @@ class UserManager: ObservableObject {
                 orderIndex: 0
             )
             CloudKitManager.saveCard(defaultCard)
+            let twy = TwelveWeekMember(name: name, goals: [])
+            CloudKitManager.saveTwelveWeekMember(twy)
             self?.fetchUsersFromCloud()
         }
     }
 
     func deleteUser(_ name: String) {
         CloudKitManager.deleteUser(name)
+        CloudKitManager.deleteTwelveWeekMember(named: name)
         if currentUser == name {
             currentUser = ""
         }

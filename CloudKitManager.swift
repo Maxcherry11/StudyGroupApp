@@ -532,6 +532,20 @@ class CloudKitManager: ObservableObject {
         CloudKitManager.container.publicCloudDatabase.delete(withRecordID: id) { _, _ in }
     }
 
+    // MARK: - Twelve Week Year
+
+    /// Saves a `TwelveWeekMember` record to CloudKit.
+    static func saveTwelveWeekMember(_ member: TwelveWeekMember) {
+        let record = member.record
+        CloudKitManager.container.publicCloudDatabase.save(record) { _, _ in }
+    }
+
+    /// Deletes the `TwelveWeekMember` with the given name from CloudKit.
+    static func deleteTwelveWeekMember(named name: String) {
+        let id = CKRecord.ID(recordName: "twy-\(name)")
+        CloudKitManager.container.publicCloudDatabase.delete(withRecordID: id) { _, _ in }
+    }
+
     // MARK: - Card Sync
 
     /// Fetches all Win the Day cards from CloudKit.
