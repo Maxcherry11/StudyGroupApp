@@ -1,44 +1,50 @@
 import Foundation
 import CloudKit
+import Combine
 
 class TwelveWeekYearViewModel: ObservableObject {
     @Published var members: [TwelveWeekMember] = []
 
-    private let recordType = TwelveWeekMember.recordType
-    private let cacheKey = "TwelveWeekMembersCache"
+    private let container = CKContainer.default()
+    private let defaultsKey = "TwelveWeekMembers"
 
     init() {
-        loadCachedMembers()
-        fetchMembersFromCloud()
+        loadLocalMembers()
     }
 
     // MARK: - Load from UserDefaults
 
-    private func loadCachedMembers() {
-        if let data = UserDefaults.standard.data(forKey: cacheKey),
-           let decoded = try? JSONDecoder().decode([TwelveWeekMember].self, from: data) {
-            self.members = decoded
+    private func loadLocalMembers() {
+        guard let data = UserDefaults.standard.data(forKey: defaultsKey),
+              let decoded = try? JSONDecoder().decode([TwelveWeekMember].self, from: data) else {
+            return
         }
+        self.members = decoded
     }
 
-    private func cacheMembers() {
-        if let data = try? JSONEncoder().encode(members) {
-            UserDefaults.standard.set(data, forKey: cacheKey)
-        }
+    private func saveLocalMembers() {
+        guard let data = try? JSONEncoder().encode(members) else { return }
+        UserDefaults.standard.set(data, forKey: defaultsKey)
     }
 
-    // MARK: - Fetch from CloudKit
+    // MARK: - CloudKit Sync
 
     func fetchMembersFromCloud() {
-        let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
-        CKContainer.default().publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
-            DispatchQueue.main.async {
-                guard let records = records else { return }
-                let fetched = records.compactMap { TwelveWeekMember(record: $0) }
+        let predicate = NSPredicate(value: true)
+        let query = CKQuery(recordType: TwelveWeekMember.recordType, predicate: predicate)
 
-                if fetched != self.members {
+        container.publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
+            guard let records = records, error == nil else {
+                print("⚠️ Fetch failed: \(error?.localizedDescription ?? \"Unknown error\")")
+                return
+            }
+
+            let fetched = records.compactMap { TwelveWeekMember(record: $0) }
+
+            DispatchQueue.main.async {
+                if fetched.hashValue != self.members.hashValue {
                     self.members = fetched
-                    self.cacheMembers()
+                    self.saveLocalMembers()
                 }
             }
         }
@@ -48,14 +54,18 @@ class TwelveWeekYearViewModel: ObservableObject {
 
     func saveMember(_ member: TwelveWeekMember) {
         let record = member.record
-        CKContainer.default().publicCloudDatabase.save(record) { _, error in
-            DispatchQueue.main.async {
-                if let index = self.members.firstIndex(where: { $0.name == member.name }) {
-                    self.members[index] = member
-                } else {
-                    self.members.append(member)
+        container.publicCloudDatabase.save(record) { _, error in
+            if let error = error {
+                print("⚠️ Save failed: \(error.localizedDescription)")
+            } else {
+                DispatchQueue.main.async {
+                    if let index = self.members.firstIndex(where: { $0.name == member.name }) {
+                        self.members[index] = member
+                    } else {
+                        self.members.append(member)
+                    }
+                    self.saveLocalMembers()
                 }
-                self.cacheMembers()
             }
         }
     }
@@ -64,10 +74,14 @@ class TwelveWeekYearViewModel: ObservableObject {
 
     func deleteMember(named name: String) {
         let recordID = CKRecord.ID(recordName: "twy-\(name)")
-        CKContainer.default().publicCloudDatabase.delete(withRecordID: recordID) { _, _ in
-            DispatchQueue.main.async {
-                self.members.removeAll { $0.name == name }
-                self.cacheMembers()
+        container.publicCloudDatabase.delete(withRecordID: recordID) { _, error in
+            if let error = error {
+                print("⚠️ Deletion failed: \(error.localizedDescription)")
+            } else {
+                DispatchQueue.main.async {
+                    self.members.removeAll { $0.name == name }
+                    self.saveLocalMembers()
+                }
             }
         }
     }
@@ -75,17 +89,17 @@ class TwelveWeekYearViewModel: ObservableObject {
     // MARK: - Sync with UserManager
 
     func updateLocalEntries(names: [String]) {
+        var updated = members
+
         for name in names {
-            if !members.contains(where: { $0.name == name }) {
+            if !updated.contains(where: { $0.name == name }) {
                 let newMember = TwelveWeekMember(name: name, goals: [])
+                updated.append(newMember)
                 saveMember(newMember)
             }
         }
 
-        for member in members {
-            if !names.contains(member.name) {
-                deleteMember(named: member.name)
-            }
-        }
+        self.members = updated
+        self.saveLocalMembers()
     }
 }
