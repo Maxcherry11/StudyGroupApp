@@ -32,6 +32,7 @@
                F77FCF7BFD26428BB2FD30B1 /* TwelveWeekCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BCA94A880334B8CAD097401 /* TwelveWeekCardView.swift */; };
                1588615A0F6D4073A0300BB7 /* TwelveWeekYearView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADB7B8E7F7FB4F76AD4A1206 /* TwelveWeekYearView.swift */; };
                F1E2D3C4B5A6978812345679 /* TwelveWeekMember.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E2D3C4B5A6978812345678 /* TwelveWeekMember.swift */; };
+               FEDCBA987654321001234568 /* TwelveWeekYearViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEDCBA987654321001234567 /* TwelveWeekYearViewModel.swift */; };
                F00DBABE2FD3C0DE00000002 /* PreviewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00DBABE2FD3C0DE00000001 /* PreviewHelpers.swift */; };
 /* End PBXBuildFile section */
 
@@ -66,6 +67,7 @@
                 3BCA94A880334B8CAD097401 /* TwelveWeekCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwelveWeekCardView.swift; sourceTree = "<group>"; };
                ADB7B8E7F7FB4F76AD4A1206 /* TwelveWeekYearView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwelveWeekYearView.swift; sourceTree = "<group>"; };
                F1E2D3C4B5A6978812345678 /* TwelveWeekMember.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwelveWeekMember.swift; sourceTree = "<group>"; };
+               FEDCBA987654321001234567 /* TwelveWeekYearViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwelveWeekYearViewModel.swift; sourceTree = "<group>"; };
                F00DBABE2FD3C0DE00000001 /* PreviewHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewHelpers.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -112,6 +114,7 @@
                                3BCA94A880334B8CAD097401 /* TwelveWeekCardView.swift */,
                                ADB7B8E7F7FB4F76AD4A1206 /* TwelveWeekYearView.swift */,
                                F1E2D3C4B5A6978812345678 /* TwelveWeekMember.swift */,
+                               FEDCBA987654321001234567 /* TwelveWeekYearViewModel.swift */,
                                E57DBE9EC5619492E58B917E /* ContentView.swift */,
                                F00DBABE2FD3C0DE00000001 /* PreviewHelpers.swift */,
                        );
@@ -229,6 +232,7 @@
                                F77FCF7BFD26428BB2FD30B1 /* TwelveWeekCardView.swift in Sources */,
                                1588615A0F6D4073A0300BB7 /* TwelveWeekYearView.swift in Sources */,
                                F1E2D3C4B5A6978812345679 /* TwelveWeekMember.swift in Sources */,
+                               FEDCBA987654321001234568 /* TwelveWeekYearViewModel.swift in Sources */,
                                F00DBABE2FD3C0DE00000002 /* PreviewHelpers.swift in Sources */,
                        );
                        runOnlyForDeploymentPostprocessing = 0;
