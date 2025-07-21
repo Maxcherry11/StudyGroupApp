@@ -2,117 +2,126 @@ import Foundation
 import CloudKit
 
 class TwelveWeekYearViewModel: ObservableObject {
-    @Published var members: [TwelveWeekMember] = []
+    @Published var members: [TwelveWeekYearMember] = []
+    @Published var isLoading: Bool = false
+    @Published var errorMessage: String?
 
     private let container = CKContainer.default()
-    private let defaultsKey = "TwelveWeekMembers"
-    private var lastFetchHash: Int?
+    private let recordType = "TwelveWeekYearMember"
+    private let cacheKey = "TwelveWeekYearMembersCache"
 
     init() {
-        loadLocalMembers()
-        updateLocalEntries(names: UserManager.shared.userList)
+        loadMembersFromCache()
+        fetchMembersFromCloudKit()
+        syncWithUserNames()
     }
 
-    // MARK: - Local Persistence
-    private func loadLocalMembers() {
-        guard let data = UserDefaults.standard.data(forKey: defaultsKey),
-              let decoded = try? JSONDecoder().decode([TwelveWeekMember].self, from: data) else { return }
-        members = decoded
-        lastFetchHash = computeHash(for: decoded)
-    }
+    // MARK: - Fetch from CloudKit
+    func fetchMembersFromCloudKit() {
+        isLoading = true
+        errorMessage = nil
 
-    private func saveLocalMembers() {
-        guard let data = try? JSONEncoder().encode(members) else { return }
-        UserDefaults.standard.set(data, forKey: defaultsKey)
-    }
+        let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
+        let operation = CKQueryOperation(query: query)
+        var fetched: [TwelveWeekYearMember] = []
 
-    // MARK: - Hashing
-    private func computeHash(for list: [TwelveWeekMember]) -> Int {
-        var hasher = Hasher()
-        for m in list {
-            hasher.combine(m.name)
-            for g in m.goals {
-                hasher.combine(g.id)
-                hasher.combine(g.title)
-                hasher.combine(g.percent)
+        operation.recordFetchedBlock = { record in
+            if let member = TwelveWeekYearMember.from(record: record) {
+                fetched.append(member)
             }
         }
-        return hasher.finalize()
-    }
 
-    // MARK: - CloudKit Sync
-    func fetchMembersFromCloud() {
-        let names = UserManager.shared.userList
-        updateLocalEntries(names: names)
-
-        let predicate = NSPredicate(value: true)
-        let query = CKQuery(recordType: TwelveWeekMember.recordType, predicate: predicate)
-
-        container.publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
-            guard let records = records, error == nil else {
-                print("⚠️ Fetch failed: \(error?.localizedDescription ?? \"Unknown error\")")
-                return
-            }
-
-            let fetched = records.compactMap { TwelveWeekMember(record: $0) }
-            let newHash = self.computeHash(for: fetched)
-
+        operation.queryCompletionBlock = { [weak self] _, error in
             DispatchQueue.main.async {
-                if self.lastFetchHash != newHash {
-                    self.members = fetched
-                    self.lastFetchHash = newHash
-                    self.saveLocalMembers()
+                self?.isLoading = false
+                if let error = error {
+                    self?.errorMessage = error.localizedDescription
+                } else {
+                    self?.members = fetched
+                    self?.saveMembersToCache(fetched)
                 }
             }
         }
+
+        container.publicCloudDatabase.add(operation)
     }
 
-    func saveMember(_ member: TwelveWeekMember) {
-        let record = member.record
-        container.publicCloudDatabase.save(record) { _, error in
-            if let error = error {
-                print("⚠️ Save failed: \(error.localizedDescription)")
-            } else {
-                DispatchQueue.main.async {
-                    if let idx = self.members.firstIndex(where: { $0.name == member.name }) {
-                        self.members[idx] = member
+    // MARK: - Add or Update Member
+    func saveMember(_ member: TwelveWeekYearMember) {
+        let recordID = CKRecord.ID(recordName: member.id)
+        let record = CKRecord(recordType: recordType, recordID: recordID)
+        record["name"] = member.name as CKRecordValue
+
+        container.publicCloudDatabase.save(record) { [weak self] _, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    self?.errorMessage = error.localizedDescription
+                } else {
+                    if let index = self?.members.firstIndex(where: { $0.id == member.id }) {
+                        self?.members[index] = member
                     } else {
-                        self.members.append(member)
+                        self?.members.append(member)
                     }
-                    self.saveLocalMembers()
+                    self?.saveMembersToCache(self?.members ?? [])
                 }
             }
         }
     }
 
+    // MARK: - Delete Member
     func deleteMember(named name: String) {
-        let recordID = CKRecord.ID(recordName: "twy-\(name)")
-        container.publicCloudDatabase.delete(withRecordID: recordID) { _, error in
-            if let error = error {
-                print("⚠️ Deletion failed: \(error.localizedDescription)")
-            } else {
-                DispatchQueue.main.async {
-                    self.members.removeAll { $0.name == name }
-                    self.saveLocalMembers()
+        guard let member = members.first(where: { $0.name == name }) else { return }
+        let recordID = CKRecord.ID(recordName: member.id)
+
+        container.publicCloudDatabase.delete(withRecordID: recordID) { [weak self] _, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    self?.errorMessage = error.localizedDescription
+                } else {
+                    self?.members.removeAll { $0.name == name }
+                    self?.saveMembersToCache(self?.members ?? [])
                 }
             }
         }
     }
 
-    // MARK: - Sync with UserManager
-    func updateLocalEntries(names: [String]) {
-        // Remove any members not in the provided names
-        for member in members where !names.contains(member.name) {
-            deleteMember(named: member.name)
+    // MARK: - Local Cache
+    private func saveMembersToCache(_ members: [TwelveWeekYearMember]) {
+        if let data = try? JSONEncoder().encode(members) {
+            UserDefaults.standard.set(data, forKey: cacheKey)
+        }
+    }
+
+    private func loadMembersFromCache() {
+        guard let data = UserDefaults.standard.data(forKey: cacheKey),
+              let cached = try? JSONDecoder().decode([TwelveWeekYearMember].self, from: data) else { return }
+        self.members = cached
+    }
+
+    // MARK: - Splash Screen Sync
+    func syncWithUserNames() {
+        let names = UserManager.shared.userNames
+        for name in names {
+            if !members.contains(where: { $0.name == name }) {
+                let new = TwelveWeekYearMember(id: "twy-\(name)", name: name)
+                saveMember(new)
+            }
         }
 
-        // Add missing names
-        for name in names where !members.contains(where: { $0.name == name }) {
-            let newMember = TwelveWeekMember(name: name, goals: [])
-            members.append(newMember)
-            saveMember(newMember)
+        for member in members {
+            if !names.contains(member.name) {
+                deleteMember(named: member.name)
+            }
         }
+    }
+}
 
-        saveLocalMembers()
+struct TwelveWeekYearMember: Identifiable, Codable, Equatable {
+    var id: String
+    var name: String
+
+    static func from(record: CKRecord) -> TwelveWeekYearMember? {
+        guard let name = record["name"] as? String else { return nil }
+        return TwelveWeekYearMember(id: record.recordID.recordName, name: name)
     }
 }
