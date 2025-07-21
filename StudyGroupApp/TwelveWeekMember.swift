@@ -1,4 +1,5 @@
 import Foundation
+import CloudKit
 
 /// A team member's progress for the 12 Week Year feature.
 ///
@@ -19,6 +20,39 @@ struct TwelveWeekMember: Identifiable {
     var progress: Double {
         guard !goals.isEmpty else { return 0 }
         return goals.map { $0.percent }.reduce(0, +) / Double(goals.count)
+    }
+
+    /// CloudKit record type for TwelveWeekMember
+    static let recordType = "TwelveWeekMember"
+
+    init(name: String, goals: [GoalProgress]) {
+        self.name = name
+        self.goals = goals
+    }
+
+    /// Initialize from a CloudKit record.
+    init?(record: CKRecord) {
+        guard
+            let name = record["name"] as? String,
+            let goalsData = record["goals"] as? Data,
+            let decodedGoals = try? JSONDecoder().decode([GoalProgress].self, from: goalsData)
+        else {
+            return nil
+        }
+
+        self.name = name
+        self.goals = decodedGoals
+    }
+
+    /// CloudKit record representation of this model.
+    var record: CKRecord {
+        let recordID = CKRecord.ID(recordName: "twy-\(name)")
+        let record = CKRecord(recordType: Self.recordType, recordID: recordID)
+        record["name"] = name as CKRecordValue
+        if let data = try? JSONEncoder().encode(goals) {
+            record["goals"] = data as CKRecordValue
+        }
+        return record
     }
 }
 
