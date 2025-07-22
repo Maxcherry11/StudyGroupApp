@@ -18,94 +18,93 @@ struct TwelveWeekYearView: View {
         Group {
             if #available(iOS 16.0, *) {
                 ZStack {
-            GeometryReader { geometry in
-                ZStack {
-                RoundedRectangle(cornerRadius: 24)
-                    .fill(Color(red: 60/255, green: 90/255, blue: 140/255))
-                    .shadow(color: .black.opacity(0.3), radius: 12)
+                    GeometryReader { _ in
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 24)
+                                .fill(Color(red: 60/255, green: 90/255, blue: 140/255))
+                                .shadow(color: .black.opacity(0.3), radius: 12)
 
-                VStack(spacing: 75) {
-                    Text("12 Week Year")
-                        .font(.system(size: 48, weight: .bold))
-                        .foregroundColor(.white)
+                            VStack(spacing: 75) {
+                                Text("12 Week Year")
+                                    .font(.system(size: 48, weight: .bold))
+                                    .foregroundColor(.white)
 
-                    GaugeView(percentage: overallPercent)
-                        .frame(height: 140)
+                                GaugeView(percentage: overallPercent)
+                                    .frame(height: 140)
 
-                    Text("On-Time % for Team")
-                        .font(.system(size: 30, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.8))
+                                Text("On-Time % for Team")
+                                    .font(.system(size: 30, weight: .semibold))
+                                    .foregroundColor(.white.opacity(0.8))
 
-                    VStack(alignment: .leading, spacing: 18) {
-                        ForEach(sortedTeam) { member in
-                            let binding = Binding<TwelveWeekMember>(
-                                get: {
-                                    viewModel.members.first(where: { $0.id == member.id }) ?? member
-                                },
-                                set: { updated in
-                                    if let i = viewModel.members.firstIndex(where: { $0.id == updated.id }) {
-                                        viewModel.members[i] = updated
+                                VStack(alignment: .leading, spacing: 18) {
+                                    ForEach(sortedTeam) { member in
+                                        let binding = Binding<TwelveWeekMember>(
+                                            get: {
+                                                viewModel.members.first(where: { $0.id == member.id }) ?? member
+                                            },
+                                            set: { updated in
+                                                if let i = viewModel.members.firstIndex(where: { $0.id == updated.id }) {
+                                                    viewModel.members[i] = updated
+                                                }
+                                            }
+                                        )
+                                        HStack {
+                                            Text(member.name)
+                                                .font(.system(size: 26, weight: .medium))
+                                                .foregroundColor(.white)
+                                                .frame(width: 100, alignment: .leading)
+                                                .padding(.trailing, 40)
+
+                                            ZStack(alignment: .leading) {
+                                                RoundedRectangle(cornerRadius: 5)
+                                                    .fill(Color.white.opacity(0.12))
+                                                    .frame(height: 15)
+
+                                                RoundedRectangle(cornerRadius: 5)
+                                                    .fill(Color.blue)
+                                                    .frame(width: CGFloat(member.progress) * 200, height: 15)
+                                            }
+                                            .frame(width: 200, height: 10)
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .contentShape(Rectangle())
+                                        .onTapGesture {
+                                            selectedMember = member
+                                        }
                                     }
                                 }
-                            )
-                            HStack {
-                                Text(member.name)
-                                    .font(.system(size: 26, weight: .medium))
-                                    .foregroundColor(.white)
-                                    .frame(width: 100, alignment: .leading)
-                                    .padding(.trailing, 40)
-
-                                ZStack(alignment: .leading) {
-                                    RoundedRectangle(cornerRadius: 5)
-                                        .fill(Color.white.opacity(0.12))
-                                        .frame(height: 15)
-
-                                    RoundedRectangle(cornerRadius: 5)
-                                        .fill(Color.blue)
-                                        .frame(width: CGFloat(member.progress) * 200, height: 15)
-                                }
-                                .frame(width: 200, height: 10)
+                                .padding(.horizontal, 0)
                             }
-                            .frame(maxWidth: .infinity)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                selectedMember = member
-                            }
+                            .padding(16)
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .ignoresSafeArea()
                     }
-                    .padding(.horizontal, 0)
-                }
-                .padding(16)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .ignoresSafeArea()
-        }
-        }
+
                 .fullScreenCover(item: $selectedMember) { member in
                     NavigationStack {
-                    let binding = Binding<TwelveWeekMember>(
-                        get: {
-                            viewModel.members.first(where: { $0.id == member.id }) ?? member
-                        },
-                        set: { updated in
-                            if let i = viewModel.members.firstIndex(where: { $0.id == updated.id }) {
-                                viewModel.members[i] = updated
-                            }
-                        }
-                    )
-                    CardView(member: binding)
-                        .onDisappear {
-                            viewModel.saveMember(binding.wrappedValue)
-                        }
-                        .toolbar {
-                            ToolbarItem(placement: .navigationBarLeading) {
-                                Button("Back") {
-                                    selectedMember = nil
+                        let binding = Binding<TwelveWeekMember>(
+                            get: {
+                                viewModel.members.first(where: { $0.id == member.id }) ?? member
+                            },
+                            set: { updated in
+                                if let i = viewModel.members.firstIndex(where: { $0.id == updated.id }) {
+                                    viewModel.members[i] = updated
                                 }
                             }
-                        }
-                }
-            }
+                        )
+                        CardView(member: binding)
+                            .onDisappear {
+                                viewModel.saveMember(binding.wrappedValue)
+                            }
+                            .toolbar {
+                                ToolbarItem(placement: .navigationBarLeading) {
+                                    Button("Back") {
+                                        selectedMember = nil
+                                    }
+                                }
+                            }
+                    }
                 }
             } else {
                 Text("Requires iOS 16.0 or later")
