@@ -4,7 +4,8 @@ import CloudKit
 class TwelveWeekYearViewModel: ObservableObject {
     @Published var members: [TwelveWeekMember] = []
 
-    private let container = CKContainer.default()
+    /// Shared CloudKit container used across the app.
+    private let container = CloudKitManager.container
     private let defaultsKey = "TwelveWeekMembers"
     private var lastFetchHash: Int?
 
