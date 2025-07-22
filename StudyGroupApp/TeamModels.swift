@@ -1,6 +1,6 @@
 import Foundation
 
-struct GoalProgress: Identifiable, Codable, Equatable {
+struct GoalProgress: Identifiable, Codable, Equatable, Hashable {
     /// Stable identifier for each goal. Defaults to a new UUID when not provided.
     let id: UUID
     var title: String
