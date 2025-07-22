@@ -7,11 +7,40 @@ struct TwelveWeekYearView: View {
 
     var overallPercent: Double {
         guard !viewModel.members.isEmpty else { return 0 }
-        return viewModel.members.map { $0.progress * 100 }.reduce(0, +) / Double(viewModel.members.count)
+        let totals = viewModel.members.map { $0.progress * 100 }
+        let sum = totals.reduce(0, +)
+        return sum / Double(viewModel.members.count)
     }
 
     var sortedTeam: [TwelveWeekMember] {
         viewModel.members.sorted { $0.progress > $1.progress }
+    }
+
+    @ViewBuilder
+    private func memberRow(for member: TwelveWeekMember) -> some View {
+        HStack {
+            Text(member.name)
+                .font(.system(size: 26, weight: .medium))
+                .foregroundColor(.white)
+                .frame(width: 100, alignment: .leading)
+                .padding(.trailing, 40)
+
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(Color.white.opacity(0.12))
+                    .frame(height: 15)
+
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(Color.blue)
+                    .frame(width: CGFloat(member.progress) * 200, height: 15)
+            }
+            .frame(width: 200, height: 10)
+        }
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            selectedMember = member
+        }
     }
 
     var body: some View {
@@ -38,39 +67,7 @@ struct TwelveWeekYearView: View {
 
                                 VStack(alignment: .leading, spacing: 18) {
                                     ForEach(sortedTeam) { member in
-                                        let binding = Binding<TwelveWeekMember>(
-                                            get: {
-                                                viewModel.members.first(where: { $0.id == member.id }) ?? member
-                                            },
-                                            set: { updated in
-                                                if let i = viewModel.members.firstIndex(where: { $0.id == updated.id }) {
-                                                    viewModel.members[i] = updated
-                                                }
-                                            }
-                                        )
-                                        HStack {
-                                            Text(member.name)
-                                                .font(.system(size: 26, weight: .medium))
-                                                .foregroundColor(.white)
-                                                .frame(width: 100, alignment: .leading)
-                                                .padding(.trailing, 40)
-
-                                            ZStack(alignment: .leading) {
-                                                RoundedRectangle(cornerRadius: 5)
-                                                    .fill(Color.white.opacity(0.12))
-                                                    .frame(height: 15)
-
-                                                RoundedRectangle(cornerRadius: 5)
-                                                    .fill(Color.blue)
-                                                    .frame(width: CGFloat(member.progress) * 200, height: 15)
-                                            }
-                                            .frame(width: 200, height: 10)
-                                        }
-                                        .frame(maxWidth: .infinity)
-                                        .contentShape(Rectangle())
-                                        .onTapGesture {
-                                            selectedMember = member
-                                        }
+                                        memberRow(for: member)
                                     }
                                 }
                                 .padding(.horizontal, 0)
