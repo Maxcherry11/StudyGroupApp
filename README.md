@@ -9,6 +9,7 @@ StudyGroupApp is a SwiftUI-based iOS app designed to help users track daily and 
 - ✅ Real-time iCloud sync using CloudKit
 - ✅ User-specific cards with emojis, goal tracking, and status bars
 - ✅ Editable goals and dynamic Win the Day interface
+- ✅ 12 Week Year tab with per-user goal lists synced via CloudKit
 
 ## Technologies Used
 
