@@ -16,7 +16,6 @@ struct TwelveWeekYearView: View {
 
     var body: some View {
         Group {
-            if #available(iOS 16.0, *) {
                 ZStack {
                     GeometryReader { _ in
                         ZStack {
@@ -82,7 +81,7 @@ struct TwelveWeekYearView: View {
                     }
 
                 .fullScreenCover(item: $selectedMember) { member in
-                    NavigationStack {
+                    NavigationView {
                         let binding = Binding<TwelveWeekMember>(
                             get: {
                                 viewModel.members.first(where: { $0.id == member.id }) ?? member
@@ -106,13 +105,6 @@ struct TwelveWeekYearView: View {
                             }
                     }
                 }
-            } else {
-                Text("Requires iOS 16.0 or later")
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color(red: 60/255, green: 90/255, blue: 140/255))
-                    .ignoresSafeArea()
-            }
         }
         .onAppear {
             viewModel.fetchMembersFromCloud()
