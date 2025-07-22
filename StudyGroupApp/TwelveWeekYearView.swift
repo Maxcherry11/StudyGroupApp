@@ -80,7 +80,7 @@ struct TwelveWeekYearView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea()
         }
-                }
+        }
                 .fullScreenCover(item: $selectedMember) { member in
                     NavigationStack {
                     let binding = Binding<TwelveWeekMember>(
@@ -122,7 +122,6 @@ struct TwelveWeekYearView: View {
             viewModel.fetchMembersFromCloud()
         }
     }
-}
 
 struct GaugeView: View {
     let percentage: Double
