@@ -16,15 +16,7 @@ struct TwelveWeekYearView: View {
 
     var body: some View {
         Group {
-            if #available(iOS 16.0, *) {
-                buildMainView()
-            } else {
-                Text("Requires iOS 16.0 or later")
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color(red: 60/255, green: 90/255, blue: 140/255))
-                    .ignoresSafeArea()
-            }
+            buildMainView()
         }
         .onAppear {
             viewModel.fetchMembersFromCloud()
