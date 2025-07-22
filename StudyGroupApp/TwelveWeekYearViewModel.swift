@@ -63,7 +63,9 @@ class TwelveWeekYearViewModel: ObservableObject {
                     self.lastFetchHash = newHash
                     self.saveLocalMembers()
                 }
+
             }
+
         }
     }
 
@@ -91,10 +93,13 @@ class TwelveWeekYearViewModel: ObservableObject {
             if let error = error {
                 print("⚠️ Deletion failed: \(error.localizedDescription)")
             } else {
-                DispatchQueue.main.async {
-                    self.members.removeAll { $0.name == name }
-                    self.saveLocalMembers()
-                }
+            DispatchQueue.main.async {
+                self.members.removeAll { $0.name == name }
+                self.saveLocalMembers()
+            }
+        }
+    }
+}
 
     // MARK: - Sync with UserManager
     func updateLocalEntries(names: [String]) {
