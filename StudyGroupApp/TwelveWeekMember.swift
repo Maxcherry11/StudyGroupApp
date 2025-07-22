@@ -6,7 +6,7 @@ import CloudKit
 /// Stores the member name and their collection of `GoalProgress` entries.
 /// Provides a computed `progress` value representing the average percent
 /// complete for all associated goals.
-struct TwelveWeekMember: Identifiable {
+struct TwelveWeekMember: Identifiable, Codable {
     /// Stable identifier for binding and list use.
     var id = UUID()
 
