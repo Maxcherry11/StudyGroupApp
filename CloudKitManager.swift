@@ -546,6 +546,40 @@ class CloudKitManager: ObservableObject {
         CloudKitManager.container.publicCloudDatabase.delete(withRecordID: id) { _, _ in }
     }
 
+    /// Fetches all `TwelveWeekMember` records from CloudKit.
+    static func fetchTwelveWeekMembers(completion: @escaping ([TwelveWeekMember]) -> Void) {
+        print("\u{1F50D} Starting fetchTwelveWeekMembers()")
+
+        let query = CKQuery(recordType: TwelveWeekMember.recordType, predicate: NSPredicate(value: true))
+
+        CloudKitManager.container.publicCloudDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: CKQueryOperation.maximumResults) { result in
+            switch result {
+            case .success(let (matchResults, _)):
+                var members: [TwelveWeekMember] = []
+                for (recordID, recordResult) in matchResults {
+                    switch recordResult {
+                    case .success(let record):
+                        if let member = TwelveWeekMember(record: record) {
+                            members.append(member)
+                        }
+                        print("✅ fetchTwelveWeekMembers() matched record: \(recordID.recordName)")
+                    case .failure(let error):
+                        print("❌ fetchTwelveWeekMembers() record match failed: \(error.localizedDescription)")
+                    }
+                }
+                DispatchQueue.main.async {
+                    print("✅ fetchTwelveWeekMembers(): loaded \(members.count) records")
+                    completion(members)
+                }
+            case .failure(let error):
+                DispatchQueue.main.async {
+                    print("❌ fetchTwelveWeekMembers() query failed: \(error.localizedDescription)")
+                    completion([])
+                }
+            }
+        }
+    }
+
     // MARK: - Card Sync
 
     /// Fetches all Win the Day cards from CloudKit.
