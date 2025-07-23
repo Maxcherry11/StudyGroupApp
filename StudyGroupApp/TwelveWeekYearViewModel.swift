@@ -4,9 +4,8 @@ import CloudKit
 class TwelveWeekYearViewModel: ObservableObject {
     @Published var members: [TwelveWeekMember] = []
 
-    /// Shared CloudKit container used across the app.
-    private let container = CloudKitManager.container
-    private let defaultsKey = "TwelveWeekMembers"
+    /// Local storage key for cached members.
+    private let defaultsKey = "twy-cache"
     private var lastFetchHash: Int?
 
     init() {
@@ -16,8 +15,10 @@ class TwelveWeekYearViewModel: ObservableObject {
 
     // MARK: - Local Persistence
     private func loadLocalMembers() {
-        guard let data = UserDefaults.standard.data(forKey: defaultsKey),
-              let decoded = try? JSONDecoder().decode([TwelveWeekMember].self, from: data) else { return }
+        let data = UserDefaults.standard.data(forKey: defaultsKey) ??
+            UserDefaults.standard.data(forKey: "TwelveWeekMembers")
+        guard let unwrapped = data,
+              let decoded = try? JSONDecoder().decode([TwelveWeekMember].self, from: unwrapped) else { return }
         members = decoded
         lastFetchHash = computeHash(for: decoded)
     }
@@ -46,59 +47,33 @@ class TwelveWeekYearViewModel: ObservableObject {
         let names = UserManager.shared.userList
         updateLocalEntries(names: names)
 
-        let predicate = NSPredicate(value: true)
-        let query = CKQuery(recordType: TwelveWeekMember.recordType, predicate: predicate)
-
-        container.publicCloudDatabase.perform(query, inZoneWith: nil) { records, error in
-            guard let records = records, error == nil else {
-                print("⚠️ Fetch failed: \(error?.localizedDescription ?? "Unknown error")")
-                return
-            }
-
-            let fetched = records.compactMap { TwelveWeekMember(record: $0) }
+        CloudKitManager.fetchTwelveWeekMembers { [weak self] fetched in
+            guard let self = self else { return }
             let newHash = self.computeHash(for: fetched)
-
             DispatchQueue.main.async {
                 if self.lastFetchHash != newHash {
                     self.members = fetched
                     self.lastFetchHash = newHash
                     self.saveLocalMembers()
                 }
-
             }
-
         }
     }
 
     func saveMember(_ member: TwelveWeekMember) {
-        let record = member.record
-        container.publicCloudDatabase.save(record) { _, error in
-            if let error = error {
-                print("⚠️ Save failed: \(error.localizedDescription)")
-            } else {
-                DispatchQueue.main.async {
-                    if let idx = self.members.firstIndex(where: { $0.name == member.name }) {
-                        self.members[idx] = member
-                    } else {
-                        self.members.append(member)
-                    }
-                    self.saveLocalMembers()
-                }
-            }
+        CloudKitManager.saveTwelveWeekMember(member)
+        if let idx = members.firstIndex(where: { $0.name == member.name }) {
+            members[idx] = member
+        } else {
+            members.append(member)
         }
+        saveLocalMembers()
     }
 
     func deleteMember(named name: String) {
-        let recordID = CKRecord.ID(recordName: "twy-\(name)")
-        container.publicCloudDatabase.delete(withRecordID: recordID) { _, error in
-            if let error = error {
-                print("⚠️ Deletion failed: \(error.localizedDescription)")
-            } else {
-            DispatchQueue.main.async {
-                self.members.removeAll { $0.name == name }
-                self.saveLocalMembers()
-            }
-        }
+        CloudKitManager.deleteTwelveWeekMember(named: name)
+        members.removeAll { $0.name == name }
+        saveLocalMembers()
     }
 }
 
