@@ -536,12 +536,45 @@ class CloudKitManager: ObservableObject {
 
     /// Saves a `TwelveWeekMember` record to CloudKit.
     static func saveTwelveWeekMember(_ member: TwelveWeekMember) {
-        let record = member.record
-        CloudKitManager.container.publicCloudDatabase.save(record) { _, error in
-            if let error = error {
-                print("❌ Error saving TWY member \(record.recordID.recordName): \(error.localizedDescription)")
+        let predicate = NSPredicate(format: "name == %@", member.name)
+        let query = CKQuery(recordType: TwelveWeekMember.recordType, predicate: predicate)
+        let operation = CKQueryOperation(query: query)
+        operation.resultsLimit = 1
+
+        var matchedRecord: CKRecord?
+        operation.recordMatchedBlock = { _, result in
+            switch result {
+            case .success(let record):
+                matchedRecord = record
+            case .failure(let error):
+                print("❌ Failed to match TWY member: \(error.localizedDescription)")
             }
         }
+
+        operation.queryResultBlock = { result in
+            DispatchQueue.main.async {
+                if case .failure(let error) = result {
+                    print("❌ saveTwelveWeekMember() query failed: \(error.localizedDescription)")
+                }
+
+                let record = member.toRecord(existing: matchedRecord)
+                let modify = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
+                modify.modifyRecordsResultBlock = { modifyResult in
+                    DispatchQueue.main.async {
+                        switch modifyResult {
+                        case .failure(let error):
+                            print("❌ Error saving TWY member \(record.recordID.recordName): \(error.localizedDescription)")
+                        case .success:
+                            print("✅ Successfully saved TWY member: \(member.name)")
+                        }
+                    }
+                }
+
+                CloudKitManager.container.publicCloudDatabase.add(modify)
+            }
+        }
+
+        CloudKitManager.container.publicCloudDatabase.add(operation)
     }
 
     /// Deletes the `TwelveWeekMember` with the given name from CloudKit.
