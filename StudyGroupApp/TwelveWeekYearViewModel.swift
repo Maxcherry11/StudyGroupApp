@@ -87,7 +87,6 @@ class TwelveWeekYearViewModel: ObservableObject {
         for name in names where !members.contains(where: { $0.name == name }) {
             let newMember = TwelveWeekMember(name: name, goals: [])
             members.append(newMember)
-            saveMember(newMember)
         }
 
         saveLocalMembers()
