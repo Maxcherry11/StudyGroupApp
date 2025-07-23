@@ -75,7 +75,6 @@ class TwelveWeekYearViewModel: ObservableObject {
         members.removeAll { $0.name == name }
         saveLocalMembers()
     }
-}
 
     // MARK: - Sync with UserManager
     func updateLocalEntries(names: [String]) {
