@@ -537,13 +537,21 @@ class CloudKitManager: ObservableObject {
     /// Saves a `TwelveWeekMember` record to CloudKit.
     static func saveTwelveWeekMember(_ member: TwelveWeekMember) {
         let record = member.record
-        CloudKitManager.container.publicCloudDatabase.save(record) { _, _ in }
+        CloudKitManager.container.publicCloudDatabase.save(record) { _, error in
+            if let error = error {
+                print("❌ Error saving TWY member \(record.recordID.recordName): \(error.localizedDescription)")
+            }
+        }
     }
 
     /// Deletes the `TwelveWeekMember` with the given name from CloudKit.
     static func deleteTwelveWeekMember(named name: String) {
         let id = CKRecord.ID(recordName: "twy-\(name)")
-        CloudKitManager.container.publicCloudDatabase.delete(withRecordID: id) { _, _ in }
+        CloudKitManager.container.publicCloudDatabase.delete(withRecordID: id) { _, error in
+            if let error = error {
+                print("❌ Error deleting TWY member \(id.recordName): \(error.localizedDescription)")
+            }
+        }
     }
 
     /// Fetches all `TwelveWeekMember` records from CloudKit.
