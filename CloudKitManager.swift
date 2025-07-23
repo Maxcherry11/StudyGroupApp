@@ -587,11 +587,20 @@ class CloudKitManager: ObservableObject {
         }
     }
 
-    /// Fetches all `TwelveWeekMember` records from CloudKit.
-    static func fetchTwelveWeekMembers(completion: @escaping ([TwelveWeekMember]) -> Void) {
+    /// Fetches `TwelveWeekMember` records from CloudKit.
+    /// - Parameter names: Optional list of member names to filter by. Pass
+    ///   `nil` or an empty array to fetch all records.
+    static func fetchTwelveWeekMembers(matching names: [String]? = nil,
+                                       completion: @escaping ([TwelveWeekMember]) -> Void) {
         print("\u{1F50D} Starting fetchTwelveWeekMembers()")
 
-        let query = CKQuery(recordType: TwelveWeekMember.recordType, predicate: NSPredicate(value: true))
+        let predicate: NSPredicate
+        if let names = names, !names.isEmpty {
+            predicate = NSPredicate(format: "name IN %@", names)
+        } else {
+            predicate = NSPredicate(value: true)
+        }
+        let query = CKQuery(recordType: TwelveWeekMember.recordType, predicate: predicate)
 
         CloudKitManager.container.publicCloudDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: CKQueryOperation.maximumResults) { result in
             switch result {
