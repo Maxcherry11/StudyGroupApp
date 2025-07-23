@@ -47,7 +47,7 @@ class TwelveWeekYearViewModel: ObservableObject {
         let names = UserManager.shared.userList
         updateLocalEntries(names: names)
 
-        CloudKitManager.fetchTwelveWeekMembers { [weak self] fetched in
+        CloudKitManager.fetchTwelveWeekMembers(matching: names) { [weak self] fetched in
             guard let self = self else { return }
             let newHash = self.computeHash(for: fetched)
             DispatchQueue.main.async {
