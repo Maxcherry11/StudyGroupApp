@@ -45,9 +45,15 @@ struct TwelveWeekMember: Identifiable, Codable {
     }
 
     /// CloudKit record representation of this model.
-    var record: CKRecord {
-        let recordID = CKRecord.ID(recordName: "twy-\(name)")
-        let record = CKRecord(recordType: Self.recordType, recordID: recordID)
+    var record: CKRecord { toRecord() }
+
+    /// Returns a ``CKRecord`` for this instance, optionally updating an existing
+    /// record.
+    func toRecord(existing: CKRecord? = nil) -> CKRecord {
+        let record = existing ?? CKRecord(
+            recordType: Self.recordType,
+            recordID: CKRecord.ID(recordName: "twy-\(name)")
+        )
         record["name"] = name as CKRecordValue
         if let data = try? JSONEncoder().encode(goals) {
             record["goals"] = data as CKRecordValue
