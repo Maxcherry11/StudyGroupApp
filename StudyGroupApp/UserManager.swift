@@ -66,7 +66,7 @@ class UserManager: ObservableObject {
             )
             CloudKitManager.saveCard(defaultCard)
             let twy = TwelveWeekMember(name: name, goals: [])
-            CloudKitManager.saveTwelveWeekMember(twy)
+            CloudKitManager.saveTwelveWeekMember(twy) { _ in }
             self?.fetchUsersFromCloud()
         }
     }
