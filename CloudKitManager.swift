@@ -535,7 +535,8 @@ class CloudKitManager: ObservableObject {
     // MARK: - Twelve Week Year
 
     /// Saves a `TwelveWeekMember` record to CloudKit.
-    static func saveTwelveWeekMember(_ member: TwelveWeekMember) {
+    static func saveTwelveWeekMember(_ member: TwelveWeekMember,
+                                     completion: @escaping (Result<CKRecord.ID, Error>) -> Void = { _ in }) {
         let predicate = NSPredicate(format: "name == %@", member.name)
         let query = CKQuery(recordType: TwelveWeekMember.recordType, predicate: predicate)
         let operation = CKQueryOperation(query: query)
@@ -564,8 +565,10 @@ class CloudKitManager: ObservableObject {
                         switch modifyResult {
                         case .failure(let error):
                             print("❌ Error saving TWY member \(record.recordID.recordName): \(error.localizedDescription)")
+                            completion(.failure(error))
                         case .success:
                             print("✅ Successfully saved TWY member: \(member.name)")
+                            completion(.success(record.recordID))
                         }
                     }
                 }
