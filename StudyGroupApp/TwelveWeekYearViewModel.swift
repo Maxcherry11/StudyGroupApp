@@ -61,7 +61,14 @@ class TwelveWeekYearViewModel: ObservableObject {
     }
 
     func saveMember(_ member: TwelveWeekMember) {
-        CloudKitManager.saveTwelveWeekMember(member)
+        CloudKitManager.saveTwelveWeekMember(member) { result in
+            switch result {
+            case .success:
+                print("✅ TWY member saved: \(member.name)")
+            case .failure(let error):
+                print("❌ Failed to save TWY member \(member.name): \(error.localizedDescription)")
+            }
+        }
         if let idx = members.firstIndex(where: { $0.name == member.name }) {
             members[idx] = member
         } else {
