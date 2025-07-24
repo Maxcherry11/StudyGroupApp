@@ -537,6 +537,7 @@ class CloudKitManager: ObservableObject {
     /// Saves a `TwelveWeekMember` record to CloudKit.
     static func saveTwelveWeekMember(_ member: TwelveWeekMember,
                                      completion: @escaping (Result<CKRecord.ID, Error>) -> Void = { _ in }) {
+        print("\u{1F4BE} Starting saveTwelveWeekMember() for \(member.name)")
         let predicate = NSPredicate(format: "name == %@", member.name)
         let query = CKQuery(recordType: TwelveWeekMember.recordType, predicate: predicate)
         let operation = CKQueryOperation(query: query)
@@ -560,8 +561,10 @@ class CloudKitManager: ObservableObject {
 
                 let record = member.toRecord(existing: matchedRecord)
                 let modify = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
+                print("\u{1F4DD} saveTwelveWeekMember(): adding modify operation for \(record.recordID.recordName)")
                 modify.modifyRecordsResultBlock = { modifyResult in
                     DispatchQueue.main.async {
+                        print("\u{1F4E6} saveTwelveWeekMember(): modify operation completed")
                         switch modifyResult {
                         case .failure(let error):
                             print("❌ Error saving TWY member \(record.recordID.recordName): \(error.localizedDescription)")
@@ -614,6 +617,7 @@ class CloudKitManager: ObservableObject {
                     case .success(let record):
                         if let member = TwelveWeekMember(record: record) {
                             members.append(member)
+                            print("\u{1F4C4} fetchTwelveWeekMembers(): parsed member \(member.name)")
                         }
                         print("✅ fetchTwelveWeekMembers() matched record: \(recordID.recordName)")
                     case .failure(let error):
