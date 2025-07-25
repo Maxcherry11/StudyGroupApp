@@ -15,9 +15,8 @@ struct TwelveWeekYearView: View {
     }
 
     var body: some View {
-        Group {
-            buildMainView()
-        }
+        buildMainView()
+            .edgesIgnoringSafeArea(.all)
         .onAppear {
             viewModel.fetchMembersFromCloud()
         }
@@ -28,68 +27,64 @@ struct TwelveWeekYearView: View {
 
     @ViewBuilder
     private func buildMainView() -> some View {
-        ZStack {
-            GeometryReader { _ in
-                ZStack {
-                    RoundedRectangle(cornerRadius: 24)
-                        .fill(Color(red: 60/255, green: 90/255, blue: 140/255))
-                        .shadow(color: .black.opacity(0.3), radius: 12)
+        ZStack(alignment: .top) {
+            Color(red: 60/255, green: 90/255, blue: 140/255)
+                .ignoresSafeArea()
 
-                    VStack(spacing: 75) {
-                        Text("12 Week Year")
-                            .font(.system(size: 48, weight: .bold))
-                            .foregroundColor(.white)
+            ScrollView {
+                VStack(spacing: 75) {
+                    Text("12 Week Year")
+                        .font(.system(size: 48, weight: .bold))
+                        .foregroundColor(.white)
 
-                        GaugeView(percentage: overallPercent)
-                            .frame(height: 140)
+                    GaugeView(percentage: overallPercent)
+                        .frame(height: 140)
 
-                        Text("On-Time % for Team")
-                            .font(.system(size: 30, weight: .semibold))
-                            .foregroundColor(.white.opacity(0.8))
+                    Text("On-Time % for Team")
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.8))
 
-                        VStack(alignment: .leading, spacing: 18) {
-                            ForEach(sortedTeam) { member in
-                                let binding = Binding<TwelveWeekMember>(
-                                    get: {
-                                        viewModel.members.first(where: { $0.id == member.id }) ?? member
-                                    },
-                                    set: { updated in
-                                        if let i = viewModel.members.firstIndex(where: { $0.id == updated.id }) {
-                                            viewModel.members[i] = updated
-                                        }
+                    VStack(alignment: .leading, spacing: 18) {
+                        ForEach(sortedTeam) { member in
+                            let binding = Binding<TwelveWeekMember>(
+                                get: {
+                                    viewModel.members.first(where: { $0.id == member.id }) ?? member
+                                },
+                                set: { updated in
+                                    if let i = viewModel.members.firstIndex(where: { $0.id == updated.id }) {
+                                        viewModel.members[i] = updated
                                     }
-                                )
-                                HStack {
-                                    Text(member.name)
-                                        .font(.system(size: 26, weight: .medium))
-                                        .foregroundColor(.white)
-                                        .frame(width: 100, alignment: .leading)
-                                        .padding(.trailing, 40)
-
-                                    ZStack(alignment: .leading) {
-                                        RoundedRectangle(cornerRadius: 5)
-                                            .fill(Color.white.opacity(0.12))
-                                            .frame(height: 15)
-
-                                        RoundedRectangle(cornerRadius: 5)
-                                            .fill(Color.blue)
-                                            .frame(width: CGFloat(member.progress) * 200, height: 15)
-                                    }
-                                    .frame(width: 200, height: 10)
                                 }
-                                .frame(maxWidth: .infinity)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    selectedMember = member
+                            )
+                            HStack {
+                                Text(member.name)
+                                    .font(.system(size: 26, weight: .medium))
+                                    .foregroundColor(.white)
+                                    .frame(width: 100, alignment: .leading)
+                                    .padding(.trailing, 40)
+
+                                ZStack(alignment: .leading) {
+                                    RoundedRectangle(cornerRadius: 5)
+                                        .fill(Color.white.opacity(0.12))
+                                        .frame(height: 15)
+
+                                    RoundedRectangle(cornerRadius: 5)
+                                        .fill(Color.blue)
+                                        .frame(width: CGFloat(member.progress) * 200, height: 15)
                                 }
+                                .frame(width: 200, height: 10)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selectedMember = member
                             }
                         }
-                        .padding(.horizontal, 0)
                     }
-                    .padding(16)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .ignoresSafeArea()
+                .padding(.top, 120)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
             }
         }
         .fullScreenCover(item: $selectedMember) { member in
