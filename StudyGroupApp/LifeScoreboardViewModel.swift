@@ -383,7 +383,7 @@ class LifeScoreboardViewModel: ObservableObject {
         let operation = CKQueryOperation(query: query)
         operation.recordMatchedBlock = { recordID, result in
             switch result {
-            case .success(let record):
+            case .success(_):
                 print("Matched record ID: \(recordID)")
                 // Handle each record if needed
             case .failure(let error):
