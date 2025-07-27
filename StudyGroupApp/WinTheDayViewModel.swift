@@ -85,27 +85,6 @@ class WinTheDayViewModel: ObservableObject {
 
     // MARK: - Card Sync Helpers
 
-
-    private func loadLocalCards() {
-        if let data = UserDefaults.standard.data(forKey: cardsStorageKey),
-           let cached = try? JSONDecoder().decode([Card].self, from: data) {
-            DispatchQueue.main.async {
-                self.cards = cached.sorted(by: { $0.orderIndex < $1.orderIndex })
-                self.displayedCards = self.cards
-                print("📦 Loaded cards from local cache.")
-            }
-        } else {
-            print("⚠️ No cached cards found.")
-        }
-    }
-
-    private func saveCardsToLocal() {
-        if let data = try? JSONEncoder().encode(cards) {
-            UserDefaults.standard.set(data, forKey: cardsStorageKey)
-            print("✅ Cards saved to local cache.")
-        }
-    }
-
     /// Convenience wrapper mirroring LifeScoreboardViewModel.fetchTeamMembersFromCloud
     /// for fetching the latest production values.
     func fetchScores() {
