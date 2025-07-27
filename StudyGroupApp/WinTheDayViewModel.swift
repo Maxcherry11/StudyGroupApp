@@ -16,7 +16,6 @@ class WinTheDayViewModel: ObservableObject {
         self.teamData = stored
         self.cards = loadCardsFromDevice()
         self.displayedCards = self.cards
-        fetchCardsFromCloud()
         let names = Self.loadLocalGoalNames()
         self.goalNames = names
         self.lastGoalHash = Self.computeGoalHash(for: names)
