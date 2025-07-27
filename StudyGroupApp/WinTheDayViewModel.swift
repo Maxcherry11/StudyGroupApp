@@ -171,6 +171,11 @@ class WinTheDayViewModel: ObservableObject {
                     self.saveLocal()
                 }
 
+                // Ensure local entries mirror the latest user list so any
+                // missing members exist before merging card data.
+                let allNames = UserManager.shared.userList
+                self.updateLocalEntries(names: allNames)
+
                 CloudKitManager.fetchCards { cards in
                     DispatchQueue.main.async {
                         var merged = self.cards
