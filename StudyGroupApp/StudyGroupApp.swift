@@ -20,6 +20,7 @@ struct StudyGroupApp: App {
             }
             .animation(.easeInOut(duration: 0.4), value: isShowingLaunchScreen)
             .onAppear {
+                CloudKitManager.shared.migrateTeamMemberFieldsIfNeeded()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                     withAnimation {
                         isShowingLaunchScreen = false
