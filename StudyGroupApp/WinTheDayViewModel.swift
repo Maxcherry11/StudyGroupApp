@@ -158,45 +158,49 @@ class WinTheDayViewModel: ObservableObject {
     /// Loads all `TeamMember` and `Card` records from CloudKit, updating the
     /// local caches when changes are detected.
     func fetchMembersFromCloud(completion: (() -> Void)? = nil) {
-        CloudKitManager.shared.fetchTeam { [weak self] fetched in
-            guard let self = self else { return }
-            let newHash = self.computeHash(for: fetched)
+        DispatchQueue.main.async {
+            CloudKitManager.shared.migrateTeamMemberFieldsIfNeeded()
 
-            DispatchQueue.main.async {
-                if self.lastFetchHash != newHash {
-                    self.teamMembers = fetched
-                    self.displayedMembers = fetched
-                    self.teamData = fetched
-                    self.reorderAfterSave() // Reorder based on performance after fetching from CloudKit
-                    self.lastFetchHash = newHash
-                    self.saveLocal()
-                }
+            CloudKitManager.shared.fetchTeam { [weak self] fetched in
+                guard let self = self else { return }
+                let newHash = self.computeHash(for: fetched)
 
-                // Ensure local entries mirror the latest user list so any
-                // missing members exist before merging card data.
-                let allNames = UserManager.shared.userList
-                self.updateLocalEntries(names: allNames)
+                DispatchQueue.main.async {
+                    if self.lastFetchHash != newHash {
+                        self.teamMembers = fetched
+                        self.displayedMembers = fetched
+                        self.teamData = fetched
+                        self.reorderAfterSave() // Reorder based on performance after fetching from CloudKit
+                        self.lastFetchHash = newHash
+                        self.saveLocal()
+                    }
 
-                CloudKitManager.fetchCards { cards in
-                    DispatchQueue.main.async {
-                        var merged = self.cards
-                        for card in cards {
-                            if let idx = merged.firstIndex(where: { $0.id == card.id }) {
-                                merged[idx] = card
-                            } else {
-                                merged.append(card)
+                    // Ensure local entries mirror the latest user list so any
+                    // missing members exist before merging card data.
+                    let allNames = UserManager.shared.userList
+                    self.updateLocalEntries(names: allNames)
+
+                    CloudKitManager.fetchCards { cards in
+                        DispatchQueue.main.async {
+                            var merged = self.cards
+                            for card in cards {
+                                if let idx = merged.firstIndex(where: { $0.id == card.id }) {
+                                    merged[idx] = card
+                                } else {
+                                    merged.append(card)
+                                }
                             }
+                            self.cards = merged.sorted { $0.orderIndex < $1.orderIndex }
+                            self.displayedCards = self.cards
+                            self.saveCardsToDevice()
+
+                            let names = self.teamMembers.map { $0.name }
+                            self.ensureCardsForAllUsers(names)
+
+                            self.lastGoalHash = Self.computeGoalHash(for: self.goalNames)
+                            self.isLoaded = true
+                            completion?()
                         }
-                        self.cards = merged.sorted { $0.orderIndex < $1.orderIndex }
-                        self.displayedCards = self.cards
-                        self.saveCardsToDevice()
-
-                        let names = self.teamMembers.map { $0.name }
-                        self.ensureCardsForAllUsers(names)
-
-                        self.lastGoalHash = Self.computeGoalHash(for: self.goalNames)
-                        self.isLoaded = true
-                        completion?()
                     }
                 }
             }
