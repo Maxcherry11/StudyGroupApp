@@ -310,20 +310,21 @@ class LifeScoreboardViewModel: ObservableObject {
                     }
                 }
             } else {
-                let member = TeamMember(name: entry.name)
-                member.actual = entry.score
-                member.pending = pending
-                member.projected = projected
+                let newRecord = CKRecord(recordType: "TeamMember", recordID: recordID)
+                newRecord["name"] = entry.name as CKRecordValue
+                newRecord["actual"] = entry.score as CKRecordValue
+                newRecord["pending"] = pending as CKRecordValue
+                newRecord["projected"] = projected as CKRecordValue
+                newRecord["quotesGoal"] = 0 as CKRecordValue
+                newRecord["salesWTDGoal"] = 0 as CKRecordValue
+                newRecord["salesMTDGoal"] = 0 as CKRecordValue
+                newRecord["emoji"] = "🌱" as CKRecordValue
 
-                CloudKitManager.shared.save(member) { id in
-                    DispatchQueue.main.async {
-                        if let _ = id {
-                            self.teamMembers.append(member)
-                            self.saveLocalMembers()
-                            print("✅ Created new TeamMember: \(member.name)")
-                        } else {
-                            print("❌ Failed to save new TeamMember for \(entry.name)")
-                        }
+                container.publicCloudDatabase.save(newRecord) { _, error in
+                    if let error = error {
+                        print("❌ Failed to create new TeamMember: \(error)")
+                    } else {
+                        print("✅ Created new TeamMember record for \(entry.name)")
                     }
                 }
             }
