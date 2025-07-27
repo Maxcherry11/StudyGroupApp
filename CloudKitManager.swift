@@ -12,6 +12,10 @@ class CloudKitManager: ObservableObject {
     private let goalNameRecordType = "GoalNames"
     private static let userRecordType = "TeamMember"
 
+    // MARK: - Migration
+    private static let migrationKey = "TeamMemberFieldMigrationVersion"
+    private static let migrationVersion = 1
+
     /// Cached members fetched from CloudKit. Updates to this array reflect
     /// immediately in any views observing the manager.
     @Published var teamMembers: [TeamMember] = []
@@ -27,6 +31,63 @@ class CloudKitManager: ObservableObject {
 
     private func isValid(_ member: TeamMember) -> Bool {
         !member.name.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    /// Migration: ensures all TeamMember records contain `actual`, `pending`,
+    /// and `projected` fields. Missing values are set to `0`.
+    func migrateTeamMemberFieldsIfNeeded() {
+        let defaults = UserDefaults.standard
+        let stored = defaults.integer(forKey: Self.migrationKey)
+        guard stored < Self.migrationVersion else { return }
+
+        let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
+        var updated: [CKRecord] = []
+        let operation = CKQueryOperation(query: query)
+        operation.recordFetchedBlock = { record in
+            var needsUpdate = false
+            if record["actual"] == nil {
+                record["actual"] = 0 as CKRecordValue
+                needsUpdate = true
+            }
+            if record["pending"] == nil {
+                record["pending"] = 0 as CKRecordValue
+                needsUpdate = true
+            }
+            if record["projected"] == nil {
+                record["projected"] = 0.0 as CKRecordValue
+                needsUpdate = true
+            }
+            if needsUpdate { updated.append(record) }
+        }
+        operation.queryResultBlock = { result in
+            DispatchQueue.main.async {
+                guard case .success = result else {
+                    if case .failure(let error) = result {
+                        print("❌ Migration query failed: \(error.localizedDescription)")
+                    }
+                    return
+                }
+                guard !updated.isEmpty else {
+                    defaults.set(Self.migrationVersion, forKey: Self.migrationKey)
+                    print("🛠️ Migration complete: no records needed updates")
+                    return
+                }
+                let modify = CKModifyRecordsOperation(recordsToSave: updated, recordIDsToDelete: nil)
+                modify.modifyRecordsResultBlock = { modifyResult in
+                    DispatchQueue.main.async {
+                        switch modifyResult {
+                        case .success:
+                            print("✅ Migration updated \(updated.count) TeamMember records")
+                            defaults.set(Self.migrationVersion, forKey: Self.migrationKey)
+                        case .failure(let error):
+                            print("❌ Migration modify failed: \(error.localizedDescription)")
+                        }
+                    }
+                }
+                self.database.add(modify)
+            }
+        }
+        database.add(operation)
     }
 
     func fetchTeam(completion: @escaping ([TeamMember]) -> Void) {
