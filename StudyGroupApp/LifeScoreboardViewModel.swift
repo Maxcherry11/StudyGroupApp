@@ -302,7 +302,7 @@ class LifeScoreboardViewModel: ObservableObject {
                 record["pending"] = pending as CKRecordValue
                 record["projected"] = projected as CKRecordValue
 
-                container.publicCloudDatabase.save(record) { savedRecord, error in
+                container.publicCloudDatabase.save(record) { _, error in
                     if let error = error {
                         print("❌ Error saving updated score record: \(error)")
                     } else {
@@ -310,7 +310,22 @@ class LifeScoreboardViewModel: ObservableObject {
                     }
                 }
             } else {
-                print("❌ Failed to find existing record for score: \(entry.name)")
+                let member = TeamMember(name: entry.name)
+                member.actual = entry.score
+                member.pending = pending
+                member.projected = projected
+
+                CloudKitManager.shared.save(member) { id in
+                    DispatchQueue.main.async {
+                        if let _ = id {
+                            self.teamMembers.append(member)
+                            self.saveLocalMembers()
+                            print("✅ Created new TeamMember: \(member.name)")
+                        } else {
+                            print("❌ Failed to save new TeamMember for \(entry.name)")
+                        }
+                    }
+                }
             }
         }
     }
