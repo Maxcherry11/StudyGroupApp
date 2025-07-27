@@ -190,15 +190,32 @@ class LifeScoreboardViewModel: ObservableObject {
         updateLocalEntries(names: names)
         CloudKitManager.shared.fetchScores(for: names) { [weak self] records in
             guard let self = self else { return }
+            guard !records.isEmpty else { return }
 
             var fetched: [StoredScore] = []
             for (idx, name) in names.enumerated() {
-                let values = records[name]
-                let score = values?.score ?? self.entry(for: name)?.score ?? 0
-                let pending = values?.pending ?? self.row(for: name)?.pending ?? 0
-                let projected = values?.projected ?? self.row(for: name)?.projected ?? 0
-                let sort = self.scores.first(where: { $0.name == name })?.sortIndex ?? idx
-                fetched.append(StoredScore(name: name, score: score, pending: pending, projected: projected, sortIndex: sort))
+                if let values = records[name] {
+                    let sort = self.scores.first(where: { $0.name == name })?.sortIndex ?? idx
+                    fetched.append(StoredScore(name: name,
+                                              score: values.score,
+                                              pending: values.pending,
+                                              projected: values.projected,
+                                              sortIndex: sort))
+                } else if let entry = self.entry(for: name),
+                          let row = self.row(for: name) {
+                    fetched.append(StoredScore(name: name,
+                                              score: entry.score,
+                                              pending: row.pending,
+                                              projected: row.projected,
+                                              sortIndex: entry.sortIndex))
+                } else {
+                    let sort = self.scores.first(where: { $0.name == name })?.sortIndex ?? idx
+                    fetched.append(StoredScore(name: name,
+                                              score: 0,
+                                              pending: 0,
+                                              projected: 0,
+                                              sortIndex: sort))
+                }
             }
 
             DispatchQueue.main.async {
