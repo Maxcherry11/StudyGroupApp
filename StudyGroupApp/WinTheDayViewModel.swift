@@ -143,27 +143,46 @@ class WinTheDayViewModel: ObservableObject {
         }
     }
 
-    /// Loads team members using the names from ``UserManager`` and updates the
-    /// local cache. This mirrors the local-loading behavior of
-    /// ``LifeScoreboardViewModel`` so the view does not depend on CloudKit.
+    /// Loads all `TeamMember` and `Card` records from CloudKit, updating the
+    /// local caches when changes are detected.
     func fetchMembersFromCloud(completion: (() -> Void)? = nil) {
-        let names = UserManager.shared.userList
-        updateLocalEntries(names: names)
-        initializeResetDatesIfNeeded()
-        performResetsIfNeeded()
-        reorderCards()
-        teamData = teamMembers
-        isLoaded = true
-        saveLocal()
+        CloudKitManager.shared.fetchTeam { [weak self] fetched in
+            guard let self = self else { return }
+            let newHash = self.computeHash(for: fetched)
 
-        print("🔄 Sorted teamData by actual progress:")
-        for member in teamData {
-            let total = member.quotesToday + member.salesWTD + member.salesMTD
-            print("➡️ \(member.name): \(total)")
+            DispatchQueue.main.async {
+                if self.lastFetchHash != newHash {
+                    self.teamMembers = fetched
+                    self.displayedMembers = fetched
+                    self.teamData = fetched
+                    self.lastFetchHash = newHash
+                    self.saveLocal()
+                }
+
+                CloudKitManager.fetchCards { cards in
+                    DispatchQueue.main.async {
+                        var merged = self.cards
+                        for card in cards {
+                            if let idx = merged.firstIndex(where: { $0.id == card.id }) {
+                                merged[idx] = card
+                            } else {
+                                merged.append(card)
+                            }
+                        }
+                        self.cards = merged.sorted { $0.orderIndex < $1.orderIndex }
+                        self.displayedCards = self.cards
+                        self.saveCardsToDevice()
+
+                        let names = self.teamMembers.map { $0.name }
+                        self.ensureCardsForAllUsers(names)
+
+                        self.lastGoalHash = Self.computeGoalHash(for: self.goalNames)
+                        self.isLoaded = true
+                        completion?()
+                    }
+                }
+            }
         }
-
-        ensureCardsForAllUsers(names)
-        completion?()
     }
 
     func saveEdits(for card: Card) {
