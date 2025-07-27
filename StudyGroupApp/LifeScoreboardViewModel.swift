@@ -394,32 +394,33 @@ class LifeScoreboardViewModel: ObservableObject {
     /// the local scoreboard state. The resulting order is based on the
     /// members' saved scores so rows remain stable between view loads.
     func fetchTeamMembersFromCloud() {
-        // Ensure Life Scoreboard fields exist before loading data
-        syncScoreboardFields()
+        DispatchQueue.main.async {
+            CloudKitManager.shared.migrateTeamMemberFieldsIfNeeded()
 
-        CloudKitManager.shared.fetchAllTeamMembers { [weak self] fetched in
-            guard let self = self else { return }
-            let newHash = self.computeMemberHash(for: fetched)
-
-            DispatchQueue.main.async {
-                // Always update the local member list so removed names disappear
-                self.teamMembers = fetched
-            }
-
-            if self.lastMemberHash != newHash {
-                let entries = self.buildScoreEntries(from: fetched)
-                let rows = self.buildActivityRows(from: entries)
+            CloudKitManager.shared.fetchAllTeamMembers { [weak self] fetched in
+                guard let self = self else { return }
+                let newHash = self.computeMemberHash(for: fetched)
 
                 DispatchQueue.main.async {
-                    self.scores = entries
-                    self.activity = rows
-                    self.lastMemberHash = newHash
-                    self.saveLocalMembers()
-                    self.load(for: fetched.map { $0.name })
+                    // Always update the local member list so removed names disappear
+                    self.teamMembers = fetched
                 }
-            } else {
-                DispatchQueue.main.async {
-                    self.load(for: fetched.map { $0.name })
+
+                if self.lastMemberHash != newHash {
+                    let entries = self.buildScoreEntries(from: fetched)
+                    let rows = self.buildActivityRows(from: entries)
+
+                    DispatchQueue.main.async {
+                        self.scores = entries
+                        self.activity = rows
+                        self.lastMemberHash = newHash
+                        self.saveLocalMembers()
+                        self.load(for: fetched.map { $0.name })
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        self.load(for: fetched.map { $0.name })
+                    }
                 }
             }
         }
