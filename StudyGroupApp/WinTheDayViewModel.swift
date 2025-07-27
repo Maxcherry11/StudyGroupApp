@@ -16,6 +16,7 @@ class WinTheDayViewModel: ObservableObject {
         self.teamData = stored
         self.cards = loadCardsFromDevice()
         self.displayedCards = self.cards
+        fetchCardsFromCloud()
         let names = Self.loadLocalGoalNames()
         self.goalNames = names
         self.lastGoalHash = Self.computeGoalHash(for: names)
@@ -139,6 +140,18 @@ class WinTheDayViewModel: ObservableObject {
             guard let self = self else { return }
             DispatchQueue.main.async {
                 self.selectedUserName = members.first?.name ?? name
+            }
+        }
+    }
+
+    /// Loads all `Card` records from CloudKit and updates the local arrays.
+    func fetchCardsFromCloud() {
+        CloudKitManager.fetchCards { [weak self] records in
+            guard let self = self else { return }
+            DispatchQueue.main.async {
+                self.cards = records.sorted { $0.orderIndex < $1.orderIndex }
+                self.displayedCards = self.cards
+                self.saveCardsToDevice()
             }
         }
     }
