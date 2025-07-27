@@ -462,14 +462,14 @@ private func handleSaveAndReorder() {
 
         let colors: [Color]
         switch percent {
-        case 0:
-            colors = [Color.gray.opacity(0.3), Color.gray]
-        case 0..<0.25:
+        case 0..<0.26:
             colors = [Color.red.opacity(0.3), Color.red]
-        case 0.25..<0.75:
+        case 0.26..<0.51:
+            colors = [Color.orange.opacity(0.3), Color.orange]
+        case 0.51..<0.8:
             colors = [Color.yellow.opacity(0.3), Color.yellow]
         default:
-            colors = [Color.green.opacity(0), Color.green]
+            colors = [Color.green.opacity(0.0), Color.green]
         }
 
         return LinearGradient(

@@ -17,6 +17,9 @@ struct TwelveWeekYearView: View {
     var body: some View {
         buildMainView()
             .edgesIgnoringSafeArea(.all)
+            .refreshable {
+                viewModel.fetchMembersFromCloud()
+            }
         .onChange(of: userManager.userList) { _ in
             viewModel.fetchMembersFromCloud()
         }
@@ -83,9 +86,6 @@ struct TwelveWeekYearView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
                 .scaleEffect(UIDevice.current.userInterfaceIdiom == .pad ? 0.75 : 1.0)
-            }
-            .refreshable {
-                viewModel.fetchMembersFromCloud()
             }
         }
         .fullScreenCover(item: $selectedMember) { member in

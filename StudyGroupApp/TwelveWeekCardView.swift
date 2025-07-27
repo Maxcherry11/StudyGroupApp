@@ -189,7 +189,9 @@ private func goalColor(for progress: Double) -> Color {
     switch progress {
     case 0..<target * 0.5:
         return .red
-    case target * 0.5..<target * 0.9:
+    case target * 0.5..<target * 0.75:
+        return .orange
+    case target * 0.75..<target:
         return .yellow
     default:
         return .green
