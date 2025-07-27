@@ -167,6 +167,7 @@ class WinTheDayViewModel: ObservableObject {
                     self.teamMembers = fetched
                     self.displayedMembers = fetched
                     self.teamData = fetched
+                    self.reorderAfterSave() // Reorder based on performance after fetching from CloudKit
                     self.lastFetchHash = newHash
                     self.saveLocal()
                 }
