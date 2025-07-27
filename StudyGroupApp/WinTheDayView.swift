@@ -87,7 +87,9 @@ struct WinTheDayView: View {
                 shimmerPosition = 1.5
             }
         }
-    .onChange(of: userManager.currentUser) { _ in }
+    .onChange(of: userManager.currentUser) { _ in
+        viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
+    }
     .onChange(of: userManager.userList) { _ in
         if viewModel.isLoaded {
             viewModel.fetchMembersFromCloud()
