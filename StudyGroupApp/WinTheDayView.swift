@@ -82,6 +82,7 @@ struct WinTheDayView: View {
             viewModel.fetchMembersFromCloud()
             viewModel.fetchGoalNamesFromCloud()
             viewModel.ensureCardsForAllUsers(userManager.userList)
+            viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
             shimmerPosition = -1.0
             withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
                 shimmerPosition = 1.5
@@ -416,6 +417,7 @@ private func handleSaveAndReorder() {
     withAnimation {
         viewModel.reorderAfterSave()
     }
+    viewModel.saveCardOrderToCloud(for: userManager.currentUser)
 }
 
 
