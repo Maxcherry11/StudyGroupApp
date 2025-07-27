@@ -82,9 +82,10 @@ struct TwelveWeekYearView: View {
                         }
                     }
                 }
-                .padding(.top, 120)
+                .padding(.top, UIDevice.current.userInterfaceIdiom == .pad ? 170 : 120)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
+                .scaleEffect(UIDevice.current.userInterfaceIdiom == .pad ? 0.75 : 1.0)
             }
         }
         .fullScreenCover(item: $selectedMember) { member in
