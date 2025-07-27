@@ -50,7 +50,6 @@ struct WinTheDayView: View {
     @StateObject var viewModel: WinTheDayViewModel
     @EnvironmentObject var userManager: UserManager
     @ObservedObject private var cloud = CloudKitManager.shared
-    @State private var selectedMember: TeamMember?
     @State private var shimmerPosition: CGFloat = 0
     @State private var editingMemberID: UUID?
     @State private var editingField: String = ""
