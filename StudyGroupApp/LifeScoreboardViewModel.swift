@@ -352,7 +352,30 @@ class LifeScoreboardViewModel: ObservableObject {
                         switch recordResult {
                         case .success(let record):
                             print("📥 Record loaded: \(record)")
-                            // TODO: Parse and assign to your model here
+
+                            var needsSave = false
+                            if record["actual"] == nil {
+                                record["actual"] = 0 as CKRecordValue
+                                needsSave = true
+                            }
+                            if record["pending"] == nil {
+                                record["pending"] = 0 as CKRecordValue
+                                needsSave = true
+                            }
+                            if record["projected"] == nil {
+                                record["projected"] = 0.0 as CKRecordValue
+                                needsSave = true
+                            }
+
+                            if needsSave {
+                                CloudKitManager.container.publicCloudDatabase.save(record) { _, error in
+                                    if let error = error {
+                                        print("❌ Failed to update \(recordID.recordName): \(error.localizedDescription)")
+                                    } else {
+                                        print("✅ Updated scoreboard fields for \(recordID.recordName)")
+                                    }
+                                }
+                            }
                         case .failure(let error):
                             print("⚠️ Record fetch failed for \(recordID): \(error.localizedDescription)")
                         }
