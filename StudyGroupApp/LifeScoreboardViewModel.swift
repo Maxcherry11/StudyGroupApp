@@ -396,6 +396,9 @@ class LifeScoreboardViewModel: ObservableObject {
     func fetchTeamMembersFromCloud() {
         DispatchQueue.main.async {
             CloudKitManager.shared.migrateTeamMemberFieldsIfNeeded()
+            // Ensure all records contain scoreboard fields before fetching
+            // members so older entries gain the new fields.
+            self.syncScoreboardFields()
 
             CloudKitManager.shared.fetchAllTeamMembers { [weak self] fetched in
                 guard let self = self else { return }
