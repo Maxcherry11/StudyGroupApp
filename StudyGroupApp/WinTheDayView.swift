@@ -79,7 +79,6 @@ struct WinTheDayView: View {
             }
         }
         .onAppear {
-            viewModel.fetchMembersFromCloud()
             viewModel.fetchGoalNamesFromCloud()
             viewModel.ensureCardsForAllUsers(userManager.userList)
             viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
