@@ -563,7 +563,11 @@ extension LifeScoreboardViewModel {
     private var daysInYear: Int {
         let year = Calendar.current.component(.year, from: Date())
         let components = DateComponents(calendar: .current, year: year)
-        return Calendar.current.range(of: .day, in: .year, for: components.date!)?.count ?? 365
+        if let date = components.date,
+           let range = Calendar.current.range(of: .day, in: .year, for: date) {
+            return range.count
+        }
+        return 365
     }
 
     /// The current day of the year (1–365/366)
