@@ -433,9 +433,10 @@ class LifeScoreboardViewModel: ObservableObject {
     /// under their name-based record ID. This guarantees consistent sync across
     /// devices and removes duplicates.
     func syncTeamMembersToCloudKit() {
-        // Use the same container as WinTheDay
         let container = CloudKitManager.container
         let database = container.publicCloudDatabase
+
+        var fetched: [CKRecord] = []
 
         let predicate = NSPredicate(value: true)
         let query = CKQuery(recordType: "TeamMember", predicate: predicate)
@@ -443,9 +444,8 @@ class LifeScoreboardViewModel: ObservableObject {
         let operation = CKQueryOperation(query: query)
         operation.recordMatchedBlock = { recordID, result in
             switch result {
-            case .success(_):
-                print("Matched record ID: \(recordID)")
-                // Handle each record if needed
+            case .success(let record):
+                fetched.append(record)
             case .failure(let error):
                 print("Error for record \(recordID): \(error.localizedDescription)")
             }
@@ -455,8 +455,7 @@ class LifeScoreboardViewModel: ObservableObject {
             DispatchQueue.main.async {
                 switch cursorResult {
                 case .success:
-                    print("✅ syncTeamMembersToCloudKit() fetch complete")
-                    // Optionally trigger next sync step
+                    self?.reconcileTeamMembers(records: fetched, in: database)
                 case .failure(let error):
                     print("❌ syncTeamMembersToCloudKit() failed with error: \(error.localizedDescription)")
                 }
@@ -464,6 +463,51 @@ class LifeScoreboardViewModel: ObservableObject {
         }
 
         database.add(operation)
+    }
+
+    private func reconcileTeamMembers(records: [CKRecord], in database: CKDatabase) {
+        var recordsToSave: [CKRecord] = []
+        var recordsToDelete: [CKRecord.ID] = []
+
+        var seenNames: Set<String> = []
+
+        for record in records {
+            guard let name = record["name"] as? String, !name.trimmingCharacters(in: .whitespaces).isEmpty else {
+                recordsToDelete.append(record.recordID)
+                continue
+            }
+
+            let canonicalID = CKRecord.ID(recordName: "member-\(name)")
+
+            if seenNames.contains(name) {
+                recordsToDelete.append(record.recordID)
+                continue
+            }
+            seenNames.insert(name)
+
+            if record.recordID != canonicalID {
+                if let member = TeamMember(record: record) {
+                    let newRecord = member.toRecord()
+                    recordsToSave.append(newRecord)
+                }
+                recordsToDelete.append(record.recordID)
+            }
+        }
+
+        guard !recordsToSave.isEmpty || !recordsToDelete.isEmpty else { return }
+
+        let modify = CKModifyRecordsOperation(recordsToSave: recordsToSave, recordIDsToDelete: recordsToDelete)
+        modify.modifyRecordsResultBlock = { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    print("✅ syncTeamMembersToCloudKit() reconciled \(recordsToSave.count) records, deleted \(recordsToDelete.count) duplicates")
+                case .failure(let error):
+                    print("❌ syncTeamMembersToCloudKit() modify failed: \(error.localizedDescription)")
+                }
+            }
+        }
+        database.add(modify)
     }
 
     /// Creates score entries from the provided team members using any
