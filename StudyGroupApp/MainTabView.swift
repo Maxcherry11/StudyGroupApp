@@ -13,6 +13,9 @@ struct MainTabView: View {
     /// Shared WinTheDayViewModel passed from the splash screen so card state
     /// persists when entering the main tabs.
     @EnvironmentObject var viewModel: WinTheDayViewModel
+    @StateObject private var scoreboardVM = LifeScoreboardViewModel()
+    @StateObject private var twyVM = TwelveWeekYearViewModel()
+    @Environment(\.scenePhase) private var scenePhase
     init() {
         UITabBar.appearance().backgroundColor = UIColor.systemGray6
     }
@@ -24,16 +27,28 @@ struct MainTabView: View {
                     Text("Win the Day")
                 }
 
-            LifeScoreboardView(viewModel: LifeScoreboardViewModel())
+            LifeScoreboardView(viewModel: scoreboardVM)
                 .tabItem {
                     Image(systemName: "briefcase.fill")
                     Text("Scoreboard")
                 }
 
-            TwelveWeekYearView()
+            TwelveWeekYearView(viewModel: twyVM)
                 .tabItem {
                     Label("12 Week Year", systemImage: "calendar")
                 }
+        }
+        .onAppear {
+            viewModel.fetchMembersFromCloud()
+            scoreboardVM.fetchTeamMembersFromCloud()
+            twyVM.fetchMembersFromCloud()
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active {
+                viewModel.fetchMembersFromCloud()
+                scoreboardVM.fetchTeamMembersFromCloud()
+                twyVM.fetchMembersFromCloud()
+            }
         }
     }
 }

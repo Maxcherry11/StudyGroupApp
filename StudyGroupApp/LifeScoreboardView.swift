@@ -69,11 +69,15 @@ private struct IntStepperRow: View {
 }
 
 struct LifeScoreboardView: View {
-    @StateObject var viewModel = LifeScoreboardViewModel()
+    @StateObject var viewModel: LifeScoreboardViewModel
     @ObservedObject var userManager = UserManager.shared
     @State private var selectedEntry: LifeScoreboardViewModel.ScoreEntry?
     @State private var selectedRow: LifeScoreboardViewModel.ActivityRow?
     @State private var hasLoaded = false
+
+    init(viewModel: LifeScoreboardViewModel = LifeScoreboardViewModel()) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+    }
 
     private func yearLabel() -> String {
         let month = Calendar.current.component(.month, from: Date())
