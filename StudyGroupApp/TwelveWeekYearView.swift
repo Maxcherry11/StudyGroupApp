@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct TwelveWeekYearView: View {
-    @StateObject var viewModel: TwelveWeekYearViewModel
+    @StateObject private var viewModel: TwelveWeekYearViewModel
     @ObservedObject private var userManager = UserManager.shared
     @State private var selectedMember: TwelveWeekMember? = nil
 

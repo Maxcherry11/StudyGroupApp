@@ -69,7 +69,7 @@ private struct IntStepperRow: View {
 }
 
 struct LifeScoreboardView: View {
-    @StateObject var viewModel: LifeScoreboardViewModel
+    @StateObject private var viewModel: LifeScoreboardViewModel
     @ObservedObject var userManager = UserManager.shared
     @State private var selectedEntry: LifeScoreboardViewModel.ScoreEntry?
     @State private var selectedRow: LifeScoreboardViewModel.ActivityRow?
