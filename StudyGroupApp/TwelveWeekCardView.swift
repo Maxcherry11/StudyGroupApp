@@ -91,15 +91,13 @@ struct CardView: View {
                     .environmentObject(viewModel)
             }
             .toolbar {
-                if isCurrent {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button(action: {
-                            isEditingGoals.toggle()
-                        }) {
-                            Text(isEditingGoals ? "Save" : "Add Goal")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                        }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        isEditingGoals.toggle()
+                    }) {
+                        Text(isEditingGoals ? "Save" : "Add Goal")
+                            .font(.headline)
+                            .foregroundColor(.white)
                     }
                 }
             }
