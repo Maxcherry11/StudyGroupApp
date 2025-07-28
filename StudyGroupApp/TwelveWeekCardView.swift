@@ -90,16 +90,16 @@ struct CardView: View {
                 GoalEditListView(member: $member)
                     .environmentObject(viewModel)
             }
-            .toolbar {
-                if isCurrent {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button(action: {
-                            isEditingGoals.toggle()
-                        }) {
-                            Text(isEditingGoals ? "Save" : "Add Goal")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                        }
+        }
+        .toolbar {
+            if isCurrent {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        isEditingGoals.toggle()
+                    }) {
+                        Text(isEditingGoals ? "Save" : "Add Goal")
+                            .font(.headline)
+                            .foregroundColor(.white)
                     }
                 }
             }
