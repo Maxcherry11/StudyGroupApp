@@ -254,13 +254,9 @@ private struct TeamMembersCard: View {
     var onSelect: (LifeScoreboardViewModel.ScoreEntry, LifeScoreboardViewModel.ActivityRow) -> Void
 
     private func color(for score: Double) -> Color {
-        let actualScore = score
-        let requiredForHonor = viewModel.onTime
-        let requiredForTravel = viewModel.travel
-
-        if actualScore >= requiredForTravel {
+        if score >= travelThreshold {
             return .green
-        } else if actualScore >= requiredForHonor {
+        } else if score >= honorThreshold {
             return .yellow
         } else {
             return .gray
