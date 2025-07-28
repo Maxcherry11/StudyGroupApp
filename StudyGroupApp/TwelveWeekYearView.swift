@@ -61,8 +61,9 @@ struct TwelveWeekYearView: View {
                                 }
                             )
                             HStack {
+                                let isCurrent = member.name == userManager.currentUser
                                 Text(member.name)
-                                    .font(.system(size: 26, weight: .medium))
+                                    .font(.system(size: 26, weight: isCurrent ? .bold : .medium))
                                     .foregroundColor(.white)
                                     .frame(width: 100, alignment: .leading)
                                     .padding(.trailing, 40)
@@ -81,7 +82,9 @@ struct TwelveWeekYearView: View {
                             .frame(maxWidth: .infinity)
                             .contentShape(Rectangle())
                             .onTapGesture {
-                                selectedMember = member
+                                if member.name == userManager.currentUser {
+                                    selectedMember = member
+                                }
                             }
                         }
                     }
