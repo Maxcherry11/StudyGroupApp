@@ -10,94 +10,96 @@ struct CardView: View {
 
     var body: some View {
         let isCurrent = member.name == userManager.currentUser
-        VStack(spacing: 24) {
-            Text(member.name)
-                .font(.system(size: 40, weight: .heavy))
-                .foregroundColor(.white)
-                .padding(.top, 150)
+        NavigationView {
+            VStack(spacing: 24) {
+                Text(member.name)
+                    .font(.system(size: 40, weight: .heavy))
+                    .foregroundColor(.white)
+                    .padding(.top, 150)
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
-                ForEach(member.goals.indices, id: \.self) { index in
-                    let goal = member.goals[index]
-                    let color = goalColor(for: goal.percent)
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
+                    ForEach(member.goals.indices, id: \.self) { index in
+                        let goal = member.goals[index]
+                        let color = goalColor(for: goal.percent)
 
-                    ZStack(alignment: .topTrailing) {
-                        VStack {
-                            Spacer()
-                            Text(goal.title)
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.white)
-                                .multilineTextAlignment(.center)
-                            Spacer().frame(height: 16)
-                            CircleProgressView(progress: goal.percent, color: color)
-                                .frame(width: 70, height: 70)
-                            Spacer()
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 140)
-                        .padding()
-                        .background(RoundedRectangle(cornerRadius: 20).fill(Color.white.opacity(0.05)))
-                        .shadow(radius: 3)
-                        .onTapGesture {
-                            if !isEditingGoals {
-                                editingGoal = goal
+                        ZStack(alignment: .topTrailing) {
+                            VStack {
+                                Spacer()
+                                Text(goal.title)
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .multilineTextAlignment(.center)
+                                Spacer().frame(height: 16)
+                                CircleProgressView(progress: goal.percent, color: color)
+                                    .frame(width: 70, height: 70)
+                                Spacer()
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 140)
+                            .padding()
+                            .background(RoundedRectangle(cornerRadius: 20).fill(Color.white.opacity(0.05)))
+                            .shadow(radius: 3)
+                            .onTapGesture {
+                                if !isEditingGoals {
+                                    editingGoal = goal
+                                }
+                            }
+
+                            if isEditingGoals && isCurrent {
+                                Button(action: {
+                                    member.goals.remove(at: index)
+                                }) {
+                                    Image(systemName: "minus.circle.fill")
+                                        .foregroundColor(.red)
+                                        .background(Color.white)
+                                        .clipShape(Circle())
+                                }
+                                .offset(x: 10, y: -10)
                             }
                         }
-
-                        if isEditingGoals && isCurrent {
-                            Button(action: {
-                                member.goals.remove(at: index)
-                            }) {
-                                Image(systemName: "minus.circle.fill")
-                                    .foregroundColor(.red)
-                                    .background(Color.white)
-                                    .clipShape(Circle())
+                    }
+                    if isEditingGoals && isCurrent {
+                        Button(action: {
+                            let newGoal = GoalProgress(title: "New Goal", percent: 0)
+                            member.goals.append(newGoal)
+                        }) {
+                            VStack(spacing: 10) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 32, weight: .bold))
+                                    .foregroundColor(.white)
+                                Text("Add Goal")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.7))
                             }
-                            .offset(x: 10, y: -10)
+                            .frame(maxWidth: .infinity, minHeight: 140)
+                            .padding()
+                            .background(RoundedRectangle(cornerRadius: 20).fill(Color.white.opacity(0.1)))
+                            .shadow(radius: 3)
                         }
                     }
                 }
-                if isEditingGoals && isCurrent {
-                    Button(action: {
-                        let newGoal = GoalProgress(title: "New Goal", percent: 0)
-                        member.goals.append(newGoal)
-                    }) {
-                        VStack(spacing: 10) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 32, weight: .bold))
-                                .foregroundColor(.white)
-                            Text("Add Goal")
-                                .font(.caption)
-                                .foregroundColor(.white.opacity(0.7))
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 140)
-                        .padding()
-                        .background(RoundedRectangle(cornerRadius: 20).fill(Color.white.opacity(0.1)))
-                        .shadow(radius: 3)
-                    }
-                }
+                Spacer()
             }
-            Spacer()
-        }
-        .padding()
-        .background(Color(red: 60/255, green: 90/255, blue: 140/255))
-        .ignoresSafeArea()
-        .sheet(isPresented: Binding(get: {
-            editingGoal != nil
-        }, set: { value in
-            if !value { editingGoal = nil }
-        })) {
-            GoalEditListView(member: $member)
-                .environmentObject(viewModel)
-        }
-        .toolbar {
-            if isCurrent {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        isEditingGoals.toggle()
-                    }) {
-                        Text(isEditingGoals ? "Save" : "Add Goal")
-                            .font(.headline)
-                            .foregroundColor(.white)
+            .padding()
+            .background(Color(red: 60/255, green: 90/255, blue: 140/255))
+            .ignoresSafeArea()
+            .sheet(isPresented: Binding(get: {
+                editingGoal != nil
+            }, set: { value in
+                if !value { editingGoal = nil }
+            })) {
+                GoalEditListView(member: $member)
+                    .environmentObject(viewModel)
+            }
+            .toolbar {
+                if isCurrent {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: {
+                            isEditingGoals.toggle()
+                        }) {
+                            Text(isEditingGoals ? "Save" : "Add Goal")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                        }
                     }
                 }
             }
