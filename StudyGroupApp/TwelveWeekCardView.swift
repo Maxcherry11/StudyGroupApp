@@ -6,8 +6,10 @@ struct CardView: View {
     @State private var isEditingGoals = false
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var viewModel: TwelveWeekYearViewModel
+    @ObservedObject private var userManager = UserManager.shared
 
     var body: some View {
+        let isCurrent = member.name == userManager.currentUser
         VStack(spacing: 24) {
             Text(member.name)
                 .font(.system(size: 40, weight: .heavy))
@@ -41,7 +43,7 @@ struct CardView: View {
                             }
                         }
 
-                        if isEditingGoals {
+                        if isEditingGoals && isCurrent {
                             Button(action: {
                                 member.goals.remove(at: index)
                             }) {
@@ -54,7 +56,7 @@ struct CardView: View {
                         }
                     }
                 }
-                if isEditingGoals {
+                if isEditingGoals && isCurrent {
                     Button(action: {
                         let newGoal = GoalProgress(title: "New Goal", percent: 0)
                         member.goals.append(newGoal)
@@ -88,13 +90,15 @@ struct CardView: View {
                 .environmentObject(viewModel)
         }
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: {
-                    isEditingGoals.toggle()
-                }) {
-                    Text(isEditingGoals ? "Save" : "Add Goal")
-                        .font(.headline)
-                        .foregroundColor(.white)
+            if isCurrent {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        isEditingGoals.toggle()
+                    }) {
+                        Text(isEditingGoals ? "Save" : "Add Goal")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                    }
                 }
             }
         }
