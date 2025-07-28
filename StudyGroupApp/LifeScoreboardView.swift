@@ -121,8 +121,8 @@ struct LifeScoreboardView: View {
 
                 // Team Members section
                 TeamMembersCard(
-                    honorThreshold: viewModel.onTime,
-                    travelThreshold: viewModel.travel
+                    honorThreshold: Double(viewModel.onTimeHonorTarget),
+                    travelThreshold: Double(viewModel.onTimeTravelTarget)
                 ) { entry, row in
                     selectedEntry = entry
                     selectedRow = row
