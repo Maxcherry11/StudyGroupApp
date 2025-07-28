@@ -1,9 +1,13 @@
 import SwiftUI
 
 struct TwelveWeekYearView: View {
-    @StateObject private var viewModel = TwelveWeekYearViewModel()
+    @StateObject var viewModel: TwelveWeekYearViewModel
     @ObservedObject private var userManager = UserManager.shared
     @State private var selectedMember: TwelveWeekMember? = nil
+
+    init(viewModel: TwelveWeekYearViewModel = TwelveWeekYearViewModel()) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+    }
 
     var overallPercent: Double {
         guard !viewModel.members.isEmpty else { return 0 }
