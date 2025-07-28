@@ -5,6 +5,7 @@ struct CardView: View {
     @State private var editingGoal: GoalProgress?
     @State private var isEditingGoals = false
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var viewModel: TwelveWeekYearViewModel
 
     var body: some View {
         VStack(spacing: 24) {
@@ -83,7 +84,8 @@ struct CardView: View {
         }, set: { value in
             if !value { editingGoal = nil }
         })) {
-            GoalEditListView(goals: $member.goals)
+            GoalEditListView(member: $member)
+                .environmentObject(viewModel)
         }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -136,22 +138,23 @@ struct GoalEditView: View {
 }
 
 struct GoalEditListView: View {
-    @Binding var goals: [GoalProgress]
+    @Binding var member: TwelveWeekMember
+    @EnvironmentObject private var viewModel: TwelveWeekYearViewModel
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationView {
             Form {
-                ForEach($goals.indices, id: \.self) { index in
-                    Section(header: Text(goals[index].title).foregroundColor(.gray)) {
+                ForEach($member.goals.indices, id: \.self) { index in
+                    Section(header: Text(member.goals[index].title).foregroundColor(.gray)) {
                         VStack(alignment: .leading, spacing: 12) {
-                            TextField("Title", text: $goals[index].title)
+                            TextField("Title", text: $member.goals[index].title)
                                 .padding(8)
                                 .background(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.4)))
 
                             HStack {
-                                Slider(value: $goals[index].percent, in: 0...1)
-                                Text("\(Int(goals[index].percent * 100))%")
+                                Slider(value: $member.goals[index].percent, in: 0...1)
+                                Text("\(Int(member.goals[index].percent * 100))%")
                                     .foregroundColor(.gray)
                                     .font(.subheadline)
                                     .frame(minWidth: 40, idealWidth: 50, maxWidth: 60, alignment: .trailing)
@@ -166,6 +169,7 @@ struct GoalEditListView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
+                        viewModel.saveMember(member)
                         dismiss()
                     }
                 }
@@ -227,6 +231,7 @@ struct TwelveWeekCardView_Previews: PreviewProvider {
 
         var body: some View {
             CardView(member: $sample)
+                .environmentObject(TwelveWeekYearViewModel())
                 .preferredColorScheme(.dark)
                 .padding()
         }

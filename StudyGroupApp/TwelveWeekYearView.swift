@@ -105,6 +105,7 @@ struct TwelveWeekYearView: View {
                     }
                 )
                 CardView(member: binding)
+                    .environmentObject(viewModel)
                     .onDisappear {
                         viewModel.saveMember(binding.wrappedValue)
                     }
