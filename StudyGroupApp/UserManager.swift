@@ -56,10 +56,6 @@ class UserManager: ObservableObject {
     func addUser(_ name: String) {
         guard !userList.contains(name) else { return }
         CloudKitManager.saveUser(name) { [weak self] in
-            // Create a TeamMember record with default production goals
-            let member = TeamMember(name: name)
-            CloudKitManager.shared.save(member) { _ in }
-
             // Create a default Win the Day card so the record type exists
             let defaultCard = Card(
                 id: "card-\(name)",
@@ -71,6 +67,10 @@ class UserManager: ObservableObject {
             CloudKitManager.saveCard(defaultCard)
             let twy = TwelveWeekMember(name: name, goals: [])
             CloudKitManager.saveTwelveWeekMember(twy) { _ in }
+            
+            // Note: TeamMember objects are created by WinTheDayViewModel.ensureCardsForAllUsers
+            // to ensure they inherit proper goal values from existing team members
+            
             self?.fetchUsersFromCloud()
         }
     }

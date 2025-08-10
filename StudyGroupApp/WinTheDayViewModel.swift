@@ -288,18 +288,9 @@ class WinTheDayViewModel: ObservableObject {
         for name in names where !teamMembers.contains(where: { $0.name == name }) {
             if let saved = stored.first(where: { $0.name == name }) {
                 teamMembers.append(saved)
-            } else {
-                let member = TeamMember(name: name)
-                // Mirror the goals of the first existing member so new cards
-                // don't default to 1/1/1 when added locally before CloudKit sync.
-                if let template = teamMembers.first {
-                    member.quotesGoal = template.quotesGoal
-                    member.salesWTDGoal = template.salesWTDGoal
-                    member.salesMTDGoal = template.salesMTDGoal
-                }
-                member.sortIndex = teamMembers.count
-                teamMembers.append(member)
             }
+            // Note: New TeamMember objects are now created in ensureCardsForAllUsers
+            // to ensure they have proper goal values copied from existing members
         }
     }
 
@@ -436,15 +427,49 @@ class WinTheDayViewModel: ObservableObject {
     /// CloudKit records sync down. Any newly created cards are also
     /// uploaded to CloudKit using a stable record ID to initialize the
     /// `Card` record type if needed.
+    /// Also ensures TeamMember objects exist with proper goal values copied from existing members.
     func ensureCardsForAllUsers(_ users: [String]) {
         for (index, name) in users.enumerated() {
+            // Ensure Card exists
             if !cards.contains(where: { $0.name == name }) {
                 let card = Card(id: "card-\(name)", name: name, emoji: "\u{2728}", orderIndex: index)
                 cards.append(card)
                 CloudKitManager.saveCard(card)
             }
+            
+            // Ensure TeamMember exists with proper goals
+            if !teamMembers.contains(where: { $0.name == name }) {
+                let member = TeamMember(name: name)
+                
+                // Copy goals from existing team members to maintain consistency
+                if let template = teamMembers.first {
+                    member.quotesGoal = template.quotesGoal
+                    member.salesWTDGoal = template.salesWTDGoal
+                    member.salesMTDGoal = template.salesMTDGoal
+                } else if let template = loadLocalMembers().first {
+                    // Fallback to local storage if no current members
+                    member.quotesGoal = template.quotesGoal
+                    member.salesWTDGoal = template.salesWTDGoal
+                    member.salesMTDGoal = template.salesMTDGoal
+                } else {
+                    // Final fallback: use current team goals (10/2/6 based on existing cards)
+                    // This ensures new members don't get 0/0/0 goals
+                    member.quotesGoal = 10
+                    member.salesWTDGoal = 2
+                    member.salesMTDGoal = 6
+                }
+                
+                member.sortIndex = teamMembers.count
+                teamMembers.append(member)
+                
+                // Save the new member to CloudKit
+                saveMember(member)
+            }
         }
         saveCardsToDevice()
+        
+        // Update teamData to reflect the new members so the UI displays them properly
+        teamData = teamMembers
     }
 
 

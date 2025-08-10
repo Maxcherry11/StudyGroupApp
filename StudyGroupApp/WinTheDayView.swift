@@ -79,7 +79,10 @@ struct WinTheDayView: View {
         }
         .onAppear {
             viewModel.fetchGoalNamesFromCloud()
-            viewModel.ensureCardsForAllUsers(userManager.userList)
+            // First fetch team members, then ensure cards exist
+            viewModel.fetchMembersFromCloud { [weak viewModel] in
+                viewModel?.ensureCardsForAllUsers(userManager.userList)
+            }
             viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
             shimmerPosition = -1.0
             withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
@@ -91,9 +94,13 @@ struct WinTheDayView: View {
     }
     .onChange(of: userManager.userList) { _ in
         if viewModel.isLoaded {
-            viewModel.fetchMembersFromCloud()
+            viewModel.fetchMembersFromCloud { [weak viewModel] in
+                viewModel?.ensureCardsForAllUsers(userManager.userList)
+            }
+        } else {
+            // If not loaded yet, just ensure cards exist (they'll get proper goals when members load)
+            viewModel.ensureCardsForAllUsers(userManager.userList)
         }
-        viewModel.ensureCardsForAllUsers(userManager.userList)
     }
     .sheet(isPresented: $emojiPickerVisible) {
         emojiPickerSheet
@@ -264,7 +271,7 @@ private var teamCardsList: some View {
             VStack(spacing: 10) {
                 
                 ForEach(viewModel.teamData, id: \.id) { member in
-                    if let idx = viewModel.teamMembers.firstIndex(where: { $0.id == member.id }) {
+                    if let idx = viewModel.teamMembers.firstIndex(where: { $0.name == member.name }) {
                         let name = viewModel.teamMembers[idx].name
                         let isEditable = name == userManager.currentUser
                         TeamMemberCardView(
