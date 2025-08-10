@@ -2,6 +2,8 @@ import SwiftUI
 
 struct CardView: View {
     @Binding var member: TwelveWeekMember
+    @Binding var isInteracting: Bool
+    let resetInteraction: () -> Void
     @State private var editingGoal: GoalProgress?
     @State private var isEditingGoals = false
     @Environment(\.dismiss) private var dismiss
@@ -47,6 +49,7 @@ struct CardView: View {
                             if isEditingGoals && isCurrent {
                                 Button(action: {
                                     member.goals.remove(at: index)
+                                    isInteracting = true
                                 }) {
                                     Image(systemName: "minus.circle.fill")
                                         .foregroundColor(.red)
@@ -61,6 +64,7 @@ struct CardView: View {
                         Button(action: {
                             let newGoal = GoalProgress(title: "New Goal", percent: 0)
                             member.goals.append(newGoal)
+                            isInteracting = true
                         }) {
                             VStack(spacing: 10) {
                                 Image(systemName: "plus")
@@ -85,14 +89,26 @@ struct CardView: View {
             .sheet(isPresented: Binding(get: {
                 editingGoal != nil
             }, set: { value in
-                if !value { editingGoal = nil }
+                if !value { 
+                    editingGoal = nil
+                    resetInteraction()
+                }
             })) {
-                GoalEditListView(member: $member)
+                GoalEditListView(member: $member, isInteracting: Binding(
+                    get: { isInteracting },
+                    set: { isInteracting = $0 }
+                ), resetInteraction: resetInteraction)
                     .environmentObject(viewModel)
+            }
+            .onDisappear {
+                resetInteraction()
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
+                        if isEditingGoals {
+                            resetInteraction()
+                        }
                         isEditingGoals.toggle()
                     }) {
                         Text(isEditingGoals ? "Save" : "Add Goal")
@@ -145,27 +161,18 @@ struct GoalEditListView: View {
     @Binding var member: TwelveWeekMember
     @EnvironmentObject private var viewModel: TwelveWeekYearViewModel
     @Environment(\.dismiss) private var dismiss
+    @Binding var isInteracting: Bool
+    let resetInteraction: () -> Void
 
     var body: some View {
         NavigationView {
             Form {
-                ForEach($member.goals.indices, id: \.self) { index in
-                    Section(header: Text(member.goals[index].title).foregroundColor(.gray)) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            TextField("Title", text: $member.goals[index].title)
-                                .padding(8)
-                                .background(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.4)))
-
-                            HStack {
-                                Slider(value: $member.goals[index].percent, in: 0...1)
-                                Text("\(Int(member.goals[index].percent * 100))%")
-                                    .foregroundColor(.gray)
-                                    .font(.subheadline)
-                                    .frame(minWidth: 40, idealWidth: 50, maxWidth: 60, alignment: .trailing)
-                            }
-                            .frame(height: 40)
-                        }
-                    }
+                ForEach(member.goals.indices, id: \.self) { index in
+                    GoalRowEditor(
+                        goal: $member.goals[index],
+                        isInteracting: $isInteracting,
+                        resetInteraction: resetInteraction
+                    )
                 }
             }
             .navigationTitle("Edit All Goals")
@@ -174,11 +181,13 @@ struct GoalEditListView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
                         viewModel.saveMember(member)
+                        resetInteraction()
                         dismiss()
                     }
                 }
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: {
+                        resetInteraction()
                         dismiss()
                     }) {
                         Label("Back", systemImage: "chevron.left")
@@ -186,6 +195,46 @@ struct GoalEditListView: View {
                     }
                     .foregroundColor(.white)
                 }
+            }
+        }
+    }
+}
+
+private struct GoalRowEditor: View {
+    @Binding var goal: GoalProgress
+    @Binding var isInteracting: Bool
+    let resetInteraction: () -> Void
+
+    var body: some View {
+        Section(header: Text(goal.title).foregroundColor(.gray)) {
+            VStack(alignment: .leading, spacing: 12) {
+                TextField("Title", text: $goal.title)
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.gray.opacity(0.4))
+                    )
+                    .onTapGesture { isInteracting = true }
+                    .onChange(of: goal.title) { _ in isInteracting = true }
+
+                HStack {
+                    Slider(value: $goal.percent, in: 0...1)
+                        .onTapGesture { isInteracting = true }
+                        .gesture(
+                            DragGesture()
+                                .onChanged { _ in isInteracting = true }
+                                .onEnded { _ in
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                        resetInteraction()
+                                    }
+                                }
+                        )
+                    Text("\(Int(goal.percent * 100))%")
+                        .foregroundColor(.gray)
+                        .font(.subheadline)
+                        .frame(minWidth: 40, idealWidth: 50, maxWidth: 60, alignment: .trailing)
+                }
+                .frame(height: 40)
             }
         }
     }
@@ -234,10 +283,10 @@ struct TwelveWeekCardView_Previews: PreviewProvider {
         )
 
         var body: some View {
-            CardView(member: $sample)
-                .environmentObject(TwelveWeekYearViewModel())
-                .preferredColorScheme(.dark)
-                .padding()
+                    CardView(member: $sample, isInteracting: .constant(false), resetInteraction: {})
+            .environmentObject(TwelveWeekYearViewModel())
+            .preferredColorScheme(.dark)
+            .padding()
         }
     }
 
