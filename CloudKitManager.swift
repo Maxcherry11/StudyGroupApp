@@ -165,10 +165,16 @@ class CloudKitManager: ObservableObject {
 
         if teamMembers.isEmpty {
             fetchTeam { fetched in
-                createAndSave(fetched.first)
+                let template = fetched.first { member in
+                    member.quotesGoal != 0 || member.salesWTDGoal != 0 || member.salesMTDGoal != 0
+                }
+                createAndSave(template)
             }
         } else {
-            createAndSave(teamMembers.first)
+            let template = teamMembers.first { member in
+                member.quotesGoal != 0 || member.salesWTDGoal != 0 || member.salesMTDGoal != 0
+            }
+            createAndSave(template)
         }
     }
 
