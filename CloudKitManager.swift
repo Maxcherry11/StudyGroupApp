@@ -43,21 +43,26 @@ class CloudKitManager: ObservableObject {
         let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
         var updated: [CKRecord] = []
         let operation = CKQueryOperation(query: query)
-        operation.recordFetchedBlock = { record in
-            var needsUpdate = false
-            if record["actual"] == nil {
-                record["actual"] = 0 as CKRecordValue
-                needsUpdate = true
+        operation.recordMatchedBlock = { recordID, result in
+            switch result {
+            case .success(let record):
+                var needsUpdate = false
+                if record["actual"] == nil {
+                    record["actual"] = 0 as CKRecordValue
+                    needsUpdate = true
+                }
+                if record["pending"] == nil {
+                    record["pending"] = 0 as CKRecordValue
+                    needsUpdate = true
+                }
+                if record["projected"] == nil {
+                    record["projected"] = 0.0 as CKRecordValue
+                    needsUpdate = true
+                }
+                if needsUpdate { updated.append(record) }
+            case .failure(let error):
+                print("❌ Migration record match failed: \(error.localizedDescription)")
             }
-            if record["pending"] == nil {
-                record["pending"] = 0 as CKRecordValue
-                needsUpdate = true
-            }
-            if record["projected"] == nil {
-                record["projected"] = 0.0 as CKRecordValue
-                needsUpdate = true
-            }
-            if needsUpdate { updated.append(record) }
         }
         operation.queryResultBlock = { result in
             DispatchQueue.main.async {
