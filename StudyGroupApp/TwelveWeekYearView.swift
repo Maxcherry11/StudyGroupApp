@@ -167,11 +167,10 @@ struct TwelveWeekYearView: View {
                                 .frame(maxWidth: .infinity)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
-                                    if member.name == userManager.currentUser {
-                                        // Scroll to member and open editor immediately
-                                        scrollProxy.scrollTo(member.id, anchor: .top)
-                                        selectedMember = member
-                                    }
+                                    // Allow any user to view any member's card
+                                    // Editing restrictions are handled in CardView
+                                    scrollProxy.scrollTo(member.id, anchor: .top)
+                                    selectedMember = member
                                 }
                                 .onLongPressGesture(minimumDuration: 0.1) {
                                     // Track when user starts interacting with the list

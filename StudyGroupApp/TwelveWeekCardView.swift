@@ -41,7 +41,7 @@ struct CardView: View {
                             .background(RoundedRectangle(cornerRadius: 20).fill(Color.white.opacity(0.05)))
                             .shadow(radius: 3)
                             .onTapGesture {
-                                if !isEditingGoals {
+                                if !isEditingGoals && isCurrent {
                                     editingGoal = goal
                                 }
                             }
@@ -87,7 +87,7 @@ struct CardView: View {
             .background(Color(red: 60/255, green: 90/255, blue: 140/255))
             .ignoresSafeArea()
             .sheet(isPresented: Binding(get: {
-                editingGoal != nil
+                editingGoal != nil && isCurrent
             }, set: { value in
                 if !value { 
                     editingGoal = nil
@@ -105,15 +105,17 @@ struct CardView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        if isEditingGoals {
-                            resetInteraction()
+                    if isCurrent {
+                        Button(action: {
+                            if isEditingGoals {
+                                resetInteraction()
+                            }
+                            isEditingGoals.toggle()
+                        }) {
+                            Text(isEditingGoals ? "Save" : "Add Goal")
+                                .font(.headline)
+                                .foregroundColor(.white)
                         }
-                        isEditingGoals.toggle()
-                    }) {
-                        Text(isEditingGoals ? "Save" : "Add Goal")
-                            .font(.headline)
-                            .foregroundColor(.white)
                     }
                 }
             }
