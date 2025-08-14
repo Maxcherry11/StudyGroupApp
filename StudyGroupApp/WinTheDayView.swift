@@ -433,15 +433,21 @@ private func handleSaveAndReorder() {
     // Reset function to reset values
     private func resetValues() {
         for index in viewModel.teamMembers.indices {
-            // Zero out progress values
+            // Only reset Win The Day specific progress values
+            // Preserve Life Scoreboard fields (score, pending, projected, actual)
             viewModel.teamMembers[index].quotesToday = 0
             viewModel.teamMembers[index].salesWTD = 0
             viewModel.teamMembers[index].salesMTD = 0
+            
+            // Reset goals to default values
             viewModel.teamMembers[index].quotesGoal = 10
             viewModel.teamMembers[index].salesWTDGoal = 2
             viewModel.teamMembers[index].salesMTDGoal = 6
-            print("🔁 Resetting \(viewModel.teamMembers[index].name): Quotes Goal = \(viewModel.teamMembers[index].quotesGoal), WTD Goal = \(viewModel.teamMembers[index].salesWTDGoal), MTD Goal = \(viewModel.teamMembers[index].salesMTDGoal)")
-            viewModel.saveMember(viewModel.teamMembers[index])
+            
+            print("🔁 Resetting Win The Day values for \(viewModel.teamMembers[index].name): Quotes Goal = \(viewModel.teamMembers[index].quotesGoal), WTD Goal = \(viewModel.teamMembers[index].salesWTDGoal), MTD Goal = \(viewModel.teamMembers[index].salesMTDGoal)")
+            
+            // Save only the Win The Day fields to avoid affecting Life Scoreboard data
+            viewModel.saveWinTheDayFields(viewModel.teamMembers[index])
         }
         // Force update to trigger SwiftUI redraw
         viewModel.teamMembers = viewModel.teamMembers.map { $0 }

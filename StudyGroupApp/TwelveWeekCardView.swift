@@ -12,12 +12,19 @@ struct CardView: View {
 
     var body: some View {
         let isCurrent = member.name == userManager.currentUser
+        let totalPercentage = member.goals.isEmpty ? 0 : member.goals.map { $0.percent }.reduce(0, +) / Double(member.goals.count)
+        
         NavigationView {
             VStack(spacing: 24) {
                 Text(member.name)
                     .font(.system(size: 40, weight: .heavy))
                     .foregroundColor(.white)
                     .padding(.top, 150)
+                
+                Text("\(Int(totalPercentage * 100))%")
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundColor(.white.opacity(0.9))
+                    .padding(.bottom, 10)
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
                     ForEach(member.goals.indices, id: \.self) { index in
@@ -144,6 +151,7 @@ struct CircleProgressView: View {
 
 struct GoalEditView: View {
     @Binding var goal: GoalProgress
+    @State private var isDragging = false
 
     var body: some View {
         NavigationView {
@@ -151,7 +159,23 @@ struct GoalEditView: View {
                 TextField("Title", text: $goal.title)
                     .padding(8)
                     .background(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.4)))
-                Slider(value: $goal.percent, in: 0...1)
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        AppleMusicStyleSlider(
+                            value: $goal.percent,
+                            isDragging: $isDragging,
+                            onValueChanged: { _ in }
+                        )
+                        .frame(height: 40)
+                        
+                        Text("\(Int(goal.percent * 100))%")
+                            .foregroundColor(.gray)
+                            .font(.subheadline)
+                            .frame(minWidth: 40, idealWidth: 50, maxWidth: 60, alignment: .trailing)
+                    }
+                    .frame(height: 40)
+                }
             }
             .navigationTitle("Edit Goal")
             .navigationBarTitleDisplayMode(.inline)
@@ -206,6 +230,7 @@ private struct GoalRowEditor: View {
     @Binding var goal: GoalProgress
     @Binding var isInteracting: Bool
     let resetInteraction: () -> Void
+    @State private var isDragging = false
 
     var body: some View {
         Section(header: Text(goal.title).foregroundColor(.gray)) {
@@ -220,24 +245,77 @@ private struct GoalRowEditor: View {
                     .onChange(of: goal.title) { _ in isInteracting = true }
 
                 HStack {
-                    Slider(value: $goal.percent, in: 0...1)
-                        .onTapGesture { isInteracting = true }
-                        .gesture(
-                            DragGesture()
-                                .onChanged { _ in isInteracting = true }
-                                .onEnded { _ in
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                                        resetInteraction()
-                                    }
-                                }
-                        )
+                    AppleMusicStyleSlider(
+                        value: $goal.percent,
+                        isDragging: $isDragging,
+                        onValueChanged: { _ in 
+                            isInteracting = true
+                        }
+                    )
+                    .frame(height: 40)
+                    
                     Text("\(Int(goal.percent * 100))%")
-                        .foregroundColor(.gray)
+                        .foregroundColor(.black)
                         .font(.subheadline)
                         .frame(minWidth: 40, idealWidth: 50, maxWidth: 60, alignment: .trailing)
                 }
                 .frame(height: 40)
             }
+        }
+    }
+}
+
+// MARK: - Apple Music Style Slider
+struct AppleMusicStyleSlider: View {
+    @Binding var value: Double
+    @Binding var isDragging: Bool
+    let onValueChanged: (Double) -> Void
+    
+    @State private var dragOffset: CGFloat = 0
+    @State private var sliderWidth: CGFloat = 0
+    @State private var dragStartValue: Double = 0
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                // Background track
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(height: isDragging ? 12 : 10)
+                
+                // Progress track
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isDragging ? Color.blue : Color.blue.opacity(0.8))
+                    .frame(width: max(0, min(CGFloat(value) * geometry.size.width, geometry.size.width)), height: isDragging ? 12 : 10)
+                
+                // Touch area overlay (invisible but captures all touches)
+                Rectangle()
+                    .fill(Color.clear)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { gesture in
+                                if !isDragging {
+                                    // First touch - just enable dragging mode without changing value
+                                    isDragging = true
+                                    dragStartValue = value
+                                } else {
+                                    // Already dragging - calculate offset from start position
+                                    let dragDistance = gesture.translation.width
+                                    let dragRatio = dragDistance / geometry.size.width
+                                    let newValue = dragStartValue + Double(dragRatio)
+                                    value = max(0, min(1, newValue))
+                                    onValueChanged(value)
+                                }
+                            }
+                            .onEnded { _ in
+                                isDragging = false
+                            }
+                    )
+            }
+        }
+        .onAppear {
+            sliderWidth = UIScreen.main.bounds.width - 120 // Approximate width
         }
     }
 }

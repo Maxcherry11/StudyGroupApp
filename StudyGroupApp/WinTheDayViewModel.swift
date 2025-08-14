@@ -197,7 +197,7 @@ class WinTheDayViewModel: ObservableObject {
     func saveEdits(for member: TeamMember) {
         withAnimation { reorderAfterSave() }
         saveLocal()
-        saveMember(member) { _ in
+        saveWinTheDayFields(member) { _ in
             DispatchQueue.main.async {
                 self.teamData.sort {
                     let scoreA = $0.quotesToday + $0.salesWTD + $0.salesMTD
@@ -299,6 +299,49 @@ class WinTheDayViewModel: ObservableObject {
         CloudKitManager.shared.save(member) { id in
             completion?(id)
         }
+        saveLocal()
+    }
+
+    /// Saves only Win The Day specific fields to avoid affecting Life Scoreboard data
+    func saveWinTheDayFields(_ member: TeamMember, completion: ((CKRecord.ID?) -> Void)? = nil) {
+        // First fetch the existing record to update it properly
+        let recordID = CKRecord.ID(recordName: "member-\(member.name)")
+        
+        CloudKitManager.container.publicCloudDatabase.fetch(withRecordID: recordID) { [weak self] existingRecord, error in
+            if let error = error {
+                print("❌ Failed to fetch existing record for \(member.name): \(error.localizedDescription)")
+                // Fallback to regular save if fetch fails
+                self?.saveMember(member, completion: completion)
+                return
+            }
+            
+            guard let record = existingRecord else {
+                print("❌ No existing record found for \(member.name), falling back to regular save")
+                self?.saveMember(member, completion: completion)
+                return
+            }
+            
+            // Update only the Win The Day fields in the existing record
+            record["quotesToday"] = member.quotesToday as CKRecordValue
+            record["salesWTD"] = member.salesWTD as CKRecordValue
+            record["salesMTD"] = member.salesMTD as CKRecordValue
+            record["quotesGoal"] = member.quotesGoal as CKRecordValue
+            record["salesWTDGoal"] = member.salesWTDGoal as CKRecordValue
+            record["salesMTDGoal"] = member.salesMTDGoal as CKRecordValue
+            record["emoji"] = member.emoji as CKRecordValue
+            record["sortIndex"] = member.sortIndex as CKRecordValue
+            
+            // Save the updated record
+            CloudKitManager.container.publicCloudDatabase.save(record) { _, error in
+                if let error = error {
+                    print("❌ Failed to save Win The Day fields: \(error.localizedDescription)")
+                } else {
+                    print("✅ Saved Win The Day fields for \(member.name)")
+                }
+                completion?(record.recordID)
+            }
+        }
+        
         saveLocal()
     }
 
@@ -409,7 +452,7 @@ class WinTheDayViewModel: ObservableObject {
         for index in teamMembers.indices {
             teamMembers[index].quotesToday = 0
             teamMembers[index].salesWTD = 0
-            saveMember(teamMembers[index]) { _ in }
+            saveWinTheDayFields(teamMembers[index]) { _ in }
         }
         teamMembers = teamMembers.map { $0 }
     }
@@ -417,7 +460,7 @@ class WinTheDayViewModel: ObservableObject {
     private func resetMonthlyValues() {
         for index in teamMembers.indices {
             teamMembers[index].salesMTD = 0
-            saveMember(teamMembers[index]) { _ in }
+            saveWinTheDayFields(teamMembers[index]) { _ in }
         }
         teamMembers = teamMembers.map { $0 }
     }
@@ -462,8 +505,8 @@ class WinTheDayViewModel: ObservableObject {
                 member.sortIndex = teamMembers.count
                 teamMembers.append(member)
                 
-                // Save the new member to CloudKit
-                saveMember(member)
+                // Save the new member to CloudKit using Win The Day fields only
+                saveWinTheDayFields(member)
             }
         }
         saveCardsToDevice()
