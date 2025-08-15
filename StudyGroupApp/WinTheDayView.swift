@@ -57,6 +57,8 @@ struct WinTheDayView: View {
     @State private var emojiPickerVisible = false
     @State private var emojiEditingID: UUID?
     @State private var recentlyCompletedIDs: Set<UUID> = []
+    @State private var celebrationMemberID: UUID?
+    @State private var celebrationField: String = ""
     // Production Goal Editor State
     @State private var showProductionGoalEditor = false
     @State private var newQuotesGoal = 10
@@ -186,8 +188,15 @@ private func editingSheet(for editingID: UUID) -> some View {
             editingMemberID: $editingMemberID,
             recentlyCompletedIDs: $recentlyCompletedIDs,
             onSave: { _, _ in
-                handleSaveAndReorder()
-                viewModel.teamMembers = viewModel.teamMembers.map { $0 }
+                // Always delay card movement to ensure consistent behavior
+                // This gives time for celebrations to complete and prevents visual glitches
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    handleSaveAndReorder()
+                }
+                // Don't update teamMembers here - let the delayed reordering handle it
+            },
+            onCelebration: { memberID, field in
+                triggerCelebration(for: memberID, field: field)
             }
         )
         .environmentObject(viewModel)
@@ -218,8 +227,15 @@ private var contentVStack: some View {
                     editingMemberID: $editingMemberID,
                     recentlyCompletedIDs: $recentlyCompletedIDs,
                     onSave: { _, _ in
-                        handleSaveAndReorder()
-                        viewModel.teamMembers = viewModel.teamMembers.map { $0 }
+                        // Always delay card movement to ensure consistent behavior
+                        // This gives time for celebrations to complete and prevents visual glitches
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                            handleSaveAndReorder()
+                        }
+                        // Don't update teamMembers here - let the delayed reordering handle it
+                    },
+                    onCelebration: { memberID, field in
+                        triggerCelebration(for: memberID, field: field)
                     }
                 )
                 .environmentObject(viewModel)
@@ -229,6 +245,18 @@ private var contentVStack: some View {
         }
     )
 }
+
+    // Function to trigger celebration animation
+    private func triggerCelebration(for memberID: UUID, field: String) {
+        celebrationMemberID = memberID
+        celebrationField = field
+        
+        // Auto-hide celebration after animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            celebrationMemberID = nil
+            celebrationField = ""
+        }
+    }
 
 private var winTheDayBackground: some View {
     backgroundLayer
@@ -297,7 +325,9 @@ private var teamCardsList: some View {
                         teamData: $viewModel.teamData,
                         quotesLabel: viewModel.goalNames.quotes,
                         salesWTDLabel: viewModel.goalNames.salesWTD,
-                        salesMTDLabel: viewModel.goalNames.salesMTD
+                        salesMTDLabel: viewModel.goalNames.salesMTD,
+                        celebrationMemberID: $celebrationMemberID,
+                        celebrationField: $celebrationField
                         )
                         .id(member.id)
                     }
@@ -421,10 +451,14 @@ private var emojiGrid: some View {
 
 /// Handles saving edits and reordering cards with animation.
 private func handleSaveAndReorder() {
+    // First save the data, then reorder
     withAnimation {
         viewModel.reorderAfterSave()
     }
     viewModel.saveCardOrderToCloud(for: userManager.currentUser)
+    
+    // Force update to trigger SwiftUI redraw after reordering
+    viewModel.teamMembers = viewModel.teamMembers.map { $0 }
 }
 
 
@@ -632,6 +666,8 @@ extension Array {
         default: return 0
         }
     }
+    
+
 
 
 
@@ -658,6 +694,10 @@ private struct EditingOverlayView: View {
     @Binding var editingMemberID: UUID?
     @Binding var recentlyCompletedIDs: Set<UUID>
     let onSave: ((UUID?, String) -> Void)?
+    let onCelebration: ((UUID, String) -> Void)?
+    @State private var oldQuotesValue: Int = 0
+    @State private var oldSalesWTDValue: Int = 0
+    @State private var oldSalesMTDValue: Int = 0
 
     var body: some View {
         bodyContent
@@ -674,6 +714,12 @@ private struct EditingOverlayView: View {
         .cornerRadius(12)
         .shadow(radius: 8)
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.4)))
+        .onAppear {
+            // Store ALL old values when editing starts
+            oldQuotesValue = member.quotesToday
+            oldSalesWTDValue = member.salesWTD
+            oldSalesMTDValue = member.salesMTD
+        }
     }
 
     private var buttonRow: some View {
@@ -687,8 +733,19 @@ private struct EditingOverlayView: View {
                 let capturedField = field
                 editingMemberID = nil // ✅ Dismiss immediately
 
-                viewModel.saveEdits(for: member)
+                // Don't call viewModel.saveEdits here - it triggers immediate reordering
+                // Instead, just save the data without reordering
+                viewModel.saveWinTheDayFields(member)
                 onSave?(capturedID, capturedField)
+                
+                // Check ALL THREE progress lines to see if ANY turned green
+                let shouldCelebrate = checkIfAnyProgressTurnedGreen()
+                
+                if shouldCelebrate {
+                    // Show celebration immediately when progress turns green
+                    // This ensures it appears on the card in its current position
+                    onCelebration?(member.id, "any")
+                }
             }
         }
     }
@@ -699,6 +756,71 @@ private struct EditingOverlayView: View {
         FieldStepperRow(label: "Quotes WTD", value: $member.quotesToday)
         FieldStepperRow(label: "Sales WTD", value: $member.salesWTD)
         FieldStepperRow(label: "Sales MTD", value: $member.salesMTD)
+    }
+    
+    // Helper functions to check progress color changes
+    private func getCurrentValue(for field: String, member: TeamMember) -> Int {
+        switch field {
+        case "quotesToday": return member.quotesToday
+        case "salesWTD": return member.salesWTD
+        case "salesMTD": return member.salesMTD
+        default: return 0
+        }
+    }
+    
+    private func getGoal(for field: String, member: TeamMember) -> Int {
+        switch field {
+        case "quotesToday": return member.quotesGoal
+        case "salesWTD": return member.salesWTDGoal
+        case "salesMTD": return member.salesMTDGoal
+        default: return 0
+        }
+    }
+    
+    // Check if ANY of the three progress lines turned green
+    private func checkIfAnyProgressTurnedGreen() -> Bool {
+        // Check quotes progress
+        let oldQuotesColor = progressColor(for: "quotesToday", value: oldQuotesValue, goal: member.quotesGoal)
+        let newQuotesColor = progressColor(for: "quotesToday", value: member.quotesToday, goal: member.quotesGoal)
+        let quotesTurnedGreen = oldQuotesColor != .green && newQuotesColor == .green
+        
+        // Check sales WTD progress
+        let oldSalesWTDColor = progressColor(for: "salesWTD", value: oldSalesWTDValue, goal: member.salesWTDGoal)
+        let newSalesWTDColor = progressColor(for: "salesWTD", value: member.salesWTD, goal: member.salesWTDGoal)
+        let salesWTDTurnedGreen = oldSalesWTDColor != .green && newSalesWTDColor == .green
+        
+        // Check sales MTD progress
+        let oldSalesMTDColor = progressColor(for: "salesMTD", value: oldSalesMTDValue, goal: member.salesMTDGoal)
+        let newSalesMTDColor = progressColor(for: "salesMTD", value: member.salesMTD, goal: member.salesMTDGoal)
+        let salesMTDTurnedGreen = oldSalesMTDColor != .green && newSalesMTDColor == .green
+        
+        // Return true if ANY line turned green
+        return quotesTurnedGreen || salesWTDTurnedGreen || salesMTDTurnedGreen
+    }
+    
+    private func progressColor(for field: String, value: Int, goal: Int) -> Color {
+        guard goal > 0 else { return .gray }
+        
+        let calendar = Calendar.current
+        let today = Date()
+        
+        let isOnTrack: Bool
+        switch field {
+        case "quotesToday", "salesWTD":
+            let weekday = calendar.component(.weekday, from: today)
+            let dayOfWeek = max(weekday - 1, 1)
+            let expected = Double(goal) * Double(dayOfWeek) / 7.0
+            isOnTrack = Double(value) >= expected
+        case "salesMTD":
+            let dayOfMonth = calendar.component(.day, from: today)
+            let totalDays = calendar.range(of: .day, in: .month, for: today)?.count ?? 30
+            let expected = Double(goal) * Double(dayOfMonth) / Double(totalDays)
+            isOnTrack = Double(value) >= expected
+        default:
+            isOnTrack = false
+        }
+        
+        return isOnTrack ? .green : .yellow
     }
 }
 
@@ -713,76 +835,126 @@ private struct TeamMemberCardView: View {
     let quotesLabel: String
     let salesWTDLabel: String
     let salesMTDLabel: String
+    @Binding var celebrationMemberID: UUID?
+    @Binding var celebrationField: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack {
-                if isEditable {
-                    Button(action: { onEdit("emoji") }) {
+        ZStack {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack {
+                    if isEditable {
+                        Button(action: { onEdit("emoji") }) {
+                            Text(member.emoji)
+                                .font(.title2.bold())
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .contextMenu { }
+                    } else {
                         Text(member.emoji)
                             .font(.title2.bold())
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    .contextMenu { }
-                } else {
-                    Text(member.emoji)
-                        .font(.title2.bold())
-                }
-                HStack(spacing: 6) {
-                    Text(member.name)
-                        .font(.title2.bold())
-                    if isEditable {
-                        Image(systemName: "pencil")
-                            .foregroundColor(.white)
+                    HStack(spacing: 6) {
+                        Text(member.name)
+                            .font(.title2.bold())
+                        if isEditable {
+                            Image(systemName: "pencil")
+                                .foregroundColor(.white)
+                        }
                     }
                 }
+                .padding(6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(red: 237/255, green: 29/255, blue: 36/255))
+                .foregroundColor(.white)
+                .cornerRadius(10, corners: [.topLeft, .topRight])
+
+                StatRow(
+                    title: quotesLabel,
+                    value: member.quotesToday,
+                    goal: member.quotesGoal,
+                    type: .quotes,
+                    isEditable: isEditable,
+                    member: $member,
+                    recentlyCompletedIDs: $recentlyCompletedIDs,
+                    teamData: $teamData,
+                    onTap: { if isEditable { onEdit("quotesToday") } }
+                )
+                StatRow(
+                    title: salesWTDLabel,
+                    value: member.salesWTD,
+                    goal: member.salesWTDGoal,
+                    type: .salesWTD,
+                    isEditable: isEditable,
+                    member: $member,
+                    recentlyCompletedIDs: $recentlyCompletedIDs,
+                    teamData: $teamData,
+                    onTap: { if isEditable { onEdit("salesWTD") } }
+                )
+                StatRow(
+                    title: salesMTDLabel,
+                    value: member.salesMTD,
+                    goal: member.salesMTDGoal,
+                    type: .salesMTD,
+                    isEditable: isEditable,
+                    member: $member,
+                    recentlyCompletedIDs: $recentlyCompletedIDs,
+                    teamData: $teamData,
+                    onTap: { if isEditable { onEdit("salesMTD") } }
+                )
             }
             .padding(6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(red: 237/255, green: 29/255, blue: 36/255))
-            .foregroundColor(.white)
-            .cornerRadius(10, corners: [.topLeft, .topRight])
-
-            StatRow(
-                title: quotesLabel,
-                value: member.quotesToday,
-                goal: member.quotesGoal,
-                type: .quotes,
-                isEditable: isEditable,
-                member: $member,
-                recentlyCompletedIDs: $recentlyCompletedIDs,
-                teamData: $teamData,
-                onTap: { if isEditable { onEdit("quotesToday") } }
-            )
-            StatRow(
-                title: salesWTDLabel,
-                value: member.salesWTD,
-                goal: member.salesWTDGoal,
-                type: .salesWTD,
-                isEditable: isEditable,
-                member: $member,
-                recentlyCompletedIDs: $recentlyCompletedIDs,
-                teamData: $teamData,
-                onTap: { if isEditable { onEdit("salesWTD") } }
-            )
-            StatRow(
-                title: salesMTDLabel,
-                value: member.salesMTD,
-                goal: member.salesMTDGoal,
-                type: .salesMTD,
-                isEditable: isEditable,
-                member: $member,
-                recentlyCompletedIDs: $recentlyCompletedIDs,
-                teamData: $teamData,
-                onTap: { if isEditable { onEdit("salesMTD") } }
-            )
+            .background(Color(uiColor: .secondarySystemBackground))
+            .cornerRadius(12)
+            .shadow(radius: 2)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 0)
+            
+            // Celebration overlay - only show if this is the celebrating member
+            if celebrationMemberID == member.id {
+                CelebrationView(field: celebrationField)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(false)
+            }
         }
-        .padding(6)
-        .background(Color(uiColor: .secondarySystemBackground))
-        .cornerRadius(12)
-        .shadow(radius: 2)
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 0)
+    }
+}
+
+// MARK: - Celebration View
+struct CelebrationView: View {
+    let field: String
+    @State private var scale: CGFloat = 0.0
+    @State private var opacity: Double = 0.0
+    
+    var body: some View {
+        VStack {
+            Spacer()
+            Text("🎉")
+                .font(.system(size: 60))
+                .scaleEffect(scale)
+                .opacity(opacity)
+                .onAppear {
+                    // Start animation sequence
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        scale = 1.2
+                        opacity = 1.0
+                    }
+                    
+                    // Scale down to normal size
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            scale = 1.0
+                        }
+                    }
+                    
+                    // Fade out
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        withAnimation(.easeIn(duration: 0.3)) {
+                            opacity = 0.0
+                        }
+                    }
+                }
+            Spacer()
+        }
     }
 }
     

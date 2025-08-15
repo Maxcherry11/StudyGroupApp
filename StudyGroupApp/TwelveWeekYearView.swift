@@ -49,7 +49,7 @@ struct TwelveWeekYearView: View {
         guard let quarterStart = calendar.date(from: quarterStartComponents) else { return 12 }
         
         // Calculate the end of the current quarter (12 weeks from start)
-        let quarterEnd = calendar.date(byAdding: .weekOfYear, value: 12, to: quarterStart) ?? now
+        let _ = calendar.date(byAdding: .weekOfYear, value: 12, to: quarterStart) ?? now
         
         // Calculate weeks remaining in the current quarter
         let weeksElapsed = calendar.dateComponents([.weekOfYear], from: quarterStart, to: now).weekOfYear ?? 0
