@@ -9,6 +9,7 @@ struct TwelveWeekYearView: View {
     @State private var lastVisibleMemberId: UUID?
     @State private var interactionTimer: Timer?
     @State private var isScrolling = false
+    @State private var currentDate = Date()
     @Environment(\.sizeCategory) private var sizeCategory
     @ScaledMetric(relativeTo: .largeTitle) private var titleBase: CGFloat = 48
     @ScaledMetric(relativeTo: .body) private var labelBase: CGFloat = 30
@@ -20,6 +21,41 @@ struct TwelveWeekYearView: View {
     var overallPercent: Double {
         guard !viewModel.members.isEmpty else { return 0 }
         return viewModel.members.map { $0.progress * 100 }.reduce(0, +) / Double(viewModel.members.count)
+    }
+    
+    var currentQuarterWeeksRemaining: Int {
+        let calendar = Calendar.current
+        let now = currentDate
+        
+        // Get the current quarter (1-4)
+        let quarter = (calendar.component(.month, from: now) - 1) / 3 + 1
+        
+        // Calculate the start of the current quarter
+        let quarterStartMonth: Int
+        switch quarter {
+        case 1: quarterStartMonth = 1   // Jan-Mar
+        case 2: quarterStartMonth = 4   // Apr-Jun
+        case 3: quarterStartMonth = 7   // Jul-Sep
+        case 4: quarterStartMonth = 10  // Oct-Dec
+        default: quarterStartMonth = 1
+        }
+        
+        // Create the start date of the current quarter
+        var quarterStartComponents = DateComponents()
+        quarterStartComponents.year = calendar.component(.year, from: now)
+        quarterStartComponents.month = quarterStartMonth
+        quarterStartComponents.day = 1
+        
+        guard let quarterStart = calendar.date(from: quarterStartComponents) else { return 12 }
+        
+        // Calculate the end of the current quarter (12 weeks from start)
+        let quarterEnd = calendar.date(byAdding: .weekOfYear, value: 12, to: quarterStart) ?? now
+        
+        // Calculate weeks remaining in the current quarter
+        let weeksElapsed = calendar.dateComponents([.weekOfYear], from: quarterStart, to: now).weekOfYear ?? 0
+        let weeksRemaining = max(0, 12 - weeksElapsed)
+        
+        return weeksRemaining
     }
 
     var displayTeam: [TwelveWeekMember] {
@@ -101,17 +137,31 @@ struct TwelveWeekYearView: View {
                     stableMemberOrder = newMembers.sorted { $0.progress > $1.progress }
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                // Update current date when app becomes active
+                currentDate = Date()
+            }
             .onAppear {
                 // Initialize stable order
                 stableMemberOrder = sortedTeam
                 // Reset interaction state
                 resetInteractionState()
+                // Update current date immediately
+                currentDate = Date()
+                
                 // Set up periodic timer to update stable order when not interacting
                 interactionTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
                     DispatchQueue.main.async {
                         if !isInteracting && !isScrolling {
                             stableMemberOrder = sortedTeam
                         }
+                    }
+                }
+                
+                // Set up timer to update current date every hour to keep weeks remaining current
+                Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { _ in
+                    DispatchQueue.main.async {
+                        currentDate = Date()
                     }
                 }
             }
@@ -129,11 +179,20 @@ struct TwelveWeekYearView: View {
 
             ScrollViewReader { scrollProxy in
                 ScrollView {
-                    LazyVStack(spacing: 45) {
+                    LazyVStack(spacing: 15) {
                         Text("12 Week Year")
                             .font(.system(size: 48, weight: .bold))
                             .foregroundColor(.white)
-                            .padding(.bottom, 10)
+                            .padding(.bottom, 2)
+                        
+                        Text("\(currentQuarterWeeksRemaining) Weeks Remaining")
+                            .font(.system(size: 17, weight: .medium, design: .rounded))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.green)
+                            .cornerRadius(20)
+                            .padding(.bottom, 55)
 
                         GaugeView(percentage: overallPercent)
                             .frame(height: 140)

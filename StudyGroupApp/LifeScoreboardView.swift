@@ -79,19 +79,7 @@ struct LifeScoreboardView: View {
         _viewModel = StateObject(wrappedValue: viewModel)
     }
 
-    private func yearLabel() -> String {
-        let month = Calendar.current.component(.month, from: Date())
-        switch month {
-        case 1...3:
-            return "First Year"
-        case 4...6:
-            return "Second Year"
-        case 7...9:
-            return "Third Year"
-        default:
-            return "Fourth Year"
-        }
-    }
+
 
     var body: some View {
         ScrollView {
@@ -101,18 +89,6 @@ struct LifeScoreboardView: View {
                 VStack(spacing: 8) {
                     Text("Life Scoreboard")
                         .font(.system(size: 34, weight: .bold, design: .rounded))
-                    
-                    Text("3 Weeks Remaining")
-                        .font(.system(size: 17, weight: .medium, design: .rounded))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.green)
-                        .cornerRadius(20)
-                    
-                    Text(yearLabel())
-                        .font(.system(size: 15, weight: .regular, design: .rounded))
-                    
                 }
                 .padding(.bottom, 4)
                 
