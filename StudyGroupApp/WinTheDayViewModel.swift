@@ -14,6 +14,7 @@ class WinTheDayViewModel: ObservableObject {
         self.displayedMembers = stored
         // Use locally stored order as a placeholder until CloudKit loads
         self.teamData = stored
+        print("🗃️ WTD init loaded \(stored.count) cached members.")
         self.cards = loadCardsFromDevice()
         self.displayedCards = self.cards
         let names = Self.loadLocalGoalNames()
@@ -145,35 +146,76 @@ class WinTheDayViewModel: ObservableObject {
                 let newHash = self.computeHash(for: fetched)
 
                 DispatchQueue.main.async {
-                    if self.lastFetchHash != newHash {
-                        self.teamMembers = fetched
-                        self.displayedMembers = fetched
-                        self.teamData = fetched
-                        self.reorderAfterSave() // Reorder based on performance after fetching from CloudKit
+                    // ⚠️ Non-destructive merge: only override from CloudKit when it returns non-empty
+                    if !fetched.isEmpty {
+                        // Merge by name so we don't drop fields if only some members changed
+                        var byName: [String: TeamMember] = [:]
+                        for m in self.teamMembers { byName[m.name] = m }
+                        for m in fetched {
+                            byName[m.name] = m // fetched wins entirely per member
+                        }
+                        let merged = Array(byName.values).sorted { $0.sortIndex < $1.sortIndex }
+                        self.teamMembers = merged
+                        self.displayedMembers = merged
+                        self.teamData = merged
+                        self.reorderAfterSave()
                         self.lastFetchHash = newHash
-                        self.saveLocal()
+                        self.saveLocalIfNonEmpty()
+                    } else {
+                        print("⚠️ CloudKit fetchTeam returned 0 members; keeping local cache to avoid blank screen.")
                     }
 
-                    // Ensure local entries mirror the latest user list so any
-                    // missing members exist before merging card data.
+                    // Ensure local entries mirror the latest user list only if we actually have a list
                     let allNames = UserManager.shared.userList
-                    self.updateLocalEntries(names: allNames)
+                    if !allNames.isEmpty {
+                        self.updateLocalEntries(names: allNames)
+                    } else {
+                        print("ℹ️ User list is empty; skipping updateLocalEntries to avoid clearing cached members.")
+                    }
 
                     CloudKitManager.fetchCards { cards in
                         DispatchQueue.main.async {
-                            var merged = self.cards
-                            for card in cards {
-                                if let idx = merged.firstIndex(where: { $0.id == card.id }) {
-                                    merged[idx] = card
-                                } else {
-                                    merged.append(card)
+                            if cards.isEmpty {
+                                print("⚠️ CloudKit fetchCards returned 0; preserving local cards to avoid blank UI.")
+                            } else {
+                                var merged = self.cards
+                                for card in cards {
+                                    if let idx = merged.firstIndex(where: { $0.id == card.id }) {
+                                        merged[idx] = card
+                                    } else {
+                                        merged.append(card)
+                                    }
+                                }
+                                self.cards = merged.sorted { $0.orderIndex < $1.orderIndex }
+                                self.displayedCards = self.cards
+                                self.saveCardsToDevice()
+                            }
+
+                            // 🧩 Backfill: If a Card has a default/empty emoji but TeamMember has a real one, copy it up and persist to CloudKit
+                            for m in self.teamMembers {
+                                if let idx = self.cards.firstIndex(where: { $0.name == m.name }) {
+                                    let current = self.cards[idx].emoji.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    let memberEmoji = m.emoji.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    let isDefaultOrEmpty = current.isEmpty || current == "\u{2728}"
+                                    let hasRealMemberEmoji = !memberEmoji.isEmpty && memberEmoji != "\u{2728}"
+                                    if isDefaultOrEmpty && hasRealMemberEmoji {
+                                        self.cards[idx].emoji = memberEmoji
+                                        self.saveCardsToDevice()
+                                        CloudKitManager.saveCard(self.cards[idx])
+                                    }
                                 }
                             }
-                            self.cards = merged.sorted { $0.orderIndex < $1.orderIndex }
-                            self.displayedCards = self.cards
-                            self.saveCardsToDevice()
 
-                            let names = self.teamMembers.map { $0.name }
+                            // 🔗 Keep emoji as a single source of truth from Card -> TeamMember
+                            for idx in self.teamMembers.indices {
+                                if let card = self.cards.first(where: { $0.name == self.teamMembers[idx].name }) {
+                                    self.teamMembers[idx].emoji = card.emoji
+                                }
+                            }
+                            self.saveLocal()
+
+                            let userList = UserManager.shared.userList
+                            let names = userList.isEmpty ? self.teamMembers.map { $0.name } : userList
                             self.ensureCardsForAllUsers(names)
 
                             self.lastGoalHash = Self.computeGoalHash(for: self.goalNames)
@@ -281,6 +323,7 @@ class WinTheDayViewModel: ObservableObject {
     }
 
     private func updateLocalEntries(names: [String]) {
+        guard !names.isEmpty else { return }
         teamMembers.removeAll { member in !names.contains(member.name) }
 
         let stored = loadLocalMembers()
@@ -328,7 +371,7 @@ class WinTheDayViewModel: ObservableObject {
             record["quotesGoal"] = member.quotesGoal as CKRecordValue
             record["salesWTDGoal"] = member.salesWTDGoal as CKRecordValue
             record["salesMTDGoal"] = member.salesMTDGoal as CKRecordValue
-            record["emoji"] = member.emoji as CKRecordValue
+            // record["emoji"] = member.emoji as CKRecordValue    // Removed: emoji is now sourced from Card only
             record["sortIndex"] = member.sortIndex as CKRecordValue
             
             // Save the updated record
@@ -347,10 +390,25 @@ class WinTheDayViewModel: ObservableObject {
 
     /// Updates only the emoji for the provided member in CloudKit.
     func updateEmoji(for member: TeamMember, completion: ((Bool) -> Void)? = nil) {
+        // Update in CloudKit via the shared helper
         CloudKitManager.shared.updateEmoji(for: member.name, emoji: member.emoji) { success in
-            completion?(success)
+            DispatchQueue.main.async {
+                // Reflect change in TeamMember array
+                if let memberIndex = self.teamMembers.firstIndex(where: { $0.name == member.name }) {
+                    self.teamMembers[memberIndex].emoji = member.emoji
+                }
+                // Reflect change in Card array and persist
+                if let cardIndex = self.cards.firstIndex(where: { $0.name == member.name }) {
+                    self.cards[cardIndex].emoji = member.emoji
+                    self.saveCardsToDevice()
+                    // Push card emoji to CloudKit to keep Card and TeamMember consistent
+                    CloudKitManager.saveCard(self.cards[cardIndex])
+                }
+                // Persist TeamMember change locally
+                self.saveLocal()
+                completion?(success)
+            }
         }
-        saveLocal()
     }
     /// Reorders team members by current production (quotes + sales) and updates
     /// their persisted `sortIndex`. This mirrors the stable ordering logic used
@@ -472,39 +530,49 @@ class WinTheDayViewModel: ObservableObject {
     /// `Card` record type if needed.
     /// Also ensures TeamMember objects exist with proper goal values copied from existing members.
     func ensureCardsForAllUsers(_ users: [String]) {
+        // Determine template goals from existing members or local storage; fallback to defaults
+        let templateGoals: (quotes: Int, wtd: Int, mtd: Int) = {
+            if let t = teamMembers.first(where: { $0.quotesGoal > 0 || $0.salesWTDGoal > 0 || $0.salesMTDGoal > 0 }) {
+                return (t.quotesGoal, t.salesWTDGoal, t.salesMTDGoal)
+            } else if let t = loadLocalMembers().first(where: { $0.quotesGoal > 0 || $0.salesWTDGoal > 0 || $0.salesMTDGoal > 0 }) {
+                return (t.quotesGoal, t.salesWTDGoal, t.salesMTDGoal)
+            } else {
+                return (10, 2, 6)
+            }
+        }()
         for (index, name) in users.enumerated() {
             // Ensure Card exists
             if !cards.contains(where: { $0.name == name }) {
-                let card = Card(id: "card-\(name)", name: name, emoji: "\u{2728}", orderIndex: index)
+                var newEmoji = "\u{2728}" // default
+                if let existingMember = teamMembers.first(where: { $0.name == name }), !existingMember.emoji.isEmpty {
+                    newEmoji = existingMember.emoji
+                } else if let localMember = loadLocalMembers().first(where: { $0.name == name }), !localMember.emoji.isEmpty {
+                    newEmoji = localMember.emoji
+                }
+                let card = Card(id: "card-\(name)", name: name, emoji: newEmoji, orderIndex: index)
                 cards.append(card)
                 CloudKitManager.saveCard(card)
             }
             
             // Ensure TeamMember exists with proper goals
+            if let idxExisting = teamMembers.firstIndex(where: { $0.name == name }) {
+                let m = teamMembers[idxExisting]
+                if m.quotesGoal == 0 && m.salesWTDGoal == 0 && m.salesMTDGoal == 0 {
+                    teamMembers[idxExisting].quotesGoal = templateGoals.quotes
+                    teamMembers[idxExisting].salesWTDGoal = templateGoals.wtd
+                    teamMembers[idxExisting].salesMTDGoal = templateGoals.mtd
+                    // Persist the repaired goals to CloudKit so other devices align
+                    saveWinTheDayFields(teamMembers[idxExisting])
+                }
+            }
             if !teamMembers.contains(where: { $0.name == name }) {
                 let member = TeamMember(name: name)
-                
-                // Copy goals from existing team members to maintain consistency
-                if let template = teamMembers.first {
-                    member.quotesGoal = template.quotesGoal
-                    member.salesWTDGoal = template.salesWTDGoal
-                    member.salesMTDGoal = template.salesMTDGoal
-                } else if let template = loadLocalMembers().first {
-                    // Fallback to local storage if no current members
-                    member.quotesGoal = template.quotesGoal
-                    member.salesWTDGoal = template.salesWTDGoal
-                    member.salesMTDGoal = template.salesMTDGoal
-                } else {
-                    // Final fallback: use current team goals (10/2/6 based on existing cards)
-                    // This ensures new members don't get 0/0/0 goals
-                    member.quotesGoal = 10
-                    member.salesWTDGoal = 2
-                    member.salesMTDGoal = 6
-                }
-                
+                // Set goals from template so new members never start at 0/0/0
+                member.quotesGoal = templateGoals.quotes
+                member.salesWTDGoal = templateGoals.wtd
+                member.salesMTDGoal = templateGoals.mtd
                 member.sortIndex = teamMembers.count
                 teamMembers.append(member)
-                
                 // Save the new member to CloudKit using Win The Day fields only
                 saveWinTheDayFields(member)
             }
@@ -536,6 +604,10 @@ class WinTheDayViewModel: ObservableObject {
         }
 
         CKContainer(identifier: "iCloud.com.dj.Outcast").publicCloudDatabase.add(operation)
+    }
+    private func saveLocalIfNonEmpty() {
+        guard !teamMembers.isEmpty else { return }
+        saveLocal()
     }
 } // end of class WinTheDayViewModel
 
@@ -587,3 +659,4 @@ extension TeamMember {
         )
     ]
 }
+
