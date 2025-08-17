@@ -31,7 +31,7 @@ struct UserSelectorView: View {
                                 .fontWeight(.bold)
 
                             List {
-                                ForEach(viewModel.teamMembers, id: \.id) { member in
+                                ForEach(viewModel.teamMembers.sorted { $0.name < $1.name }, id: \.id) { member in
                                     Button(action: {
                                         // Set the active user and proceed into the app
                                         userManager.currentUser = member.name
@@ -96,8 +96,9 @@ struct UserSelectorView: View {
     }
 
     private func deleteUser(at offsets: IndexSet) {
+        let sorted = viewModel.teamMembers.sorted { $0.name < $1.name }
         for index in offsets {
-            let member = viewModel.teamMembers[index]
+            let member = sorted[index]
             userManager.deleteUser(member.name)
             CloudKitManager.shared.deleteByName(member.name) { _ in
                 viewModel.fetchMembersFromCloud()

@@ -59,6 +59,8 @@ struct WinTheDayView: View {
     @State private var recentlyCompletedIDs: Set<UUID> = []
     @State private var celebrationMemberID: UUID?
     @State private var celebrationField: String = ""
+    // Keep editing state active during the delayed reorder window after Save
+    @State private var isAwaitingDelayedReorder: Bool = false
     // Production Goal Editor State
     @State private var showProductionGoalEditor = false
     @State private var newQuotesGoal = 10
@@ -69,111 +71,140 @@ struct WinTheDayView: View {
     @State private var editingQuotesLabel = ""
     @State private var editingSalesWTDLabel = ""
     @State private var editingSalesMTDLabel = ""
+    @State private var didRunInitialSync = false
+    // Caches for splash-to-dashboard transition
+    @State private var lastNonEmptyMembers: [TeamMember] = []
+    @State private var lastNonEmptyTeamData: [TeamMember] = []
+
+    // Removed computed properties to avoid compiler type-checking issues
+
+    // DEBUG: order logging
+    @State private var enableOrderLogs = true
+    private func logOrder(_ label: String, _ members: [TeamMember]) {
+        guard enableOrderLogs else { return }
+        let names = members.map { $0.name }.joined(separator: ", ")
+        print("🧭 [WinTheDay] \(label): [\(names)]")
+    }
+
+    // Break up the large body chain for compiler performance
+    private var lifecycleWrapped: some View {
+        VStack(spacing: 20) {
+            header
+            teamCardsList
+            fallbackMessage
+            Spacer()
+        }
+        .overlay(editingOverlay)
+        .background(winTheDayBackground)
+        // Removed the subtle animation to reduce type-checking complexity
+        .onAppear {
+            handleOnAppear()
+        }
+        .onChange(of: userManager.currentUser) { _ in
+            viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
+        }
+        .onChange(of: userManager.userList) { names in
+            viewModel.fetchMembersFromCloud { [weak viewModel] in
+                viewModel?.ensureCardsForAllUsers(names)
+            }
+        }
+        .onChange(of: viewModel.isLoaded) { loaded in
+            guard loaded else { return }
+            viewModel.fetchMembersFromCloud { [weak viewModel] in
+                viewModel?.ensureCardsForAllUsers(userManager.userList)
+            }
+        }
+        .onChange(of: viewModel.teamMembers.map { $0.id }) { _ in
+            let members = viewModel.teamMembers
+            if !members.isEmpty { lastNonEmptyMembers = members }
+        }
+        .onChange(of: viewModel.teamData.map { $0.id }) { _ in
+            let data = viewModel.teamData
+            if !data.isEmpty { lastNonEmptyTeamData = data }
+            if enableOrderLogs { logOrder("teamData changed", data) }
+        }
+        .onChange(of: editingMemberID) { newValue in
+            // Edit button should ONLY show/hide popup - NO freezing, NO reordering, NO logic changes
+            if newValue != nil {
+                if enableOrderLogs { print("🧭 [WinTheDay] Edit popup opened for member") }
+                // Don't set viewModel.isEditing = true - this was causing the freezing
+                // Don't set frozenOrderIDs - this was preventing normal card ordering
+            } else {
+                if enableOrderLogs { print("🧭 [WinTheDay] Edit popup closed") }
+                // Don't change any state that affects card ordering
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .init("WinTheDayManualRefresh"))) { _ in
+            viewModel.fetchMembersFromCloud()
+            viewModel.fetchGoalNamesFromCloud()
+        }
+    }
 
     var body: some View {
-        Group {
-            if viewModel.isLoaded {
-                contentVStack
-                    .background(winTheDayBackground)
-            } else {
-                Color.clear
-            }
-        }
-        .onAppear {
-            viewModel.fetchGoalNamesFromCloud()
-            // First fetch team members, then ensure cards exist
-            viewModel.fetchMembersFromCloud { [weak viewModel] in
-                viewModel?.ensureCardsForAllUsers(userManager.userList)
-            }
-            viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
-            shimmerPosition = -1.0
-            withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
-                shimmerPosition = 1.5
-            }
-        }
-    .onChange(of: userManager.currentUser) { _ in
-        viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
-    }
-    .onChange(of: userManager.userList) { _ in
-        if viewModel.isLoaded {
-            viewModel.fetchMembersFromCloud { [weak viewModel] in
-                viewModel?.ensureCardsForAllUsers(userManager.userList)
-            }
-        } else {
-            // If not loaded yet, just ensure cards exist (they'll get proper goals when members load)
-            viewModel.ensureCardsForAllUsers(userManager.userList)
-        }
-    }
-    .sheet(isPresented: $emojiPickerVisible) {
-        emojiPickerSheet
-    }
-    .sheet(isPresented: $showProductionGoalEditor) {
-        VStack(spacing: 20) {
-            Text("Edit Production Goals")
-                .font(.headline)
-
-            Stepper("Quotes Goal: \(newQuotesGoal)", value: $newQuotesGoal, in: 1...100)
-            Stepper("Sales WTD Goal: \(newSalesWTDGoal)", value: $newSalesWTDGoal, in: 1...100)
-            Stepper("Sales MTD Goal: \(newSalesMTDGoal)", value: $newSalesMTDGoal, in: 1...100)
-
-            HStack {
-                Button("Cancel") {
-                    showProductionGoalEditor = false
+        AnyView(
+            lifecycleWrapped
+                .sheet(isPresented: $emojiPickerVisible) {
+                    emojiPickerSheet
                 }
-                Spacer()
-                Button("Save") {
-                    for index in viewModel.teamMembers.indices {
-                        viewModel.teamMembers[index].quotesGoal = newQuotesGoal
-                        viewModel.teamMembers[index].salesWTDGoal = newSalesWTDGoal
-                        viewModel.teamMembers[index].salesMTDGoal = newSalesMTDGoal
-                        viewModel.saveMember(viewModel.teamMembers[index])
+                .sheet(isPresented: $showProductionGoalEditor) {
+                    // Existing content kept as-is
+                    VStack(spacing: 20) {
+                        Text("Edit Production Goals")
+                            .font(.headline)
+                        Stepper("Quotes Goal: \(newQuotesGoal)", value: $newQuotesGoal, in: 1...100)
+                        Stepper("Sales WTD Goal: \(newSalesWTDGoal)", value: $newSalesWTDGoal, in: 1...100)
+                        Stepper("Sales MTD Goal: \(newSalesMTDGoal)", value: $newSalesMTDGoal, in: 1...100)
+                        HStack {
+                            Button("Cancel") { showProductionGoalEditor = false }
+                            Spacer()
+                            Button("Save") {
+                                for index in viewModel.teamMembers.indices {
+                                    viewModel.teamMembers[index].quotesGoal = newQuotesGoal
+                                    viewModel.teamMembers[index].salesWTDGoal = newSalesWTDGoal
+                                    viewModel.teamMembers[index].salesMTDGoal = newSalesMTDGoal
+                                    viewModel.saveMember(viewModel.teamMembers[index])
+                                }
+                                viewModel.teamMembers = viewModel.teamMembers.map { $0 }
+                                showProductionGoalEditor = false
+                            }
+                        }
+                        .padding(.top, 10)
                     }
-                    viewModel.teamMembers = viewModel.teamMembers.map { $0 }
-                    showProductionGoalEditor = false
+                    .padding()
                 }
-            }
-            .padding(.top, 10)
-        }
-        .padding()
+                .sheet(isPresented: $showGoalNameEditor) {
+                    VStack(spacing: 20) {
+                        Text("Edit Goal Names")
+                            .font(.headline)
+                        TextField("Quotes Label", text: $editingQuotesLabel)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                        TextField("Sales WTD Label", text: $editingSalesWTDLabel)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                        TextField("Sales MTD Label", text: $editingSalesMTDLabel)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                        HStack {
+                            Button("Cancel") { showGoalNameEditor = false }
+                            Spacer()
+                            Button("Save") {
+                                viewModel.saveGoalNames(
+                                    quotes: editingQuotesLabel,
+                                    salesWTD: editingSalesWTDLabel,
+                                    salesMTD: editingSalesMTDLabel
+                                )
+                                showGoalNameEditor = false
+                            }
+                        }
+                        .padding(.top, 10)
+                    }
+                    .padding()
+                    .onAppear {
+                        editingQuotesLabel = viewModel.goalNames.quotes
+                        editingSalesWTDLabel = viewModel.goalNames.salesWTD
+                        editingSalesMTDLabel = viewModel.goalNames.salesMTD
+                    }
+                }
+        )
     }
-    .sheet(isPresented: $showGoalNameEditor) {
-        VStack(spacing: 20) {
-            Text("Edit Goal Names")
-                .font(.headline)
-
-            TextField("Quotes Label", text: $editingQuotesLabel)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-
-            TextField("Sales WTD Label", text: $editingSalesWTDLabel)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-
-            TextField("Sales MTD Label", text: $editingSalesMTDLabel)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-
-            HStack {
-                Button("Cancel") {
-                    showGoalNameEditor = false
-                }
-                Spacer()
-                Button("Save") {
-                    viewModel.saveGoalNames(
-                        quotes: editingQuotesLabel,
-                        salesWTD: editingSalesWTDLabel,
-                        salesMTD: editingSalesMTDLabel
-                    )
-                    showGoalNameEditor = false
-                }
-            }
-            .padding(.top, 10)
-        }
-        .padding()
-        .onAppear {
-            editingQuotesLabel = viewModel.goalNames.quotes
-            editingSalesWTDLabel = viewModel.goalNames.salesWTD
-            editingSalesMTDLabel = viewModel.goalNames.salesMTD
-        }
-    }
-}
 
 @ViewBuilder
 private func editingSheet(for editingID: UUID) -> some View {
@@ -187,10 +218,13 @@ private func editingSheet(for editingID: UUID) -> some View {
             field: editingField,
             editingMemberID: $editingMemberID,
             recentlyCompletedIDs: $recentlyCompletedIDs,
+            isAwaitingDelayedReorder: $isAwaitingDelayedReorder,
             onSave: { _, _ in
                 // Always delay card movement to ensure consistent behavior
                 // This gives time for celebrations to complete and prevents visual glitches
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    isAwaitingDelayedReorder = false
+                    viewModel.isEditing = false
                     handleSaveAndReorder()
                 }
                 // Don't update teamMembers here - let the delayed reordering handle it
@@ -204,46 +238,44 @@ private func editingSheet(for editingID: UUID) -> some View {
 }
 
 private var contentVStack: some View {
-    let headerSection = header
-    let cardsSection = teamCardsList
-    let fallbackSection = fallbackMessage
-
-    return VStack(spacing: 20) {
-        headerSection
-        cardsSection
-        fallbackSection
+    VStack(spacing: 20) {
+        header
+        teamCardsList
+        fallbackMessage
         Spacer()
     }
-    .overlay(
-        Group {
-            if let editingID = editingMemberID,
-               let index = viewModel.teamMembers.firstIndex(where: { $0.id == editingID }) {
-                EditingOverlayView(
-                    member: Binding(
-                        get: { viewModel.teamMembers[index] },
-                        set: { viewModel.teamMembers[index] = $0 }
-                    ),
-                    field: editingField,
-                    editingMemberID: $editingMemberID,
-                    recentlyCompletedIDs: $recentlyCompletedIDs,
-                    onSave: { _, _ in
-                        // Always delay card movement to ensure consistent behavior
-                        // This gives time for celebrations to complete and prevents visual glitches
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                            handleSaveAndReorder()
-                        }
-                        // Don't update teamMembers here - let the delayed reordering handle it
-                    },
-                    onCelebration: { memberID, field in
-                        triggerCelebration(for: memberID, field: field)
+}
+
+private var editingOverlay: some View {
+    Group {
+        if let editingID = editingMemberID,
+           let index = viewModel.teamMembers.firstIndex(where: { $0.id == editingID }) {
+            EditingOverlayView(
+                member: Binding(
+                    get: { viewModel.teamMembers[index] },
+                    set: { viewModel.teamMembers[index] = $0 }
+                ),
+                field: editingField,
+                editingMemberID: $editingMemberID,
+                recentlyCompletedIDs: $recentlyCompletedIDs,
+                isAwaitingDelayedReorder: $isAwaitingDelayedReorder,
+                onSave: { _, _ in
+                    // Always delay card movement to ensure consistent behavior
+                    // This gives time for celebrations to complete and prevents visual glitches
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        handleSaveAndReorder()
                     }
-                )
-                .environmentObject(viewModel)
-                .transition(.scale)
-                .zIndex(100)
-            }
+                    // Don't update teamMembers here - let the delayed reordering handle it
+                },
+                onCelebration: { memberID, field in
+                    triggerCelebration(for: memberID, field: field)
+                }
+            )
+            .environmentObject(viewModel)
+            .transition(.scale)
+            .zIndex(100)
         }
-    )
+    }
 }
 
     // Function to trigger celebration animation
@@ -294,61 +326,30 @@ private var header: some View {
 
 
 private var teamCardsList: some View {
-    ScrollViewReader { scrollProxy in
-        ScrollView {
-            VStack(spacing: 10) {
-                
-                ForEach(viewModel.teamData, id: \.id) { member in
-                    if let idx = viewModel.teamMembers.firstIndex(where: { $0.name == member.name }) {
-                        let name = viewModel.teamMembers[idx].name
-                        let isEditable = name == userManager.currentUser
-                        TeamMemberCardView(
-                            member: $viewModel.teamMembers[idx],
-                        isEditable: isEditable,
-                        selectedUserName: userManager.currentUser,
-                        onEdit: { field in
-                            if isEditable {
-                                editingMemberID = member.id
-                                editingField = field
-                                if field == "emoji" {
-                                    emojiPickerVisible = true
-                                    emojiEditingID = member.id
-                                    editingMemberID = nil
-                                } else {
-                                    withAnimation {
-                                        scrollProxy.scrollTo(member.id, anchor: .center)
-                                    }
-                                }
-                            }
-                        },
-                        recentlyCompletedIDs: $recentlyCompletedIDs,
-                        teamData: $viewModel.teamData,
-                        quotesLabel: viewModel.goalNames.quotes,
-                        salesWTDLabel: viewModel.goalNames.salesWTD,
-                        salesMTDLabel: viewModel.goalNames.salesMTD,
-                        celebrationMemberID: $celebrationMemberID,
-                        celebrationField: $celebrationField
-                        )
-                        .id(member.id)
-                    }
-                }
-            }
-            .padding(.horizontal, 20)
-            .animation(.easeInOut, value: viewModel.teamData.map { $0.id })
-        }
-        .refreshable {
-            viewModel.fetchMembersFromCloud()
-            viewModel.fetchGoalNamesFromCloud()
-            viewModel.ensureCardsForAllUsers(userManager.userList)
-        }
-    }
+    TeamCardsListView(
+        teamMembers: $viewModel.teamMembers,
+        teamData: $viewModel.teamData,
+        lastNonEmptyTeamData: $lastNonEmptyTeamData,
+        currentUser: userManager.currentUser,
+        goalNames: (quotes: viewModel.goalNames.quotes, salesWTD: viewModel.goalNames.salesWTD, salesMTD: viewModel.goalNames.salesMTD),
+        editingMemberID: $editingMemberID,
+        editingField: $editingField,
+        emojiPickerVisible: $emojiPickerVisible,
+        emojiEditingID: $emojiEditingID,
+        recentlyCompletedIDs: $recentlyCompletedIDs,
+        celebrationMemberID: $celebrationMemberID,
+        celebrationField: $celebrationField,
+        splashOrder: userManager.userList,
+        // Keep list in frozen mode while edit sheet is open OR while we are waiting to reorder after Save
+        isEditing: (editingMemberID != nil) || isAwaitingDelayedReorder
+    )
 }
 
 
 
 private var fallbackMessage: some View {
     Group {
-        if viewModel.teamData.isEmpty {
+        if (viewModel.teamData.isEmpty ? lastNonEmptyTeamData : viewModel.teamData).isEmpty {
             EmptyView()
         }
     }
@@ -356,7 +357,7 @@ private var fallbackMessage: some View {
 
 private var backgroundLayer: some View {
     ZStack {
-        backgroundGradient(for: viewModel.teamMembers).ignoresSafeArea()
+        backgroundGradient(for: viewModel.teamMembers.isEmpty ? lastNonEmptyMembers : viewModel.teamMembers).ignoresSafeArea()
 
         // Existing shimmer overlay
         LinearGradient(
@@ -395,14 +396,16 @@ private var backgroundLayer: some View {
 // Removed editingOverlayContent, editingOverlayBody, and editingOverlay
 
 private var emojiPickerSheet: some View {
-    VStack(spacing: 20) {
-        Text("Choose Your Emoji").font(.headline)
-        emojiGrid
-        Button("Cancel") {
-            emojiPickerVisible = false
+    AnyView(
+        VStack(spacing: 20) {
+            Text("Choose Your Emoji").font(.headline)
+            emojiGrid
+            Button("Cancel") {
+                emojiPickerVisible = false
+            }
         }
-    }
-    .padding()
+        .padding()
+    )
 }
 
 
@@ -451,14 +454,55 @@ private var emojiGrid: some View {
 
 /// Handles saving edits and reordering cards with animation.
 private func handleSaveAndReorder() {
-    // First save the data, then reorder
-    withAnimation {
-        viewModel.reorderAfterSave()
+    // Unfreeze and allow reordering now that celebration has completed
+    isAwaitingDelayedReorder = false
+    viewModel.isEditing = false
+
+    if enableOrderLogs {
+        let before = viewModel.teamMembers
+        logOrder("before SAVE+REORDER", before)
     }
-    viewModel.saveCardOrderToCloud(for: userManager.currentUser)
     
-    // Force update to trigger SwiftUI redraw after reordering
-    viewModel.teamMembers = viewModel.teamMembers.map { $0 }
+    // Only reorder if we're not already in the correct order
+    // This prevents unnecessary shuffling when the order hasn't actually changed
+    let currentOrder = viewModel.teamMembers.map { $0.id }
+    let expectedOrder = viewModel.teamMembers.sorted(by: viewModel.stableByScoreThenIndex).map { $0.id }
+    
+    let needsReordering = currentOrder != expectedOrder
+    
+    if needsReordering {
+        if enableOrderLogs { print("🧭 [WinTheDay] Order changed, performing reorder") }
+        // First save the data, then reorder
+        withAnimation {
+            viewModel.reorderAfterSave()
+        }
+        if enableOrderLogs {
+            let after = viewModel.teamMembers
+            logOrder("after SAVE+REORDER", after)
+        }
+        viewModel.saveCardOrderToCloud(for: userManager.currentUser)
+        
+        // Force update to trigger SwiftUI redraw after reordering
+        viewModel.teamMembers = viewModel.teamMembers.map { $0 }
+    } else {
+        if enableOrderLogs { print("🧭 [WinTheDay] No reordering needed - order is already correct") }
+    }
+}
+
+/// Handles the onAppear logic to avoid complex type-checking issues
+private func handleOnAppear() {
+    guard !didRunInitialSync else { return }
+    didRunInitialSync = true
+
+    viewModel.fetchGoalNamesFromCloud()
+    viewModel.fetchMembersFromCloud { [weak viewModel] in
+        viewModel?.ensureCardsForAllUsers(userManager.userList)
+    }
+    viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
+    shimmerPosition = -1.0
+    withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
+        shimmerPosition = 1.5
+    }
 }
 
 
@@ -693,6 +737,7 @@ private struct EditingOverlayView: View {
     let field: String
     @Binding var editingMemberID: UUID?
     @Binding var recentlyCompletedIDs: Set<UUID>
+    @Binding var isAwaitingDelayedReorder: Bool
     let onSave: ((UUID?, String) -> Void)?
     let onCelebration: ((UUID, String) -> Void)?
     @State private var oldQuotesValue: Int = 0
@@ -725,26 +770,44 @@ private struct EditingOverlayView: View {
     private var buttonRow: some View {
         HStack {
             Button("Cancel") {
+                // Restore original values when canceling
+                member.quotesToday = oldQuotesValue
+                member.salesWTD = oldSalesWTDValue
+                member.salesMTD = oldSalesMTDValue
                 editingMemberID = nil
+                // Don't trigger any reordering when canceling
             }
             Spacer()
             Button("Save") {
                 let capturedID = editingMemberID
                 let capturedField = field
                 editingMemberID = nil // ✅ Dismiss immediately
-
-                // Don't call viewModel.saveEdits here - it triggers immediate reordering
-                // Instead, just save the data without reordering
-                viewModel.saveWinTheDayFields(member)
-                onSave?(capturedID, capturedField)
                 
-                // Check ALL THREE progress lines to see if ANY turned green
-                let shouldCelebrate = checkIfAnyProgressTurnedGreen()
+                // Only trigger reordering if values actually changed
+                let valuesChanged = (member.quotesToday != oldQuotesValue) || 
+                                   (member.salesWTD != oldSalesWTDValue) || 
+                                   (member.salesMTD != oldSalesMTDValue)
                 
-                if shouldCelebrate {
-                    // Show celebration immediately when progress turns green
-                    // This ensures it appears on the card in its current position
-                    onCelebration?(member.id, "any")
+                if valuesChanged {
+                    isAwaitingDelayedReorder = true
+                    if true { print("🧭 [WinTheDay] SAVE pressed for member=\(member.name) — delaying reorder") }
+                    
+                    // Don't call viewModel.saveEdits here - it triggers immediate reordering
+                    // Instead, just save the data without reordering
+                    viewModel.saveWinTheDayFields(member)
+                    onSave?(capturedID, capturedField)
+                    
+                    // Check ALL THREE progress lines to see if ANY turned green
+                    let shouldCelebrate = checkIfAnyProgressTurnedGreen()
+                    
+                    if shouldCelebrate {
+                        // Show celebration immediately when progress turns green
+                        // This ensures it appears on the card in its current position
+                        onCelebration?(member.id, "any")
+                    }
+                } else {
+                    // No changes made, just dismiss without any reordering
+                    if true { print("🧭 [WinTheDay] SAVE pressed but no values changed — no reorder needed") }
                 }
             }
         }
@@ -958,3 +1021,112 @@ struct CelebrationView: View {
     }
 }
     
+
+// MARK: - Extracted Team Cards List (lighter for the type checker)
+private struct TeamCardsListView: View {
+    @Binding var teamMembers: [TeamMember]
+    @Binding var teamData: [TeamMember]
+    @Binding var lastNonEmptyTeamData: [TeamMember]
+    let currentUser: String
+    let goalNames: (quotes: String, salesWTD: String, salesMTD: String)
+    @Binding var editingMemberID: UUID?
+    @Binding var editingField: String
+    @Binding var emojiPickerVisible: Bool
+    @Binding var emojiEditingID: UUID?
+    @Binding var recentlyCompletedIDs: Set<UUID>
+    @Binding var celebrationMemberID: UUID?
+    @Binding var celebrationField: String
+    let splashOrder: [String]
+    let isEditing: Bool
+
+    var body: some View {
+        ScrollViewReader { scrollProxy in
+            ScrollView {
+                VStack(spacing: 10) {
+                    ForEach(dataSource, id: \.id) { member in
+                        if let idx = teamMembers.firstIndex(where: { $0.name == member.name }) {
+                            let isEditable = teamMembers[idx].name == currentUser
+                            TeamMemberCardView(
+                                member: $teamMembers[idx],
+                                isEditable: isEditable,
+                                selectedUserName: currentUser,
+                                onEdit: { field in
+                                    guard isEditable else { return }
+                                    if true { print("🧭 [WinTheDay] onEdit tapped for \(member.name) field=\(field)") }
+                                    // Edit button should ONLY show the popup - NO freezing, NO reordering, NO logic changes
+                                    editingMemberID = member.id
+                                    editingField = field
+                                    if field == "emoji" {
+                                        emojiPickerVisible = true
+                                        emojiEditingID = member.id
+                                        editingMemberID = nil
+                                    } else {
+                                        withAnimation { scrollProxy.scrollTo(member.id, anchor: .center) }
+                                    }
+                                },
+                                recentlyCompletedIDs: $recentlyCompletedIDs,
+                                teamData: $teamData,
+                                quotesLabel: goalNames.quotes,
+                                salesWTDLabel: goalNames.salesWTD,
+                                salesMTDLabel: goalNames.salesMTD,
+                                celebrationMemberID: $celebrationMemberID,
+                                celebrationField: $celebrationField
+                            )
+                            .id(member.id)
+                        }
+                    }
+                }
+                .animation(.easeInOut(duration: 0.35), value: dataSource.map { $0.id })
+                .padding(.horizontal, 20)
+            }
+            .transaction { t in
+                if isEditing { t.disablesAnimations = true }
+            }
+            .refreshable {
+                NotificationCenter.default.post(name: .init("WinTheDayManualRefresh"), object: nil)
+            }
+        }
+    }
+
+    private var dataSource: [TeamMember] {
+        let base = teamData.isEmpty ? lastNonEmptyTeamData : teamData
+        
+        if true { print("🧭 [WinTheDay] dataSource evaluated - using normal ordering logic") }
+
+        // Edit button should NEVER affect card ordering - always use normal logic
+        // Build a fast index map for Splash order
+        let indexMap: [String:Int] = Dictionary(uniqueKeysWithValues: splashOrder.enumerated().map { ($1, $0) })
+
+        // Split into members with any progress and those with zero progress
+        let withProgress = base.filter { ($0.quotesToday + $0.salesWTD + $0.salesMTD) > 0 }
+        let zeroProgress = base.filter { ($0.quotesToday + $0.salesWTD + $0.salesMTD) == 0 }
+
+        if withProgress.isEmpty {
+            // All zero: pure Splash order
+            if true {
+                let names = zeroProgress.sorted { (indexMap[$0.name] ?? Int.max) < (indexMap[$1.name] ?? Int.max) }.map { $0.name }
+                print("🧭 [WinTheDay] dataSource=ALL_ZERO splash order -> \(names)")
+            }
+            return zeroProgress.sorted { (indexMap[$0.name] ?? Int.max) < (indexMap[$1.name] ?? Int.max) }
+        }
+
+        // Sort progressed members by total progress desc; break ties by Splash order (stable)
+        let progressedSorted = withProgress.sorted { lhs, rhs in
+            let l = lhs.quotesToday + lhs.salesWTD + lhs.salesMTD
+            let r = rhs.quotesToday + rhs.salesWTD + rhs.salesMTD
+            if l == r {
+                return (indexMap[lhs.name] ?? Int.max) < (indexMap[rhs.name] ?? Int.max)
+            }
+            return l > r
+        }
+
+        // Keep zero-progress members in deterministic Splash order
+        let zerosSorted = zeroProgress.sorted { (indexMap[$0.name] ?? Int.max) < (indexMap[$1.name] ?? Int.max) }
+
+        // Combine: progressed first (or adjust if you prefer zeros first), then stable zeros
+        if true {
+            print("🧭 [WinTheDay] dataSource=MIXED progressed -> \(progressedSorted.map{ $0.name }), zeros(splash) -> \(zerosSorted.map{ $0.name })")
+        }
+        return progressedSorted + zerosSorted
+    }
+}

@@ -6,6 +6,8 @@ class WinTheDayViewModel: ObservableObject {
     @Published var teamData: [TeamMember] = []
     /// Set to true once CloudKit data has been loaded and sorted
     @Published var isLoaded = false
+    /// True while the Win The Day editor is open. Used to block reorders/sorts.
+    @Published var isEditing: Bool = false
 
 
     init() {
@@ -57,14 +59,28 @@ class WinTheDayViewModel: ObservableObject {
         return hasher.finalize()
     }
 
+    // MARK: - Stable sorting helpers
+    func productionScore(_ m: TeamMember) -> Int {
+        m.quotesToday + m.salesWTD + m.salesMTD
+    }
+
+    func stableByScoreThenIndex(_ lhs: TeamMember, _ rhs: TeamMember) -> Bool {
+        let l = productionScore(lhs)
+        let r = productionScore(rhs)
+        if l == r { return lhs.sortIndex < rhs.sortIndex }
+        return l > r
+    }
+
     /// Sorts ``displayedCards`` a single time based on production metrics.
     /// This mirrors the stable ordering used by Life Scoreboard.
     func loadInitialDisplayOrder() {
         guard !hasLoadedDisplayOrder else { return }
-        displayedMembers = teamMembers.sorted {
-            ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-            ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+        guard !isEditing else {
+            print("[REORDER] loadInitialDisplayOrder blocked because isEditing = true")
+            return
         }
+        print("[REORDER] loadInitialDisplayOrder executing")
+        displayedMembers = teamMembers.sorted(by: stableByScoreThenIndex)
         hasLoadedDisplayOrder = true
     }
 
@@ -73,13 +89,37 @@ class WinTheDayViewModel: ObservableObject {
     /// from the splash screen.
     func initializeDisplayedCardsIfNeeded() {
         if displayedMembers.isEmpty {
+            guard !isEditing else {
+                print("[REORDER] initializeDisplayedCardsIfNeeded blocked because isEditing = true")
+                return
+            }
+            print("[REORDER] initializeDisplayedCardsIfNeeded executing")
             displayedMembers = teamMembers.sorted { $0.sortIndex < $1.sortIndex }
         }
+    }
+
+    /// When all production values are equal (e.g., all zero), apply the provided
+    /// snapshot order (by IDs) to keep the visual order stable.
+    func applySnapshotOrderIfAllZero(_ snapshotIDs: [UUID]) {
+        // Only apply if we have a complete snapshot and all totals are equal
+        guard !snapshotIDs.isEmpty else { return }
+        let allEqual = teamMembers.map { productionScore($0) }.allSatisfy { $0 == teamMembers.first.map(productionScore) }
+        guard allEqual else { return }
+        let indexByID: [UUID:Int] = Dictionary(uniqueKeysWithValues: snapshotIDs.enumerated().map { ($1, $0) })
+        teamMembers.sort { (indexByID[$0.id] ?? Int.max) < (indexByID[$1.id] ?? Int.max) }
+        for idx in teamMembers.indices { teamMembers[idx].sortIndex = idx }
+        displayedMembers = teamMembers
+        teamData = teamMembers
     }
 
     /// Reorders cards and updates ``teamData`` after the user saves edits.
     /// This keeps the visible list in sync with the latest production values.
     func reorderAfterSave() {
+        guard !isEditing else {
+            print("[REORDER] reorderAfterSave blocked because isEditing = \(isEditing)")
+            return
+        }
+        print("[REORDER] reorderAfterSave executing")
         reorderCards()
         teamData = teamMembers
     }
@@ -99,11 +139,12 @@ class WinTheDayViewModel: ObservableObject {
             guard let self = self else { return }
 
             DispatchQueue.main.async {
-                self.teamData = members.sorted {
-                    let scoreA = $0.quotesToday + $0.salesWTD + $0.salesMTD
-                    let scoreB = $1.quotesToday + $1.salesWTD + $1.salesMTD
-                    return scoreA > scoreB
+                guard !self.isEditing else {
+                    print("[REORDER] fetchTeam: blocked sort/update because isEditing = true")
+                    return
                 }
+                print("[REORDER] fetchTeam: applying sorted order from CloudKit")
+                self.teamData = members.sorted(by: self.stableByScoreThenIndex)
 
                 self.teamMembers = self.teamData
                 self.displayedMembers = self.teamData
@@ -139,6 +180,12 @@ class WinTheDayViewModel: ObservableObject {
     /// local caches when changes are detected.
     func fetchMembersFromCloud(completion: (() -> Void)? = nil) {
         DispatchQueue.main.async {
+            // 🚫 Do not mutate any arrays while editing — prevents card jumps on Edit tap
+            if self.isEditing {
+                print("[REORDER] fetchMembersFromCloud: skipped updates because isEditing = true")
+                completion?()
+                return
+            }
             CloudKitManager.shared.migrateTeamMemberFieldsIfNeeded()
 
             CloudKitManager.shared.fetchTeam { [weak self] fetched in
@@ -158,7 +205,6 @@ class WinTheDayViewModel: ObservableObject {
                         self.teamMembers = merged
                         self.displayedMembers = merged
                         self.teamData = merged
-                        self.reorderAfterSave()
                         self.lastFetchHash = newHash
                         self.saveLocalIfNonEmpty()
                     } else {
@@ -206,11 +252,20 @@ class WinTheDayViewModel: ObservableObject {
                                 }
                             }
 
-                            // 🔗 Keep emoji as a single source of truth from Card -> TeamMember
-                            for idx in self.teamMembers.indices {
-                                if let card = self.cards.first(where: { $0.name == self.teamMembers[idx].name }) {
-                                    self.teamMembers[idx].emoji = card.emoji
+                            // 🔗 Keep emoji as a single source of truth from TeamMember -> Card
+                            var didChangeAnyCardEmoji = false
+                            for idx in self.cards.indices {
+                                if let member = self.teamMembers.first(where: { $0.name == self.cards[idx].name }) {
+                                    if self.cards[idx].emoji != member.emoji {
+                                        self.cards[idx].emoji = member.emoji
+                                        didChangeAnyCardEmoji = true
+                                    }
                                 }
+                            }
+                            if didChangeAnyCardEmoji {
+                                self.saveCardsToDevice()
+                                // Persist changed cards to CloudKit so other devices get the new emoji
+                                for card in self.cards { CloudKitManager.saveCard(card) }
                             }
                             self.saveLocal()
 
@@ -237,15 +292,20 @@ class WinTheDayViewModel: ObservableObject {
 
     /// Saves edits for a given ``TeamMember`` and updates ordering.
     func saveEdits(for member: TeamMember) {
+        guard !isEditing else {
+            print("[REORDER] saveEdits(for:) blocked because isEditing = true")
+            return
+        }
         withAnimation { reorderAfterSave() }
         saveLocal()
         saveWinTheDayFields(member) { _ in
             DispatchQueue.main.async {
-                self.teamData.sort {
-                    let scoreA = $0.quotesToday + $0.salesWTD + $0.salesMTD
-                    let scoreB = $1.quotesToday + $1.salesWTD + $1.salesMTD
-                    return scoreA > scoreB
+                guard !self.isEditing else {
+                    print("[REORDER] saveEdits completion: blocked teamData.sort because isEditing = true")
+                    return
                 }
+                print("[REORDER] saveEdits completion: teamData.sort executing")
+                self.teamData.sort(by: self.stableByScoreThenIndex)
 
                 print("🔄 Re-sorted after Save:")
                 for member in self.teamData {
@@ -371,7 +431,7 @@ class WinTheDayViewModel: ObservableObject {
             record["quotesGoal"] = member.quotesGoal as CKRecordValue
             record["salesWTDGoal"] = member.salesWTDGoal as CKRecordValue
             record["salesMTDGoal"] = member.salesMTDGoal as CKRecordValue
-            // record["emoji"] = member.emoji as CKRecordValue    // Removed: emoji is now sourced from Card only
+            record["emoji"] = member.emoji as CKRecordValue
             record["sortIndex"] = member.sortIndex as CKRecordValue
             
             // Save the updated record
@@ -390,34 +450,41 @@ class WinTheDayViewModel: ObservableObject {
 
     /// Updates only the emoji for the provided member in CloudKit.
     func updateEmoji(for member: TeamMember, completion: ((Bool) -> Void)? = nil) {
-        // Update in CloudKit via the shared helper
-        CloudKitManager.shared.updateEmoji(for: member.name, emoji: member.emoji) { success in
-            DispatchQueue.main.async {
-                // Reflect change in TeamMember array
-                if let memberIndex = self.teamMembers.firstIndex(where: { $0.name == member.name }) {
-                    self.teamMembers[memberIndex].emoji = member.emoji
-                }
-                // Reflect change in Card array and persist
-                if let cardIndex = self.cards.firstIndex(where: { $0.name == member.name }) {
-                    self.cards[cardIndex].emoji = member.emoji
-                    self.saveCardsToDevice()
-                    // Push card emoji to CloudKit to keep Card and TeamMember consistent
-                    CloudKitManager.saveCard(self.cards[cardIndex])
-                }
-                // Persist TeamMember change locally
-                self.saveLocal()
-                completion?(success)
-            }
+        // Update local TeamMember model
+        if let memberIndex = teamMembers.firstIndex(where: { $0.name == member.name }) {
+            teamMembers[memberIndex].emoji = member.emoji
+        }
+        
+        // Update local Card model and persist to CloudKit
+        if let cardIndex = cards.firstIndex(where: { $0.name == member.name }) {
+            cards[cardIndex].emoji = member.emoji
+            saveCardsToDevice()
+            CloudKitManager.saveCard(cards[cardIndex])
+        }
+        
+        // Persist emoji on the TeamMember record as well (belt-and-suspenders so all devices agree)
+        if let idx = teamMembers.firstIndex(where: { $0.name == member.name }) {
+            saveWinTheDayFields(teamMembers[idx]) { _ in }
+        }
+        
+        // Persist locally and publish changes
+        saveLocal()
+        teamMembers = teamMembers.map { $0 }
+        
+        DispatchQueue.main.async {
+            completion?(true)
         }
     }
     /// Reorders team members by current production (quotes + sales) and updates
     /// their persisted `sortIndex`. This mirrors the stable ordering logic used
     /// in LifeScoreboardViewModel.
     func reorderCards() {
-        teamMembers.sort {
-            ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-            ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+        guard !isEditing else {
+            print("[REORDER] reorderCards blocked because isEditing = \(isEditing)")
+            return
         }
+        print("[REORDER] reorderCards executing")
+        teamMembers.sort(by: stableByScoreThenIndex)
         for index in teamMembers.indices {
             teamMembers[index].sortIndex = index
         }
@@ -434,13 +501,23 @@ class WinTheDayViewModel: ObservableObject {
                 }
                 self.displayedMembers = ordered
             } else {
-                let sorted = self.teamMembers.sorted {
-                    ($0.quotesToday + $0.salesWTD + $0.salesMTD) >
-                    ($1.quotesToday + $1.salesWTD + $1.salesMTD)
+                if self.isEditing {
+                    print("[REORDER] loadCardOrderFromCloud: blocked fallback sort because isEditing = true")
+                    self.displayedMembers = self.teamMembers
+                } else {
+                    let sorted = self.teamMembers.sorted(by: self.stableByScoreThenIndex)
+                    print("[REORDER] loadCardOrderFromCloud: applying fallback sort")
+                    self.displayedMembers = sorted
                 }
-                self.displayedMembers = sorted
             }
         }
+    }
+
+    // MARK: - Editing gates (optional, callable from the View)
+    func beginEditing() { isEditing = true }
+    func endEditingAndReorder() {
+        isEditing = false
+        reorderAfterSave()
     }
 
     func saveCardOrderToCloud(for user: String) {
@@ -567,6 +644,10 @@ class WinTheDayViewModel: ObservableObject {
             }
             if !teamMembers.contains(where: { $0.name == name }) {
                 let member = TeamMember(name: name)
+                // Keep TeamMember emoji in sync with Card default
+                if let cardEmoji = cards.first(where: { $0.name == name })?.emoji, !cardEmoji.isEmpty {
+                    member.emoji = cardEmoji
+                }
                 // Set goals from template so new members never start at 0/0/0
                 member.quotesGoal = templateGoals.quotes
                 member.salesWTDGoal = templateGoals.wtd
