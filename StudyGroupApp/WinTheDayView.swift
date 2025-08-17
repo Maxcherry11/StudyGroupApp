@@ -61,6 +61,8 @@ struct WinTheDayView: View {
     @State private var celebrationField: String = ""
     // Keep editing state active during the delayed reorder window after Save
     @State private var isAwaitingDelayedReorder: Bool = false
+    // Cache for frozen order while editing popup is open
+    @State private var frozenOrderIDs: [UUID] = []
     // Production Goal Editor State
     @State private var showProductionGoalEditor = false
     @State private var newQuotesGoal = 10
@@ -124,14 +126,16 @@ struct WinTheDayView: View {
             if enableOrderLogs { logOrder("teamData changed", data) }
         }
         .onChange(of: editingMemberID) { newValue in
-            // Edit button should ONLY show/hide popup - NO freezing, NO reordering, NO logic changes
-            if newValue != nil {
-                if enableOrderLogs { print("🧭 [WinTheDay] Edit popup opened for member") }
-                // Don't set viewModel.isEditing = true - this was causing the freezing
-                // Don't set frozenOrderIDs - this was preventing normal card ordering
-            } else {
-                if enableOrderLogs { print("🧭 [WinTheDay] Edit popup closed") }
-                // Don't change any state that affects card ordering
+            if newValue == nil {
+                if isAwaitingDelayedReorder {
+                    // Keep frozen through the delayed reorder window to avoid intermediate resort
+                    if enableOrderLogs { print("🧭 [WinTheDay] Edit popup closed — keeping FROZEN during delayed reorder window") }
+                } else {
+                    // UNFREEZE after the edit sheet dismisses (Save or Cancel) when no delayed reorder is pending
+                    if enableOrderLogs { print("🧭 [WinTheDay] Edit popup closed - UNFREEZING order") }
+                    frozenOrderIDs.removeAll()
+                    viewModel.isEditing = false
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("WinTheDayManualRefresh"))) { _ in
@@ -223,8 +227,6 @@ private func editingSheet(for editingID: UUID) -> some View {
                 // Always delay card movement to ensure consistent behavior
                 // This gives time for celebrations to complete and prevents visual glitches
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                    isAwaitingDelayedReorder = false
-                    viewModel.isEditing = false
                     handleSaveAndReorder()
                 }
                 // Don't update teamMembers here - let the delayed reordering handle it
@@ -341,7 +343,18 @@ private var teamCardsList: some View {
         celebrationField: $celebrationField,
         splashOrder: userManager.userList,
         // Keep list in frozen mode while edit sheet is open OR while we are waiting to reorder after Save
-        isEditing: (editingMemberID != nil) || isAwaitingDelayedReorder
+        isEditing: (editingMemberID != nil) || isAwaitingDelayedReorder,
+        frozenOrderIDs: frozenOrderIDs,
+        freezeNow: { ids in
+            // Freeze immediately at tap time to avoid any mid-frame resort
+            frozenOrderIDs = ids
+            viewModel.isEditing = true
+            if enableOrderLogs {
+                let base = viewModel.teamData.isEmpty ? lastNonEmptyTeamData : viewModel.teamData
+                let names = base.map { $0.name }.joined(separator: ", ")
+                print("🧭 [WinTheDay] FREEZE at tap -> [\(names)]")
+            }
+        }
     )
 }
 
@@ -454,10 +467,6 @@ private var emojiGrid: some View {
 
 /// Handles saving edits and reordering cards with animation.
 private func handleSaveAndReorder() {
-    // Unfreeze and allow reordering now that celebration has completed
-    isAwaitingDelayedReorder = false
-    viewModel.isEditing = false
-
     if enableOrderLogs {
         let before = viewModel.teamMembers
         logOrder("before SAVE+REORDER", before)
@@ -471,11 +480,13 @@ private func handleSaveAndReorder() {
     let needsReordering = currentOrder != expectedOrder
     
     if needsReordering {
-        if enableOrderLogs { print("🧭 [WinTheDay] Order changed, performing reorder") }
-        // First save the data, then reorder
-        withAnimation {
+        if enableOrderLogs { print("🧭 [WinTheDay] Order changed, performing reorder with smooth animation") }
+        
+        // First save the data, then reorder with smooth animation
+        withAnimation(.easeInOut(duration: 0.5)) {
             viewModel.reorderAfterSave()
         }
+        
         if enableOrderLogs {
             let after = viewModel.teamMembers
             logOrder("after SAVE+REORDER", after)
@@ -487,6 +498,12 @@ private func handleSaveAndReorder() {
     } else {
         if enableOrderLogs { print("🧭 [WinTheDay] No reordering needed - order is already correct") }
     }
+    
+    // Clear frozen state now that we are done
+    frozenOrderIDs.removeAll()
+    isAwaitingDelayedReorder = false
+    // Always unfreeze the editing state after save (whether reordering happened or not)
+    viewModel.isEditing = false
 }
 
 /// Handles the onAppear logic to avoid complex type-checking issues
@@ -779,34 +796,25 @@ private struct EditingOverlayView: View {
             }
             Spacer()
             Button("Save") {
+                // Mark that we are entering the delayed-reorder window BEFORE dismissing the editor
+                isAwaitingDelayedReorder = true
                 let capturedID = editingMemberID
                 let capturedField = field
-                editingMemberID = nil // ✅ Dismiss immediately
-                
+                editingMemberID = nil // ✅ Dismiss immediately (after flag set)
+
                 // Only trigger reordering if values actually changed
                 let valuesChanged = (member.quotesToday != oldQuotesValue) || 
                                    (member.salesWTD != oldSalesWTDValue) || 
                                    (member.salesMTD != oldSalesMTDValue)
-                
                 if valuesChanged {
-                    isAwaitingDelayedReorder = true
                     if true { print("🧭 [WinTheDay] SAVE pressed for member=\(member.name) — delaying reorder") }
-                    
-                    // Don't call viewModel.saveEdits here - it triggers immediate reordering
-                    // Instead, just save the data without reordering
                     viewModel.saveWinTheDayFields(member)
                     onSave?(capturedID, capturedField)
-                    
-                    // Check ALL THREE progress lines to see if ANY turned green
                     let shouldCelebrate = checkIfAnyProgressTurnedGreen()
-                    
                     if shouldCelebrate {
-                        // Show celebration immediately when progress turns green
-                        // This ensures it appears on the card in its current position
                         onCelebration?(member.id, "any")
                     }
                 } else {
-                    // No changes made, just dismiss without any reordering
                     if true { print("🧭 [WinTheDay] SAVE pressed but no values changed — no reorder needed") }
                 }
             }
@@ -1038,6 +1046,8 @@ private struct TeamCardsListView: View {
     @Binding var celebrationField: String
     let splashOrder: [String]
     let isEditing: Bool
+    let frozenOrderIDs: [UUID]
+    let freezeNow: ([UUID]) -> Void
 
     var body: some View {
         ScrollViewReader { scrollProxy in
@@ -1046,37 +1056,39 @@ private struct TeamCardsListView: View {
                     ForEach(dataSource, id: \.id) { member in
                         if let idx = teamMembers.firstIndex(where: { $0.name == member.name }) {
                             let isEditable = teamMembers[idx].name == currentUser
-                            TeamMemberCardView(
-                                member: $teamMembers[idx],
-                                isEditable: isEditable,
-                                selectedUserName: currentUser,
-                                onEdit: { field in
-                                    guard isEditable else { return }
-                                    if true { print("🧭 [WinTheDay] onEdit tapped for \(member.name) field=\(field)") }
-                                    // Edit button should ONLY show the popup - NO freezing, NO reordering, NO logic changes
-                                    editingMemberID = member.id
-                                    editingField = field
-                                    if field == "emoji" {
-                                        emojiPickerVisible = true
-                                        emojiEditingID = member.id
-                                        editingMemberID = nil
-                                    } else {
-                                        withAnimation { scrollProxy.scrollTo(member.id, anchor: .center) }
-                                    }
-                                },
-                                recentlyCompletedIDs: $recentlyCompletedIDs,
-                                teamData: $teamData,
-                                quotesLabel: goalNames.quotes,
-                                salesWTDLabel: goalNames.salesWTD,
-                                salesMTDLabel: goalNames.salesMTD,
-                                celebrationMemberID: $celebrationMemberID,
-                                celebrationField: $celebrationField
-                            )
+                        TeamMemberCardView(
+                            member: $teamMembers[idx],
+                            isEditable: isEditable,
+                            selectedUserName: currentUser,
+                            onEdit: { field in
+                                guard isEditable else { return }
+                                if true { print("🧭 [WinTheDay] onEdit tapped for \(member.name) field=\(field)") }
+                                // Freeze immediately using the exact on-screen order to prevent any movement
+                                freezeNow(dataSource.map { $0.id })
+                                // Now proceed to open the editor
+                                editingMemberID = member.id
+                                editingField = field
+                                if field == "emoji" {
+                                    emojiPickerVisible = true
+                                    emojiEditingID = member.id
+                                    editingMemberID = nil
+                                } else {
+                                    withAnimation { scrollProxy.scrollTo(member.id, anchor: .center) }
+                                }
+                            },
+                            recentlyCompletedIDs: $recentlyCompletedIDs,
+                            teamData: $teamData,
+                            quotesLabel: goalNames.quotes,
+                            salesWTDLabel: goalNames.salesWTD,
+                            salesMTDLabel: goalNames.salesMTD,
+                            celebrationMemberID: $celebrationMemberID,
+                            celebrationField: $celebrationField
+                        )
                             .id(member.id)
                         }
                     }
                 }
-                .animation(.easeInOut(duration: 0.35), value: dataSource.map { $0.id })
+                .animation((!isEditing && frozenOrderIDs.isEmpty) ? .easeInOut(duration: 0.35) : nil, value: dataSource.map { $0.id })
                 .padding(.horizontal, 20)
             }
             .transaction { t in
@@ -1091,9 +1103,26 @@ private struct TeamCardsListView: View {
     private var dataSource: [TeamMember] {
         let base = teamData.isEmpty ? lastNonEmptyTeamData : teamData
         
-        if true { print("🧭 [WinTheDay] dataSource evaluated - using normal ordering logic") }
+        if true { print("🧭 [WinTheDay] dataSource evaluated - isEditing: \(isEditing), frozenOrderIDs.count: \(frozenOrderIDs.count)") }
 
-        // Edit button should NEVER affect card ordering - always use normal logic
+        // STEP 2: If editing is active, use the frozen order to prevent any movement
+        if isEditing || !frozenOrderIDs.isEmpty {
+            if !frozenOrderIDs.isEmpty {
+                let indexByID: [UUID:Int] = Dictionary(uniqueKeysWithValues: frozenOrderIDs.enumerated().map { ($1, $0) })
+                if true {
+                    let names = base.sorted { (indexByID[$0.id] ?? Int.max) < (indexByID[$1.id] ?? Int.max) }.map { $0.name }
+                    print("🧭 [WinTheDay] dataSource=FROZEN (editing active) -> \(names)")
+                }
+                // Return the EXACT frozen order - no reordering, no changes
+                return base.sorted { (indexByID[$0.id] ?? Int.max) < (indexByID[$1.id] ?? Int.max) }
+            } else {
+                // Fallback: if somehow we're editing but no frozen IDs, return base order unchanged
+                if true { print("🧭 [WinTheDay] dataSource=FROZEN fallback -> \(base.map { $0.name })") }
+                return base
+            }
+        }
+
+        // STEP 4: Only apply normal ordering logic when NOT editing
         // Build a fast index map for Splash order
         let indexMap: [String:Int] = Dictionary(uniqueKeysWithValues: splashOrder.enumerated().map { ($1, $0) })
 
@@ -1102,31 +1131,31 @@ private struct TeamCardsListView: View {
         let zeroProgress = base.filter { ($0.quotesToday + $0.salesWTD + $0.salesMTD) == 0 }
 
         if withProgress.isEmpty {
-            // All zero: pure Splash order
+            // All zero progress - use splash order
             if true {
                 let names = zeroProgress.sorted { (indexMap[$0.name] ?? Int.max) < (indexMap[$1.name] ?? Int.max) }.map { $0.name }
                 print("🧭 [WinTheDay] dataSource=ALL_ZERO splash order -> \(names)")
             }
             return zeroProgress.sorted { (indexMap[$0.name] ?? Int.max) < (indexMap[$1.name] ?? Int.max) }
-        }
-
-        // Sort progressed members by total progress desc; break ties by Splash order (stable)
-        let progressedSorted = withProgress.sorted { lhs, rhs in
-            let l = lhs.quotesToday + lhs.salesWTD + lhs.salesMTD
-            let r = rhs.quotesToday + rhs.salesWTD + rhs.salesMTD
-            if l == r {
-                return (indexMap[lhs.name] ?? Int.max) < (indexMap[rhs.name] ?? Int.max)
+        } else {
+            // Mixed progress - sort by score, then splash order for zeros
+            let sortedProgress = withProgress.sorted { lhs, rhs in
+                let l = lhs.quotesToday + lhs.salesWTD + lhs.salesMTD
+                let r = rhs.quotesToday + rhs.salesWTD + rhs.salesMTD
+                if l == r {
+                    return (indexMap[lhs.name] ?? Int.max) < (indexMap[rhs.name] ?? Int.max)
+                }
+                return l > r
             }
-            return l > r
+            let sortedZeros = zeroProgress.sorted { (indexMap[$0.name] ?? Int.max) < (indexMap[$1.name] ?? Int.max) }
+            
+            if true {
+                let progressNames = sortedProgress.map { $0.name }
+                let zeroNames = sortedZeros.map { $0.name }
+                print("🧭 [WinTheDay] dataSource=MIXED progressed -> \(progressNames), zeros(splash) -> \(zeroNames)")
+            }
+            
+            return sortedProgress + sortedZeros
         }
-
-        // Keep zero-progress members in deterministic Splash order
-        let zerosSorted = zeroProgress.sorted { (indexMap[$0.name] ?? Int.max) < (indexMap[$1.name] ?? Int.max) }
-
-        // Combine: progressed first (or adjust if you prefer zeros first), then stable zeros
-        if true {
-            print("🧭 [WinTheDay] dataSource=MIXED progressed -> \(progressedSorted.map{ $0.name }), zeros(splash) -> \(zerosSorted.map{ $0.name })")
-        }
-        return progressedSorted + zerosSorted
     }
 }
