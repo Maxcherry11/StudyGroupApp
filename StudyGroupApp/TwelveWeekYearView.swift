@@ -176,8 +176,10 @@ struct TwelveWeekYearView: View {
         ZStack(alignment: .top) {
             Color(red: 60/255, green: 90/255, blue: 140/255)
                 .ignoresSafeArea()
+                .allowsHitTesting(false)
 
             ScrollViewReader { scrollProxy in
+                // Ensure keyboard doesn’t freeze layout and capture gestures on compact devices
                 ScrollView {
                     LazyVStack(spacing: 15) {
                         Text("12 Week Year")
@@ -231,10 +233,11 @@ struct TwelveWeekYearView: View {
                                     scrollProxy.scrollTo(member.id, anchor: .top)
                                     selectedMember = member
                                 }
-                                .onLongPressGesture(minimumDuration: 0.1) {
-                                    // Track when user starts interacting with the list
-                                    setInteracting(true)
-                                }
+                                .simultaneousGesture(
+                                    LongPressGesture(minimumDuration: 0.35)
+                                        .onChanged { _ in setInteracting(true) }
+                                        .onEnded { _ in setInteracting(false) }
+                                )
                                 .onAppear {
                                     lastVisibleMemberId = member.id
                                 }
@@ -250,6 +253,12 @@ struct TwelveWeekYearView: View {
                     .padding(.horizontal, 16)
                     .scaleEffect(UIDevice.current.userInterfaceIdiom == .pad ? 0.75 : 1.0)
                 }
+                .ignoresSafeArea(.keyboard)
+                .gesture(
+                    DragGesture(minimumDistance: 1)
+                        .onChanged { _ in setScrolling(true) }
+                        .onEnded { _ in setScrolling(false) }
+                )
                 .safeAreaInset(edge: .bottom) { Color.clear.frame(height: 64) }
                 .onChange(of: isInteracting) { newValue in
                     if !newValue {

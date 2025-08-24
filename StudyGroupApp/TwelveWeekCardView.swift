@@ -101,11 +101,23 @@ struct CardView: View {
                     resetInteraction()
                 }
             })) {
-                GoalEditListView(member: $member, isInteracting: Binding(
-                    get: { isInteracting },
-                    set: { isInteracting = $0 }
-                ), resetInteraction: resetInteraction)
-                    .environmentObject(viewModel)
+                if #available(iOS 16.0, *) {
+                    GoalEditListView(member: $member, isInteracting: Binding(
+                        get: { isInteracting },
+                        set: { isInteracting = $0 }
+                    ), resetInteraction: resetInteraction)
+                        .environmentObject(viewModel)
+                        .ignoresSafeArea(.keyboard)
+                        .presentationDetents([.large])
+                        .presentationDragIndicator(.visible)
+                } else {
+                    GoalEditListView(member: $member, isInteracting: Binding(
+                        get: { isInteracting },
+                        set: { isInteracting = $0 }
+                    ), resetInteraction: resetInteraction)
+                        .environmentObject(viewModel)
+                        .ignoresSafeArea(.keyboard)
+                }
             }
             .onDisappear {
                 resetInteraction()
@@ -201,6 +213,8 @@ struct GoalEditListView: View {
                     )
                 }
             }
+            .allowsHitTesting(true)
+            .ignoresSafeArea(.keyboard)
             .navigationTitle("Edit All Goals")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
