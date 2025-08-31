@@ -39,13 +39,23 @@ struct MainTabView: View {
                 }
         }
         .onAppear {
-            viewModel.fetchMembersFromCloud()
+            // Skip WinTheDay fetch if already warm (data was prewarmed from UserSelectorView)
+            if !viewModel.isWarm {
+                viewModel.fetchMembersFromCloud()
+            } else {
+                print("🚀 [MainTabView] onAppear - WinTheDay already warm, skipping fetch")
+            }
             scoreboardVM.fetchTeamMembersFromCloud()
             twyVM.fetchMembersFromCloud()
         }
         .onChange(of: scenePhase) { phase in
             if phase == .active {
-                viewModel.fetchMembersFromCloud()
+                // Skip WinTheDay fetch if already warm
+                if !viewModel.isWarm {
+                    viewModel.fetchMembersFromCloud()
+                } else {
+                    print("🚀 [MainTabView] onChange scenePhase - WinTheDay already warm, skipping fetch")
+                }
                 scoreboardVM.fetchTeamMembersFromCloud()
                 twyVM.fetchMembersFromCloud()
             }

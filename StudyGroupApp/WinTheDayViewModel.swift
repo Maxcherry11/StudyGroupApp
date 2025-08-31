@@ -8,7 +8,7 @@ class WinTheDayViewModel: ObservableObject {
     @Published var isLoaded = false
     /// True while the Win The Day editor is open. Used to block reorders/sorts.
     @Published var isEditing: Bool = false
-
+    @Published var isWarm: Bool = false
 
     init() {
         let stored = loadLocalMembers().sorted { $0.sortIndex < $1.sortIndex }
@@ -41,8 +41,32 @@ class WinTheDayViewModel: ObservableObject {
     /// Signature of the last CloudKit fetch used to detect changes
     private var lastFetchHash: Int?
     private var lastGoalHash: Int?
-    private let weeklyResetKey = "WTDWeeklyReset"
-    private let monthlyResetKey = "WTDMonthlyReset"
+    /// MARK: - Auto Reset Tracking (Weekly/Monthly)
+    private let wtdLastWeeklyResetKey  = "wtd-last-weekly-reset"
+    private let wtdLastMonthlyResetKey = "wtd-last-monthly-reset"
+
+    private var lastWeeklyReset: Date? {
+        get { UserDefaults.standard.object(forKey: wtdLastWeeklyResetKey) as? Date }
+        set { UserDefaults.standard.set(newValue, forKey: wtdLastWeeklyResetKey) }
+    }
+    private var lastMonthlyReset: Date? {
+        get { UserDefaults.standard.object(forKey: wtdLastMonthlyResetKey) as? Date }
+        set { UserDefaults.standard.set(newValue, forKey: wtdLastMonthlyResetKey) }
+    }
+
+    /// MARK: - Date Helpers
+    private func startOfWeek(for date: Date) -> Date {
+        var cal = Calendar.current
+        cal.firstWeekday = 1 // Sunday
+        let parts = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
+        return cal.date(from: parts) ?? date
+    }
+    private func isSameMonth(_ a: Date, _ b: Date) -> Bool {
+        let cal = Calendar.current
+        let ca = cal.dateComponents([.year, .month], from: a)
+        let cb = cal.dateComponents([.year, .month], from: b)
+        return ca.year == cb.year && ca.month == cb.month
+    }
 
     /// Calculates a simple hash representing the current production values for
     /// the provided team members. This allows quick comparison between
@@ -548,57 +572,49 @@ class WinTheDayViewModel: ObservableObject {
         CloudKitManager.shared.saveGoalNames(goalNames)
     }
 
-    // MARK: - Periodic Reset Logic
+    /// MARK: - Auto Reset Logic (Quotes/Sales WTD weekly on Sunday, Sales MTD monthly on 1st)
+    func performAutoResetsIfNeeded(currentDate: Date = Date()) {
+        let cal = Calendar.current
+        let weekday = cal.component(.weekday, from: currentDate) // 1 = Sunday
+        let day = cal.component(.day, from: currentDate)
 
-    /// Resets weekly and monthly values when a new period starts.
-    func performResetsIfNeeded() {
-        let calendar = Calendar.current
-        let now = Date()
+        var didWeekly = false
+        var didMonthly = false
 
-        let lastWeekly = UserDefaults.standard.object(forKey: weeklyResetKey) as? Date ?? .distantPast
-        if let startOfWeek = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)),
-           startOfWeek > lastWeekly {
-            resetWeeklyValues()
-            UserDefaults.standard.set(startOfWeek, forKey: weeklyResetKey)
+        // WEEKLY (Sunday): reset quotesToday & salesWTD once per new week
+        if weekday == 1 {
+            let thisWeekStart = startOfWeek(for: currentDate)
+            if lastWeeklyReset == nil || startOfWeek(for: lastWeeklyReset!) < thisWeekStart {
+                for i in teamMembers.indices {
+                    teamMembers[i].quotesToday = 0
+                    teamMembers[i].salesWTD = 0
+                    saveWinTheDayFields(teamMembers[i])
+                }
+                lastWeeklyReset = currentDate
+                didWeekly = true
+            }
         }
 
-        let lastMonthly = UserDefaults.standard.object(forKey: monthlyResetKey) as? Date ?? .distantPast
-        if let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)),
-           startOfMonth > lastMonthly {
-            resetMonthlyValues()
-            UserDefaults.standard.set(startOfMonth, forKey: monthlyResetKey)
+        // MONTHLY (day=1): reset salesMTD once per new month
+        if day == 1 {
+            if lastMonthlyReset == nil || !isSameMonth(lastMonthlyReset!, currentDate) {
+                for i in teamMembers.indices {
+                    teamMembers[i].salesMTD = 0
+                    saveWinTheDayFields(teamMembers[i])
+                }
+                lastMonthlyReset = currentDate
+                didMonthly = true
+            }
+        }
+
+        if didWeekly || didMonthly {
+            // Persist & refresh bindings/UI
+            saveLocal()
+            DispatchQueue.main.async { [weak self] in self?.objectWillChange.send() }
         }
     }
 
-    private func initializeResetDatesIfNeeded() {
-        let calendar = Calendar.current
-        let now = Date()
-        if UserDefaults.standard.object(forKey: weeklyResetKey) == nil,
-           let startOfWeek = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) {
-            UserDefaults.standard.set(startOfWeek, forKey: weeklyResetKey)
-        }
-        if UserDefaults.standard.object(forKey: monthlyResetKey) == nil,
-           let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) {
-            UserDefaults.standard.set(startOfMonth, forKey: monthlyResetKey)
-        }
-    }
 
-    private func resetWeeklyValues() {
-        for index in teamMembers.indices {
-            teamMembers[index].quotesToday = 0
-            teamMembers[index].salesWTD = 0
-            saveWinTheDayFields(teamMembers[index]) { _ in }
-        }
-        teamMembers = teamMembers.map { $0 }
-    }
-
-    private func resetMonthlyValues() {
-        for index in teamMembers.indices {
-            teamMembers[index].salesMTD = 0
-            saveWinTheDayFields(teamMembers[index]) { _ in }
-        }
-        teamMembers = teamMembers.map { $0 }
-    }
 
     /// Ensures a placeholder card exists for each provided user name.
     /// Local cards are persisted so the UI can appear immediately before
@@ -689,6 +705,22 @@ class WinTheDayViewModel: ObservableObject {
     private func saveLocalIfNonEmpty() {
         guard !teamMembers.isEmpty else { return }
         saveLocal()
+    }
+
+    /// Pre-fetch so WinTheDayView can render instantly (call from Splash/App launch).
+    /// Safe to call multiple times.
+    func prewarm(userList: [String], currentUser: String) {
+        // Run auto-resets first so saved/fetched data reflects the new period.
+        performAutoResetsIfNeeded(currentDate: Date())
+
+        // Fetch labels + members, then ensure cards/order locally, then mark warm.
+        fetchGoalNamesFromCloud()
+        fetchMembersFromCloud { [weak self] in
+            guard let self = self else { return }
+            self.ensureCardsForAllUsers(userList)
+            self.loadCardOrderFromCloud(for: currentUser)
+            DispatchQueue.main.async { self.isWarm = true }
+        }
     }
 } // end of class WinTheDayViewModel
 

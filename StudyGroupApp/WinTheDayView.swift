@@ -1,7 +1,13 @@
 
+
 import SwiftUI
 import CloudKit
 import Foundation
+
+extension WinTheDayViewModel {
+    // Used to mute list animations during bootstrap from outside the view model easily.
+    static var globalIsBootstrapping: Bool = false
+}
 
 
 struct DashboardView: View {
@@ -47,7 +53,7 @@ enum StatType {
 }
 
 struct WinTheDayView: View {
-    @StateObject var viewModel: WinTheDayViewModel
+    @ObservedObject var viewModel: WinTheDayViewModel
     @EnvironmentObject var userManager: UserManager
     @ObservedObject private var cloud = CloudKitManager.shared
     @State private var shimmerPosition: CGFloat = 0
@@ -78,6 +84,23 @@ struct WinTheDayView: View {
     @State private var lastNonEmptyMembers: [TeamMember] = []
     @State private var lastNonEmptyTeamData: [TeamMember] = []
 
+    // Bootstrap flag to prevent initial blink during first data load
+    @State private var isBootstrapping: Bool = false
+
+    // Check if view model is already warm when view is created
+    private var shouldBootstrap: Bool {
+        // If view model is warm, no need to bootstrap
+        if viewModel.isWarm {
+            return false
+        }
+        // If we have data already, no need to bootstrap
+        if !viewModel.teamMembers.isEmpty || !viewModel.teamData.isEmpty {
+            return false
+        }
+        // Otherwise, we need to bootstrap
+        return true
+    }
+
     // Removed computed properties to avoid compiler type-checking issues
 
     // DEBUG: order logging
@@ -98,6 +121,8 @@ struct WinTheDayView: View {
         }
         .overlay(editingOverlay)
         .background(winTheDayBackground)
+        .opacity(isBootstrapping ? 0 : 1) // hide until first stable frame is ready
+        .transaction { t in if isBootstrapping { t.disablesAnimations = true } }
         // Removed the subtle animation to reduce type-checking complexity
         .onAppear {
             handleOnAppear()
@@ -106,24 +131,38 @@ struct WinTheDayView: View {
             viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
         }
         .onChange(of: userManager.userList) { names in
+            // Skip if view model is already warm and has data
+            if viewModel.isWarm && !viewModel.teamMembers.isEmpty {
+                print("🚀 [WinTheDay] onChange userList - skipping fetch, already warm")
+                return
+            }
             viewModel.fetchMembersFromCloud { [weak viewModel] in
                 viewModel?.ensureCardsForAllUsers(names)
-            }
-        }
-        .onChange(of: viewModel.isLoaded) { loaded in
-            guard loaded else { return }
-            viewModel.fetchMembersFromCloud { [weak viewModel] in
-                viewModel?.ensureCardsForAllUsers(userManager.userList)
             }
         }
         .onChange(of: viewModel.teamMembers.map { $0.id }) { _ in
             let members = viewModel.teamMembers
             if !members.isEmpty { lastNonEmptyMembers = members }
+            // Only modify bootstrapping state if we're actually in a bootstrapping scenario
+            if isBootstrapping && !members.isEmpty && !viewModel.isWarm {
+                DispatchQueue.main.async { 
+                    isBootstrapping = false
+                    print("🚀 [WinTheDay] onChange teamMembers - ending bootstrap")
+                }
+            }
         }
         .onChange(of: viewModel.teamData.map { $0.id }) { _ in
             let data = viewModel.teamData
             if !data.isEmpty { lastNonEmptyTeamData = data }
             if enableOrderLogs { logOrder("teamData changed", data) }
+            // Only modify bootstrapping state if we're actually in a bootstrapping scenario
+            if isBootstrapping && !data.isEmpty && !viewModel.isWarm {
+                // We have our first non-empty data frame; reveal UI without animation.
+                DispatchQueue.main.async { 
+                    isBootstrapping = false
+                    print("🚀 [WinTheDay] onChange teamData - ending bootstrap")
+                }
+            }
         }
         .onChange(of: editingMemberID) { newValue in
             if newValue == nil {
@@ -147,6 +186,16 @@ struct WinTheDayView: View {
     var body: some View {
         AnyView(
             lifecycleWrapped
+                .onAppear {
+                    // Set initial bootstrapping state immediately when view is created
+                    if viewModel.isWarm || !viewModel.teamMembers.isEmpty || !viewModel.teamData.isEmpty {
+                        isBootstrapping = false
+                        WinTheDayViewModel.globalIsBootstrapping = false
+                        print("🚀 [WinTheDay] View created - data already available, skipping bootstrap")
+                    } else {
+                        print("🔄 [WinTheDay] View created - no data available, will bootstrap")
+                    }
+                }
                 .sheet(isPresented: $emojiPickerVisible) {
                     emojiPickerSheet
                 }
@@ -224,12 +273,10 @@ private func editingSheet(for editingID: UUID) -> some View {
             recentlyCompletedIDs: $recentlyCompletedIDs,
             isAwaitingDelayedReorder: $isAwaitingDelayedReorder,
             onSave: { _, _ in
-                // Always delay card movement to ensure consistent behavior
-                // This gives time for celebrations to complete and prevents visual glitches
+                // Save, celebrate, wait 2s, then reorder (easier for users to track)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                     handleSaveAndReorder()
                 }
-                // Don't update teamMembers here - let the delayed reordering handle it
             },
             onCelebration: { memberID, field in
                 triggerCelebration(for: memberID, field: field)
@@ -262,12 +309,10 @@ private var editingOverlay: some View {
                 recentlyCompletedIDs: $recentlyCompletedIDs,
                 isAwaitingDelayedReorder: $isAwaitingDelayedReorder,
                 onSave: { _, _ in
-                    // Always delay card movement to ensure consistent behavior
-                    // This gives time for celebrations to complete and prevents visual glitches
+                    // Save, celebrate, wait 2s, then reorder (easier for users to track)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                         handleSaveAndReorder()
                     }
-                    // Don't update teamMembers here - let the delayed reordering handle it
                 },
                 onCelebration: { memberID, field in
                     triggerCelebration(for: memberID, field: field)
@@ -342,8 +387,8 @@ private var teamCardsList: some View {
         celebrationMemberID: $celebrationMemberID,
         celebrationField: $celebrationField,
         splashOrder: userManager.userList,
-        // Keep list in frozen mode while edit sheet is open OR while we are waiting to reorder after Save
-        isEditing: (editingMemberID != nil) || isAwaitingDelayedReorder,
+        // Only keep list in frozen mode while edit sheet is open
+        isEditing: (editingMemberID != nil),
         frozenOrderIDs: frozenOrderIDs,
         freezeNow: { ids in
             // Freeze immediately at tap time to avoid any mid-frame resort
@@ -372,37 +417,41 @@ private var backgroundLayer: some View {
     ZStack {
         backgroundGradient(for: viewModel.teamMembers.isEmpty ? lastNonEmptyMembers : viewModel.teamMembers).ignoresSafeArea()
 
-        // Existing shimmer overlay
-        LinearGradient(
-            gradient: Gradient(colors: [
-                Color.white.opacity(0.0),
-                Color.white.opacity(0.10),
-                Color.white.opacity(0.0)
-            ]),
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-        .frame(width: 400)
-        .rotationEffect(.degrees(30))
-        .offset(x: shimmerPosition * 600)
-        .blendMode(.overlay)
-        .ignoresSafeArea()
+        // Existing shimmer overlay (suppressed during bootstrap)
+        if !isBootstrapping {
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.white.opacity(0.0),
+                    Color.white.opacity(0.10),
+                    Color.white.opacity(0.0)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .frame(width: 400)
+            .rotationEffect(.degrees(30))
+            .offset(x: shimmerPosition * 600)
+            .blendMode(.overlay)
+            .ignoresSafeArea()
+        }
 
         // Restored true shimmer beam overlay (diagonal, plusLighter blend)
-        LinearGradient(
-            gradient: Gradient(colors: [
-                Color.white.opacity(0.0),
-                Color.white.opacity(0.18),
-                Color.white.opacity(0.0)
-            ]),
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .frame(width: 300)
-        .offset(x: shimmerPosition * UIScreen.main.bounds.width)
-        .rotationEffect(.degrees(25))
-        .blendMode(.plusLighter)
-        .ignoresSafeArea()
+        if !isBootstrapping {
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.white.opacity(0.0),
+                    Color.white.opacity(0.18),
+                    Color.white.opacity(0.0)
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(width: 300)
+            .offset(x: shimmerPosition * UIScreen.main.bounds.width)
+            .rotationEffect(.degrees(25))
+            .blendMode(.plusLighter)
+            .ignoresSafeArea()
+        }
     }
 }
 
@@ -450,6 +499,7 @@ private var emojiGrid: some View {
                     if let id = emojiEditingID,
                        let index = viewModel.teamMembers.firstIndex(where: { $0.id == id }) {
                         viewModel.teamMembers[index].emoji = emoji
+                        viewModel.teamMembers[index].emojiUserSet = true
                         viewModel.updateEmoji(for: viewModel.teamMembers[index])
                         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
                     }
@@ -486,7 +536,8 @@ private func handleSaveAndReorder() {
         withAnimation(.easeInOut(duration: 0.5)) {
             viewModel.reorderAfterSave()
         }
-        
+        // Keep data source in lockstep so the UI reflects the new order without a refresh
+        viewModel.teamData = viewModel.teamMembers
         if enableOrderLogs {
             let after = viewModel.teamMembers
             logOrder("after SAVE+REORDER", after)
@@ -497,6 +548,8 @@ private func handleSaveAndReorder() {
         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
     } else {
         if enableOrderLogs { print("🧭 [WinTheDay] No reordering needed - order is already correct") }
+        // Ensure UI reflects any stat changes even if order stayed the same
+        viewModel.teamData = viewModel.teamMembers
     }
     
     // Clear frozen state now that we are done
@@ -504,21 +557,64 @@ private func handleSaveAndReorder() {
     isAwaitingDelayedReorder = false
     // Always unfreeze the editing state after save (whether reordering happened or not)
     viewModel.isEditing = false
+    // Nudge SwiftUI to re-evaluate dependent views
+    viewModel.teamMembers = viewModel.teamMembers.map { $0 }
+    viewModel.teamData = viewModel.teamData.map { $0 }
 }
 
 /// Handles the onAppear logic to avoid complex type-checking issues
 private func handleOnAppear() {
-    guard !didRunInitialSync else { return }
+    // If the view model was pre-warmed (from Splash/App), skip bootstrap and extra fetches
+    if viewModel.isWarm {
+        print("🚀 [WinTheDay] handleOnAppear - view model is warm, skipping bootstrap")
+        didRunInitialSync = true
+        isBootstrapping = false
+        WinTheDayViewModel.globalIsBootstrapping = false
+        return
+    }
+
+    // If we've already synced once (e.g., user came from Splash), do not re-bootstrap.
+    if didRunInitialSync {
+        print("🔄 [WinTheDay] handleOnAppear - already synced once, skipping bootstrap")
+        viewModel.performAutoResetsIfNeeded(currentDate: Date())
+        isBootstrapping = false
+        WinTheDayViewModel.globalIsBootstrapping = false
+        return
+    }
+
+    // Check if we need to bootstrap based on current state
+    if !shouldBootstrap {
+        print("🚀 [WinTheDay] handleOnAppear - no bootstrap needed, data already available")
+        isBootstrapping = false
+        WinTheDayViewModel.globalIsBootstrapping = false
+        return
+    }
+
+    // First-time appearance: enable bootstrap until initial data is ready.
+    isBootstrapping = true
+    WinTheDayViewModel.globalIsBootstrapping = true
     didRunInitialSync = true
+
+    // Run auto-resets on first visit
+    viewModel.performAutoResetsIfNeeded(currentDate: Date())
 
     viewModel.fetchGoalNamesFromCloud()
     viewModel.fetchMembersFromCloud { [weak viewModel] in
         viewModel?.ensureCardsForAllUsers(userManager.userList)
+        // Reveal once we have our first stable dataset
+        DispatchQueue.main.async {
+            self.isBootstrapping = false
+            WinTheDayViewModel.globalIsBootstrapping = false
+        }
     }
     viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
     shimmerPosition = -1.0
-    withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
-        shimmerPosition = 1.5
+    // Start shimmer only after initial content is visible to avoid flash
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        guard !isBootstrapping else { return }
+        withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
+            shimmerPosition = 1.5
+        }
     }
 }
 
@@ -803,8 +899,8 @@ private struct EditingOverlayView: View {
                 editingMemberID = nil // ✅ Dismiss immediately (after flag set)
 
                 // Only trigger reordering if values actually changed
-                let valuesChanged = (member.quotesToday != oldQuotesValue) || 
-                                   (member.salesWTD != oldSalesWTDValue) || 
+                let valuesChanged = (member.quotesToday != oldQuotesValue) ||
+                                   (member.salesWTD != oldSalesWTDValue) ||
                                    (member.salesMTD != oldSalesMTDValue)
                 if valuesChanged {
                     if true { print("🧭 [WinTheDay] SAVE pressed for member=\(member.name) — delaying reorder") }
@@ -1088,7 +1184,7 @@ private struct TeamCardsListView: View {
                         }
                     }
                 }
-                .animation((!isEditing && frozenOrderIDs.isEmpty) ? .easeInOut(duration: 0.35) : nil, value: dataSource.map { $0.id })
+                .animation((!isEditing && frozenOrderIDs.isEmpty && !WinTheDayViewModel.globalIsBootstrapping) ? .easeInOut(duration: 0.35) : nil, value: dataSource.map { $0.id })
                 .padding(.horizontal, 20)
             }
             .transaction { t in

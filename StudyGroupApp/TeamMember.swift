@@ -17,6 +17,7 @@ class TeamMember: Identifiable, ObservableObject {
     @Published var salesWTDGoal: Int
     @Published var salesMTDGoal: Int
     @Published var emoji: String
+    @Published var emojiUserSet: Bool
     @Published var sortIndex: Int
     @Published var pending: Int
     @Published var projected: Double
@@ -33,6 +34,7 @@ class TeamMember: Identifiable, ObservableObject {
         salesWTDGoal: Int,
         salesMTDGoal: Int,
         emoji: String,
+        emojiUserSet: Bool = false,
         sortIndex: Int,
         pending: Int = 0,
         projected: Double = 0.0,
@@ -48,6 +50,7 @@ class TeamMember: Identifiable, ObservableObject {
         self.salesWTDGoal = salesWTDGoal
         self.salesMTDGoal = salesMTDGoal
         self.emoji = emoji
+        self.emojiUserSet = emojiUserSet
         self.sortIndex = sortIndex
         self.pending = pending
         self.projected = projected
@@ -65,6 +68,7 @@ class TeamMember: Identifiable, ObservableObject {
             salesWTDGoal: 1,
             salesMTDGoal: 1,
             emoji: "🙂",
+            emojiUserSet: false,
             sortIndex: 0,
             pending: 0,
             projected: 0.0,
@@ -82,6 +86,7 @@ class TeamMember: Identifiable, ObservableObject {
         salesWTDGoal: 1,
         salesMTDGoal: 1,
         emoji: "🧠",
+        emojiUserSet: false,
         sortIndex: 0,
         pending: 0,
         projected: 0.0,
@@ -97,6 +102,7 @@ class TeamMember: Identifiable, ObservableObject {
         salesWTDGoal: 2,
         salesMTDGoal: 2,
         emoji: "🏌️",
+        emojiUserSet: false,
         sortIndex: 1,
         pending: 0,
         projected: 0.0,
@@ -116,6 +122,7 @@ extension TeamMember {
         var salesWTDGoal: Int
         var salesMTDGoal: Int
         var emoji: String
+        var emojiUserSet: Bool
         var sortIndex: Int
         var pending: Int
         var projected: Double
@@ -134,6 +141,7 @@ extension TeamMember {
             salesWTDGoal: salesWTDGoal,
             salesMTDGoal: salesMTDGoal,
             emoji: emoji,
+            emojiUserSet: emojiUserSet,
             sortIndex: sortIndex,
             pending: pending,
             projected: projected,
@@ -153,6 +161,7 @@ extension TeamMember {
             salesWTDGoal: codable.salesWTDGoal,
             salesMTDGoal: codable.salesMTDGoal,
             emoji: codable.emoji,
+            emojiUserSet: codable.emojiUserSet,
             sortIndex: codable.sortIndex,
             pending: codable.pending,
             projected: codable.projected,
@@ -179,6 +188,7 @@ extension TeamMember {
         let salesWTDGoal = record["salesWTDGoal"] as? Int ?? 0
         let salesMTDGoal = record["salesMTDGoal"] as? Int ?? 0
         let emoji = record["emoji"] as? String ?? "🙂"
+        let emojiUserSet = record["emojiUserSet"] as? Bool ?? false
 
         let pending = record["pending"] as? Int ?? 0
         let projected = record["projected"] as? Double ?? 0.0
@@ -195,6 +205,7 @@ extension TeamMember {
             salesWTDGoal: salesWTDGoal,
             salesMTDGoal: salesMTDGoal,
             emoji: emoji,
+            emojiUserSet: emojiUserSet,
             sortIndex: 0,
             pending: pending,
             projected: projected,
@@ -210,6 +221,7 @@ extension TeamMember {
         )
         record["name"] = self.name
         record["emoji"] = self.emoji
+        record["emojiUserSet"] = self.emojiUserSet as CKRecordValue
         record["pending"] = self.pending as CKRecordValue
         record["projected"] = self.projected as CKRecordValue
         record["actual"] = self.actual as CKRecordValue

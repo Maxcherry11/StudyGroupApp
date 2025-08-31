@@ -69,6 +69,9 @@ struct UserSelectorView: View {
                                 userManager.refresh()
                                 viewModel.fetchMembersFromCloud()
                             }
+                            .onAppear {
+                                viewModel.prewarm(userList: userManager.userList, currentUser: userManager.currentUser)
+                            }
                             .alert("Add User", isPresented: $showAddUserAlert) {
                                 TextField("Name", text: $newUserName)
                                 Button("Add", action: {
