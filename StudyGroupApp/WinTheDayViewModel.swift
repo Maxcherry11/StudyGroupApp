@@ -2,10 +2,17 @@ import Foundation
 import CloudKit
 import SwiftUI
 
-// MARK: - Trophy Streak State
+// MARK: - Trophy Streak State (Local Only)
 struct TrophyStreakState: Codable {
     var streakCount: Int
     var lastFinalizedWeekId: String?
+    var memberName: String
+    
+    init(streakCount: Int = 0, lastFinalizedWeekId: String? = nil, memberName: String = "") {
+        self.streakCount = streakCount
+        self.lastFinalizedWeekId = lastFinalizedWeekId
+        self.memberName = memberName
+    }
 }
 
 class WinTheDayViewModel: ObservableObject {
@@ -18,6 +25,14 @@ class WinTheDayViewModel: ObservableObject {
     /// True while the Win The Day editor is open. Used to block reorders/sorts.
     @Published var isEditing: Bool = false
     @Published var isWarm: Bool = false
+    
+    // Used to mute list animations during bootstrap from outside the view model easily.
+    static var globalIsBootstrapping: Bool = false
+    
+    // Debounce mechanism to prevent multiple simultaneous CloudKit saves
+    private var saveTimers: [UUID: Timer] = [:]
+    // Counter for logging saves
+    private var saveCount = 0
 
     init() {
         let stored = loadLocalMembers().sorted { $0.sortIndex < $1.sortIndex }
@@ -179,31 +194,51 @@ class WinTheDayViewModel: ObservableObject {
     private func restoreTrophyData(_ trophyStates: [UUID: TrophyStreakState]) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             for (memberID, trophyState) in trophyStates {
-                self.saveStreak(trophyState, for: memberID)
+                // Only save if the trophy data has actually changed
+                let currentState = self.loadStreak(for: memberID)
+                if currentState.streakCount != trophyState.streakCount || 
+                   currentState.lastFinalizedWeekId != trophyState.lastFinalizedWeekId {
+                    self.saveStreak(trophyState, for: memberID)
+                }
             }
         }
     }
     
     // MARK: - Trophy Streak Persistence
     
-    private func streakKey(for memberID: UUID) -> String { "trophyStreak.\(memberID.uuidString)" }
+    func streakKey(for memberID: UUID) -> String { "trophyStreak.\(memberID.uuidString)" }
     
     func loadStreak(for memberID: UUID) -> TrophyStreakState {
+        // Load from local storage only
         let key = streakKey(for: memberID)
-        
         if let data = UserDefaults.standard.data(forKey: key),
            let state = try? JSONDecoder().decode(TrophyStreakState.self, from: data) {
             return state
         }
-        return TrophyStreakState(streakCount: 0, lastFinalizedWeekId: nil)
+        
+        // Return default state if no cached data
+        guard let member = teamMembers.first(where: { $0.id == memberID }) else {
+            return TrophyStreakState(streakCount: 0, lastFinalizedWeekId: nil, memberName: "")
+        }
+        
+        return TrophyStreakState(streakCount: 0, lastFinalizedWeekId: nil, memberName: member.name)
     }
     
     func saveStreak(_ state: TrophyStreakState, for memberID: UUID) {
+        // Save to local storage only (like other features in the app)
         let key = streakKey(for: memberID)
         if let data = try? JSONEncoder().encode(state) {
             UserDefaults.standard.set(data, forKey: key)
         }
+        
+        // Log occasionally to reduce spam
+        saveCount += 1
+        if saveCount % 10 == 0 {
+            print("🏆 [TROPHY] Saved trophy streak locally for \(state.memberName): \(state.streakCount) - \(saveCount) saves")
+        }
     }
+    
+
     
 
 
