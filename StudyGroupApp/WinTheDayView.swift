@@ -3,6 +3,67 @@
 import SwiftUI
 import CloudKit
 import Foundation
+import UIKit
+
+// MARK: - Trophy Streak Helpers (Time/Week)
+private let chicagoTimeZone = TimeZone(identifier: "America/Chicago")!
+
+private func currentWeekId(_ date: Date = Date()) -> String {
+    var cal = Calendar(identifier: .iso8601)
+    cal.timeZone = chicagoTimeZone
+    let weekOfYear = cal.component(.weekOfYear, from: date)
+    let yearForWeek = cal.component(.yearForWeekOfYear, from: date)
+    return String(format: "%04d-W%02d", yearForWeek, weekOfYear)
+}
+
+private func nextWeekStart(from date: Date = Date()) -> Date? {
+    var cal = Calendar(identifier: .iso8601)
+    cal.timeZone = chicagoTimeZone
+    // ISO weeks start on Monday; our rollover is Sunday night -> Monday 00:00 local
+    // Find the next Monday at 00:00
+    if let nextMonday = cal.nextDate(after: date, matching: DateComponents(hour: 0, minute: 0, second: 0, weekday: 2), matchingPolicy: .nextTime) {
+        return nextMonday
+    }
+    return nil
+}
+
+// MARK: - Trophy Streak Persistence
+struct TrophyStreakState: Codable {
+    var streakCount: Int
+    var lastFinalizedWeekId: String?
+}
+
+func streakKey(for memberID: UUID) -> String { "trophyStreak.\(memberID.uuidString)" }
+
+func loadStreak(for memberID: UUID) -> TrophyStreakState {
+    let key = streakKey(for: memberID)
+    if let data = UserDefaults.standard.data(forKey: key),
+       let state = try? JSONDecoder().decode(TrophyStreakState.self, from: data) {
+        return state
+    }
+    return TrophyStreakState(streakCount: 0, lastFinalizedWeekId: nil)
+}
+
+func saveStreak(_ state: TrophyStreakState, for memberID: UUID) {
+    let key = streakKey(for: memberID)
+    if let data = try? JSONEncoder().encode(state) {
+        UserDefaults.standard.set(data, forKey: key)
+    }
+}
+
+// MARK: - Trophy Row View
+private struct TrophyRowView: View {
+    let count: Int
+    var body: some View {
+        // Right-justified, newest added to the left (visually grows leftward)
+        HStack(spacing: 4) {
+            ForEach(0..<max(0, count), id: \.self) { _ in
+                Text("🏆")
+                    .font(.system(size: 14))
+            }
+        }
+    }
+}
 
 extension WinTheDayViewModel {
     // Used to mute list animations during bootstrap from outside the view model easily.
@@ -65,10 +126,13 @@ struct WinTheDayView: View {
     @State private var recentlyCompletedIDs: Set<UUID> = []
     @State private var celebrationMemberID: UUID?
     @State private var celebrationField: String = ""
+    @State private var confettiMemberID: UUID?
     // Keep editing state active during the delayed reorder window after Save
     @State private var isAwaitingDelayedReorder: Bool = false
     // Cache for frozen order while editing popup is open
     @State private var frozenOrderIDs: [UUID] = []
+    // Allow animation only during the post-save reorder window
+    @State private var isPerformingAnimatedReorder: Bool = false
     // Production Goal Editor State
     @State private var showProductionGoalEditor = false
     @State private var newQuotesGoal = 10
@@ -86,6 +150,9 @@ struct WinTheDayView: View {
 
     // Bootstrap flag to prevent initial blink during first data load
     @State private var isBootstrapping: Bool = false
+
+    // Trophy timer for weekly finalize
+    @State private var weeklyFinalizeTimer: Timer?
 
     // Check if view model is already warm when view is created
     private var shouldBootstrap: Bool {
@@ -120,6 +187,7 @@ struct WinTheDayView: View {
             Spacer()
         }
         .overlay(editingOverlay)
+        .overlay(confettiOverlay)
         .background(winTheDayBackground)
         .opacity(isBootstrapping ? 0 : 1) // hide until first stable frame is ready
         .transaction { t in if isBootstrapping { t.disablesAnimations = true } }
@@ -181,7 +249,22 @@ struct WinTheDayView: View {
             viewModel.fetchMembersFromCloud()
             viewModel.fetchGoalNamesFromCloud()
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            finalizeCurrentWeekIfNeeded(now: Date())
+            scheduleWeeklyFinalizeTimer()
+        }
     }
+private var confettiOverlay: some View {
+    Group {
+        if confettiMemberID != nil {
+            ConfettiView()
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .transition(.opacity)
+                .zIndex(1000)
+        }
+    }
+}
 
     var body: some View {
         AnyView(
@@ -256,6 +339,7 @@ struct WinTheDayView: View {
                         editingSalesMTDLabel = viewModel.goalNames.salesMTD
                     }
                 }
+                .onDisappear { weeklyFinalizeTimer?.invalidate() }
         )
     }
 
@@ -280,6 +364,9 @@ private func editingSheet(for editingID: UUID) -> some View {
             },
             onCelebration: { memberID, field in
                 triggerCelebration(for: memberID, field: field)
+            },
+            onConfetti: { memberID in
+                triggerConfetti(for: memberID)
             }
         )
         .environmentObject(viewModel)
@@ -316,6 +403,9 @@ private var editingOverlay: some View {
                 },
                 onCelebration: { memberID, field in
                     triggerCelebration(for: memberID, field: field)
+                },
+                onConfetti: { memberID in
+                    triggerConfetti(for: memberID)
                 }
             )
             .environmentObject(viewModel)
@@ -334,6 +424,19 @@ private var editingOverlay: some View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             celebrationMemberID = nil
             celebrationField = ""
+        }
+    }
+
+    private func triggerConfetti(for memberID: UUID) {
+        // Haptic feedback for goal completion
+        let generator = UINotificationFeedbackGenerator()
+        generator.prepare()
+        generator.notificationOccurred(.success)
+
+        // Show full-screen confetti overlay
+        confettiMemberID = memberID
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            confettiMemberID = nil
         }
     }
 
@@ -386,9 +489,10 @@ private var teamCardsList: some View {
         recentlyCompletedIDs: $recentlyCompletedIDs,
         celebrationMemberID: $celebrationMemberID,
         celebrationField: $celebrationField,
+        confettiMemberID: $confettiMemberID,
         splashOrder: userManager.userList,
-        // Only keep list in frozen mode while edit sheet is open
-        isEditing: (editingMemberID != nil),
+        // Keep list frozen whenever editing is active, manually frozen, or in delayed-reorder window
+        isEditing: (viewModel.isEditing || editingMemberID != nil || isAwaitingDelayedReorder),
         frozenOrderIDs: frozenOrderIDs,
         freezeNow: { ids in
             // Freeze immediately at tap time to avoid any mid-frame resort
@@ -399,7 +503,8 @@ private var teamCardsList: some View {
                 let names = base.map { $0.name }.joined(separator: ", ")
                 print("🧭 [WinTheDay] FREEZE at tap -> [\(names)]")
             }
-        }
+        },
+        isPerformingAnimatedReorder: $isPerformingAnimatedReorder
     )
 }
 
@@ -528,35 +633,49 @@ private func handleSaveAndReorder() {
     let expectedOrder = viewModel.teamMembers.sorted(by: viewModel.stableByScoreThenIndex).map { $0.id }
     
     let needsReordering = currentOrder != expectedOrder
+    let reorderAnimation: Animation = UIAccessibility.isReduceMotionEnabled
+        ? .easeOut(duration: 0.01)
+        : .bouncy(duration: 0.6)
     
     if needsReordering {
         if enableOrderLogs { print("🧭 [WinTheDay] Order changed, performing reorder with smooth animation") }
-        
-        // First save the data, then reorder with smooth animation
-        withAnimation(.easeInOut(duration: 0.5)) {
+        // Exit frozen/editing so the list can animate; enter animated reorder window
+        frozenOrderIDs.removeAll()
+        isAwaitingDelayedReorder = false
+        viewModel.isEditing = false
+        isPerformingAnimatedReorder = true
+        // First save the data, then reorder with playful animation (Reduce Motion respected)
+        withAnimation(reorderAnimation) {
             viewModel.reorderAfterSave()
+            viewModel.teamData = viewModel.teamMembers
         }
-        // Keep data source in lockstep so the UI reflects the new order without a refresh
-        viewModel.teamData = viewModel.teamMembers
         if enableOrderLogs {
             let after = viewModel.teamMembers
             logOrder("after SAVE+REORDER", after)
         }
         viewModel.saveCardOrderToCloud(for: userManager.currentUser)
-        
         // Force update to trigger SwiftUI redraw after reordering
         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
+        // End the animated reorder window after the animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            isPerformingAnimatedReorder = false
+        }
     } else {
         if enableOrderLogs { print("🧭 [WinTheDay] No reordering needed - order is already correct") }
+        // Exit frozen/editing so the list can animate; enter animated reorder window
+        frozenOrderIDs.removeAll()
+        isAwaitingDelayedReorder = false
+        viewModel.isEditing = false
+        isPerformingAnimatedReorder = true
         // Ensure UI reflects any stat changes even if order stayed the same
-        viewModel.teamData = viewModel.teamMembers
+        withAnimation(reorderAnimation) {
+            viewModel.teamData = viewModel.teamMembers
+        }
+        // End the animated reorder window after the animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            isPerformingAnimatedReorder = false
+        }
     }
-    
-    // Clear frozen state now that we are done
-    frozenOrderIDs.removeAll()
-    isAwaitingDelayedReorder = false
-    // Always unfreeze the editing state after save (whether reordering happened or not)
-    viewModel.isEditing = false
     // Nudge SwiftUI to re-evaluate dependent views
     viewModel.teamMembers = viewModel.teamMembers.map { $0 }
     viewModel.teamData = viewModel.teamData.map { $0 }
@@ -564,6 +683,16 @@ private func handleSaveAndReorder() {
 
 /// Handles the onAppear logic to avoid complex type-checking issues
 private func handleOnAppear() {
+    // Always set up shimmer animation regardless of bootstrap state
+    shimmerPosition = -1.0
+    // Start shimmer only after initial content is visible to avoid flash
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        guard !isBootstrapping else { return }
+        withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
+            shimmerPosition = 1.5
+        }
+    }
+    
     // If the view model was pre-warmed (from Splash/App), skip bootstrap and extra fetches
     if viewModel.isWarm {
         print("🚀 [WinTheDay] handleOnAppear - view model is warm, skipping bootstrap")
@@ -608,13 +737,50 @@ private func handleOnAppear() {
         }
     }
     viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
-    shimmerPosition = -1.0
-    // Start shimmer only after initial content is visible to avoid flash
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-        guard !isBootstrapping else { return }
-        withAnimation(Animation.linear(duration: 12).repeatForever(autoreverses: false)) {
-            shimmerPosition = 1.5
+    
+    // Schedule weekly finalize (last minute before reset) and also reconcile on appear
+    scheduleWeeklyFinalizeTimer()
+    finalizeCurrentWeekIfNeeded(now: Date())
+}
+
+// MARK: - Weekly Trophy Finalization (MVP)
+private func isWeeklyMet(for member: TeamMember) -> Bool {
+    // Applies to weekly goals: Quotes Week (stored in quotesToday for WTD) and Sales Week (salesWTD)
+    let quotesHit = member.quotesToday >= member.quotesGoal
+    let salesHit  = member.salesWTD >= member.salesWTDGoal
+    return quotesHit || salesHit
+}
+
+private func finalizeCurrentWeekIfNeeded(now: Date = Date()) {
+    // Determine this week id (we finalize the week ending now)
+    let weekId = currentWeekId(now)
+    // For each member, if we haven't finalized this week yet, finalize using current values.
+    for member in viewModel.teamMembers {
+        var state = loadStreak(for: member.id)
+        // Only finalize once per week per member
+        if state.lastFinalizedWeekId == weekId { continue }
+        if isWeeklyMet(for: member) {
+            state.streakCount += 1
+        } else {
+            state.streakCount = 0
         }
+        state.lastFinalizedWeekId = weekId
+        saveStreak(state, for: member.id)
+    }
+    // Force a redraw so trophy rows reflect any changes
+    viewModel.teamMembers = viewModel.teamMembers.map { $0 }
+}
+
+private func scheduleWeeklyFinalizeTimer() {
+    weeklyFinalizeTimer?.invalidate()
+    guard let next = nextWeekStart() else { return }
+    // Fire 2 seconds *before* the rollover to capture "last minute before reset"
+    let fireDate = next.addingTimeInterval(-2)
+    weeklyFinalizeTimer = Timer(fireAt: fireDate, interval: 0, target: BlockOperation {
+        self.finalizeCurrentWeekIfNeeded(now: Date())
+    }, selector: #selector(Operation.main), userInfo: nil, repeats: false)
+    if let t = weeklyFinalizeTimer {
+        RunLoop.main.add(t, forMode: .common)
     }
 }
 
@@ -853,6 +1019,7 @@ private struct EditingOverlayView: View {
     @Binding var isAwaitingDelayedReorder: Bool
     let onSave: ((UUID?, String) -> Void)?
     let onCelebration: ((UUID, String) -> Void)?
+    let onConfetti: ((UUID) -> Void)?
     @State private var oldQuotesValue: Int = 0
     @State private var oldSalesWTDValue: Int = 0
     @State private var oldSalesMTDValue: Int = 0
@@ -907,8 +1074,13 @@ private struct EditingOverlayView: View {
                     viewModel.saveWinTheDayFields(member)
                     onSave?(capturedID, capturedField)
                     let shouldCelebrate = checkIfAnyProgressTurnedGreen()
+                    let didCompleteAnyGoal = checkIfAnyGoalCompleted()
+                    
                     if shouldCelebrate {
-                        onCelebration?(member.id, "any")
+                        onCelebration?(member.id, "any") // 🎉 small burst
+                    }
+                    if didCompleteAnyGoal {
+                        onConfetti?(member.id)           // 🎊 confetti big celebration
                     }
                 } else {
                     if true { print("🧭 [WinTheDay] SAVE pressed but no values changed — no reorder needed") }
@@ -965,6 +1137,13 @@ private struct EditingOverlayView: View {
         return quotesTurnedGreen || salesWTDTurnedGreen || salesMTDTurnedGreen
     }
     
+    private func checkIfAnyGoalCompleted() -> Bool {
+        let quotesCompleted   = (oldQuotesValue < member.quotesGoal)   && (member.quotesToday >= member.quotesGoal)
+        let salesWTDCompleted = (oldSalesWTDValue < member.salesWTDGoal) && (member.salesWTD >= member.salesWTDGoal)
+        let salesMTDCompleted = (oldSalesMTDValue < member.salesMTDGoal) && (member.salesMTD >= member.salesMTDGoal)
+        return quotesCompleted || salesWTDCompleted || salesMTDCompleted
+    }
+    
     private func progressColor(for field: String, value: Int, goal: Int) -> Color {
         guard goal > 0 else { return .gray }
         
@@ -1004,6 +1183,7 @@ private struct TeamMemberCardView: View {
     let salesMTDLabel: String
     @Binding var celebrationMemberID: UUID?
     @Binding var celebrationField: String
+    @Binding var confettiMemberID: UUID?
 
     var body: some View {
         ZStack {
@@ -1028,6 +1208,9 @@ private struct TeamMemberCardView: View {
                                 .foregroundColor(.white)
                         }
                     }
+                    Spacer()
+                    // Far-right trophy row (right-justified, grows leftward)
+                    TrophyRowView(count: loadStreak(for: member.id).streakCount)
                 }
                 .padding(6)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1124,6 +1307,108 @@ struct CelebrationView: View {
         }
     }
 }
+
+// MARK: - Confetti View (CAEmitterLayer-backed)
+struct ConfettiView: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isUserInteractionEnabled = false
+
+        let emitter = CAEmitterLayer()
+        emitter.emitterShape = .line
+        emitter.emitterMode = .surface
+        emitter.emitterSize = CGSize(width: UIScreen.main.bounds.width, height: 1)
+        emitter.emitterPosition = CGPoint(x: UIScreen.main.bounds.width/2, y: -8) // from top
+        emitter.birthRate = 1
+
+        let colors: [UIColor] = [
+            UIColor(red: 0.95, green: 0.30, blue: 0.36, alpha: 1.0), // red
+            UIColor(red: 1.00, green: 0.70, blue: 0.20, alpha: 1.0), // orange
+            UIColor(red: 1.00, green: 0.90, blue: 0.30, alpha: 1.0), // yellow
+            UIColor(red: 0.20, green: 0.75, blue: 0.35, alpha: 1.0), // green
+            UIColor(red: 0.25, green: 0.60, blue: 0.95, alpha: 1.0), // blue
+            UIColor(red: 0.60, green: 0.40, blue: 0.95, alpha: 1.0)  // purple
+        ]
+
+        let shapes: [CGPath] = [
+            UIBezierPath(roundedRect: CGRect(x: 0, y: 0, width: 6, height: 9), cornerRadius: 2).cgPath, // rectangle (smaller)
+            UIBezierPath(ovalIn: CGRect(x: 0, y: 0, width: 6, height: 6)).cgPath,                         // circle (smaller)
+            ConfettiView.starPath(size: 8).cgPath                                                        // star (smaller)
+        ]
+
+        var cells: [CAEmitterCell] = []
+        for color in colors {
+            for shape in shapes {
+                let cell = CAEmitterCell()
+                cell.birthRate = 18
+                cell.lifetime = 4.0
+                cell.lifetimeRange = 1.0
+                cell.velocity = 140
+                cell.velocityRange = 60
+                cell.emissionLongitude = .pi
+                cell.emissionRange = .pi / 8
+                cell.spin = 3.5
+                cell.spinRange = 4.0
+                cell.scale = 0.5
+                cell.scaleRange = 0.2
+                cell.yAcceleration = 180
+                cell.xAcceleration = 10
+                cell.alphaRange = 0.0
+                cell.alphaSpeed = -0.35
+                cell.color = color.cgColor
+                cell.contents = ConfettiView.image(for: shape, color: color).cgImage
+                cells.append(cell)
+            }
+        }
+
+        emitter.emitterCells = cells
+        view.layer.addSublayer(emitter)
+
+        // Short celebratory burst, then let pieces fall out
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+            emitter.birthRate = 0
+        }
+
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) { }
+
+    // Build images for cells
+    private static func image(for path: CGPath, color: UIColor) -> UIImage {
+        let bounds = path.boundingBoxOfPath.insetBy(dx: -2, dy: -2)
+        let size = CGSize(width: max(12, bounds.width), height: max(12, bounds.height))
+        UIGraphicsBeginImageContextWithOptions(size, false, 0)
+        guard let ctx = UIGraphicsGetCurrentContext() else { return UIImage() }
+        ctx.translateBy(x: (size.width - bounds.width)/2 - bounds.origin.x,
+                        y: (size.height - bounds.height)/2 - bounds.origin.y)
+        ctx.addPath(path)
+        ctx.setFillColor(color.cgColor)
+        ctx.fillPath()
+        let img = UIGraphicsGetImageFromCurrentImageContext() ?? UIImage()
+        UIGraphicsEndImageContext()
+        return img
+    }
+
+    private static func starPath(size: CGFloat, points: Int = 5) -> UIBezierPath {
+        let path = UIBezierPath()
+        let center = CGPoint(x: size/2, y: size/2)
+        let outer = size/2
+        let inner = outer * 0.5
+        var angle: CGFloat = -.pi/2
+        let step = .pi / CGFloat(points)
+        var isOuter = true
+        for _ in 0..<(points * 2) {
+            let r = isOuter ? outer : inner
+            let pt = CGPoint(x: center.x + cos(angle) * r, y: center.y + sin(angle) * r)
+            if path.isEmpty { path.move(to: pt) } else { path.addLine(to: pt) }
+            isOuter.toggle()
+            angle += step
+        }
+        path.close()
+        return path
+    }
+}
     
 
 // MARK: - Extracted Team Cards List (lighter for the type checker)
@@ -1140,10 +1425,14 @@ private struct TeamCardsListView: View {
     @Binding var recentlyCompletedIDs: Set<UUID>
     @Binding var celebrationMemberID: UUID?
     @Binding var celebrationField: String
+    @Binding var confettiMemberID: UUID?
     let splashOrder: [String]
     let isEditing: Bool
     let frozenOrderIDs: [UUID]
     let freezeNow: ([UUID]) -> Void
+    @Binding var isPerformingAnimatedReorder: Bool
+    @State private var cachedOrderIDs: [UUID] = []
+    @State private var snapshotIDs: [UUID] = []
 
     var body: some View {
         ScrollViewReader { scrollProxy in
@@ -1152,73 +1441,118 @@ private struct TeamCardsListView: View {
                     ForEach(dataSource, id: \.id) { member in
                         if let idx = teamMembers.firstIndex(where: { $0.name == member.name }) {
                             let isEditable = teamMembers[idx].name == currentUser
-                        TeamMemberCardView(
-                            member: $teamMembers[idx],
-                            isEditable: isEditable,
-                            selectedUserName: currentUser,
-                            onEdit: { field in
-                                guard isEditable else { return }
-                                if true { print("🧭 [WinTheDay] onEdit tapped for \(member.name) field=\(field)") }
-                                // Freeze immediately using the exact on-screen order to prevent any movement
-                                freezeNow(dataSource.map { $0.id })
-                                // Now proceed to open the editor
-                                editingMemberID = member.id
-                                editingField = field
-                                if field == "emoji" {
-                                    emojiPickerVisible = true
-                                    emojiEditingID = member.id
-                                    editingMemberID = nil
-                                } else {
-                                    withAnimation { scrollProxy.scrollTo(member.id, anchor: .center) }
-                                }
-                            },
-                            recentlyCompletedIDs: $recentlyCompletedIDs,
-                            teamData: $teamData,
-                            quotesLabel: goalNames.quotes,
-                            salesWTDLabel: goalNames.salesWTD,
-                            salesMTDLabel: goalNames.salesMTD,
-                            celebrationMemberID: $celebrationMemberID,
-                            celebrationField: $celebrationField
-                        )
+                            TeamMemberCardView(
+                                member: $teamMembers[idx],
+                                isEditable: isEditable,
+                                selectedUserName: currentUser,
+                                onEdit: { field in
+                                    guard isEditable else { return }
+                                    if true { print("🧭 [WinTheDay] onEdit tapped for \(member.name) field=\(field)") }
+                                    // Freeze immediately using the exact on-screen order to prevent any movement
+                                    freezeNow(dataSource.map { $0.id })
+                                    // Now proceed to open the editor
+                                    editingMemberID = member.id
+                                    editingField = field
+                                    if field == "emoji" {
+                                        emojiPickerVisible = true
+                                        emojiEditingID = member.id
+                                        editingMemberID = nil
+                                    } else {
+                                        withAnimation { scrollProxy.scrollTo(member.id, anchor: .center) }
+                                    }
+                                },
+                                recentlyCompletedIDs: $recentlyCompletedIDs,
+                                teamData: $teamData,
+                                quotesLabel: goalNames.quotes,
+                                salesWTDLabel: goalNames.salesWTD,
+                                salesMTDLabel: goalNames.salesMTD,
+                                celebrationMemberID: $celebrationMemberID,
+                                celebrationField: $celebrationField,
+                                confettiMemberID: $confettiMemberID
+                            )
                             .id(member.id)
                         }
                     }
                 }
-                .animation((!isEditing && frozenOrderIDs.isEmpty && !WinTheDayViewModel.globalIsBootstrapping) ? .easeInOut(duration: 0.35) : nil, value: dataSource.map { $0.id })
+                .animation({ () -> Animation? in
+                    if WinTheDayViewModel.globalIsBootstrapping { return nil }
+                    if isPerformingAnimatedReorder {
+                        return UIAccessibility.isReduceMotionEnabled ? .easeOut(duration: 0.01) : .bouncy(duration: 0.6)
+                    }
+                    if !isEditing && frozenOrderIDs.isEmpty && cachedOrderIDs.isEmpty {
+                        return .easeInOut(duration: 0.3)
+                    }
+                    return nil
+                }(), value: dataSource.map { $0.id })
+                .id("cards-container")
                 .padding(.horizontal, 20)
             }
             .transaction { t in
-                if isEditing { t.disablesAnimations = true }
+                if (isEditing || !cachedOrderIDs.isEmpty || !frozenOrderIDs.isEmpty) && !isPerformingAnimatedReorder {
+                    t.disablesAnimations = true
+                }
             }
             .refreshable {
                 NotificationCenter.default.post(name: .init("WinTheDayManualRefresh"), object: nil)
+            }
+            .onChange(of: isEditing) { newValue in
+                if newValue {
+                    // Capture the exact on-screen order at the moment editing begins
+                    let base = teamData.isEmpty ? lastNonEmptyTeamData : teamData
+                    cachedOrderIDs = base.map { $0.id }
+                    snapshotIDs = cachedOrderIDs
+                } else {
+                    cachedOrderIDs.removeAll()
+                    snapshotIDs.removeAll()
+                }
+            }
+            .onChange(of: frozenOrderIDs) { ids in
+                if !ids.isEmpty {
+                    snapshotIDs = ids
+                }
             }
         }
     }
 
     private var dataSource: [TeamMember] {
         let base = teamData.isEmpty ? lastNonEmptyTeamData : teamData
-        
-        if true { print("🧭 [WinTheDay] dataSource evaluated - isEditing: \(isEditing), frozenOrderIDs.count: \(frozenOrderIDs.count)") }
 
-        // STEP 2: If editing is active, use the frozen order to prevent any movement
+        if true { print("🧭 [WinTheDay] dataSource evaluated - isEditing: \(isEditing), frozenOrderIDs.count: \(frozenOrderIDs.count), isPerformingAnimatedReorder: \(isPerformingAnimatedReorder)") }
+
+        // NEW: While editing, always render strictly from a snapshot order, never live resorting
         if isEditing || !frozenOrderIDs.isEmpty {
+            // Choose the most stable order source available while editing
+            let ids: [UUID]
             if !frozenOrderIDs.isEmpty {
-                let indexByID: [UUID:Int] = Dictionary(uniqueKeysWithValues: frozenOrderIDs.enumerated().map { ($1, $0) })
-                if true {
-                    let names = base.sorted { (indexByID[$0.id] ?? Int.max) < (indexByID[$1.id] ?? Int.max) }.map { $0.name }
-                    print("🧭 [WinTheDay] dataSource=FROZEN (editing active) -> \(names)")
-                }
-                // Return the EXACT frozen order - no reordering, no changes
-                return base.sorted { (indexByID[$0.id] ?? Int.max) < (indexByID[$1.id] ?? Int.max) }
+                ids = frozenOrderIDs
+            } else if !snapshotIDs.isEmpty {
+                ids = snapshotIDs
+            } else if !cachedOrderIDs.isEmpty {
+                ids = cachedOrderIDs
             } else {
-                // Fallback: if somehow we're editing but no frozen IDs, return base order unchanged
-                if true { print("🧭 [WinTheDay] dataSource=FROZEN fallback -> \(base.map { $0.name })") }
-                return base
+                // Last resort – keep whatever is currently on screen without re-sorting
+                let base = teamData.isEmpty ? lastNonEmptyTeamData : teamData
+                ids = base.map { $0.id }
             }
+
+            // Render by mapping snapshot IDs to the current teamMembers (live values, fixed order)
+            let ordered = ids.compactMap { id in
+                teamMembers.first(where: { $0.id == id }) ?? teamData.first(where: { $0.id == id })
+            }
+            if true { print("🧭 [WinTheDay] dataSource=SNAPSHOT (editing) -> \(ordered.map { $0.name })") }
+            return ordered
         }
 
-        // STEP 4: Only apply normal ordering logic when NOT editing
+        // During the animated reorder window, use normal live ordering so it can animate
+        if isPerformingAnimatedReorder {
+            return liveOrdered(base: base)
+        }
+
+        // Only apply normal ordering logic when NOT editing
+        return liveOrdered(base: base)
+    }
+
+    private func liveOrdered(base: [TeamMember]) -> [TeamMember] {
         // Build a fast index map for Splash order
         let indexMap: [String:Int] = Dictionary(uniqueKeysWithValues: splashOrder.enumerated().map { ($1, $0) })
 
@@ -1227,14 +1561,12 @@ private struct TeamCardsListView: View {
         let zeroProgress = base.filter { ($0.quotesToday + $0.salesWTD + $0.salesMTD) == 0 }
 
         if withProgress.isEmpty {
-            // All zero progress - use splash order
             if true {
                 let names = zeroProgress.sorted { (indexMap[$0.name] ?? Int.max) < (indexMap[$1.name] ?? Int.max) }.map { $0.name }
                 print("🧭 [WinTheDay] dataSource=ALL_ZERO splash order -> \(names)")
             }
             return zeroProgress.sorted { (indexMap[$0.name] ?? Int.max) < (indexMap[$1.name] ?? Int.max) }
         } else {
-            // Mixed progress - sort by score, then splash order for zeros
             let sortedProgress = withProgress.sorted { lhs, rhs in
                 let l = lhs.quotesToday + lhs.salesWTD + lhs.salesMTD
                 let r = rhs.quotesToday + rhs.salesWTD + rhs.salesMTD
@@ -1244,14 +1576,13 @@ private struct TeamCardsListView: View {
                 return l > r
             }
             let sortedZeros = zeroProgress.sorted { (indexMap[$0.name] ?? Int.max) < (indexMap[$1.name] ?? Int.max) }
-            
             if true {
                 let progressNames = sortedProgress.map { $0.name }
                 let zeroNames = sortedZeros.map { $0.name }
                 print("🧭 [WinTheDay] dataSource=MIXED progressed -> \(progressNames), zeros(splash) -> \(zeroNames)")
             }
-            
             return sortedProgress + sortedZeros
         }
     }
+    
 }
