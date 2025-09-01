@@ -10,9 +10,8 @@ import SwiftUI
 
 struct MainTabView: View {
     @EnvironmentObject var userManager: UserManager
-    /// Shared WinTheDayViewModel passed from the splash screen so card state
-    /// persists when entering the main tabs.
-    @EnvironmentObject var viewModel: WinTheDayViewModel
+    /// Use the shared WinTheDayViewModel to preserve trophy data across navigation
+    @StateObject private var viewModel = WinTheDayViewModel.shared
     @StateObject private var scoreboardVM = LifeScoreboardViewModel()
     @StateObject private var twyVM = TwelveWeekYearViewModel()
     @Environment(\.scenePhase) private var scenePhase

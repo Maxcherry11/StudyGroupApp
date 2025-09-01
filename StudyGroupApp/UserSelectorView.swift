@@ -10,8 +10,8 @@ import CloudKit
 
 struct UserSelectorView: View {
     @EnvironmentObject var userManager: UserManager
-    /// Use the WinTheDayViewModel so the splash screen mirrors the main app data
-    @StateObject private var viewModel = WinTheDayViewModel()
+    /// Use a shared WinTheDayViewModel to preserve trophy data across navigation
+    @StateObject private var viewModel = WinTheDayViewModel.shared
     @State private var navigate = false
 
     @State private var newUserName = ""
@@ -84,7 +84,7 @@ struct UserSelectorView: View {
                                 Button("Cancel", role: .cancel) { }
                             }
 
-                            NavigationLink(destination: MainTabView().environmentObject(userManager).environmentObject(viewModel), isActive: $navigate) {
+                            NavigationLink(destination: MainTabView().environmentObject(userManager), isActive: $navigate) {
                                 EmptyView()
                             }
                             .hidden()

@@ -27,29 +27,7 @@ private func nextWeekStart(from date: Date = Date()) -> Date? {
     return nil
 }
 
-// MARK: - Trophy Streak Persistence
-struct TrophyStreakState: Codable {
-    var streakCount: Int
-    var lastFinalizedWeekId: String?
-}
-
-func streakKey(for memberID: UUID) -> String { "trophyStreak.\(memberID.uuidString)" }
-
-func loadStreak(for memberID: UUID) -> TrophyStreakState {
-    let key = streakKey(for: memberID)
-    if let data = UserDefaults.standard.data(forKey: key),
-       let state = try? JSONDecoder().decode(TrophyStreakState.self, from: data) {
-        return state
-    }
-    return TrophyStreakState(streakCount: 0, lastFinalizedWeekId: nil)
-}
-
-func saveStreak(_ state: TrophyStreakState, for memberID: UUID) {
-    let key = streakKey(for: memberID)
-    if let data = try? JSONEncoder().encode(state) {
-        UserDefaults.standard.set(data, forKey: key)
-    }
-}
+// MARK: - Trophy Streak Persistence (Moved to WinTheDayViewModel)
 
 // MARK: - Trophy Row View
 private struct TrophyRowView: View {
@@ -59,7 +37,7 @@ private struct TrophyRowView: View {
         HStack(spacing: 4) {
             ForEach(0..<max(0, count), id: \.self) { _ in
                 Text("🏆")
-                    .font(.system(size: 14))
+                    .font(.system(size: 25))
             }
         }
     }
@@ -246,7 +224,30 @@ struct WinTheDayView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("WinTheDayManualRefresh"))) { _ in
-            viewModel.fetchMembersFromCloud()
+            print("🔄 [PULL DOWN REFRESH] Starting manual refresh - checking trophy states before")
+            for member in viewModel.teamMembers {
+                let trophyState = viewModel.loadStreak(for: member.id)
+                print("🔄 [PULL DOWN REFRESH] Before refresh - \(member.name): \(trophyState.streakCount) trophies")
+            }
+            
+            // 🎯 FIX: Always fetch updated data, but ensure trophy logic runs AFTER fetch completes
+            print("🔄 [PULL DOWN REFRESH] Fetching updated data from CloudKit")
+            viewModel.fetchMembersFromCloud {
+                // This completion block runs AFTER fetchMembersFromCloud completes
+                print("🔄 [PULL DOWN REFRESH] CloudKit fetch completed - running trophy logic")
+                
+                // Run trophy finalization logic after data is loaded
+                DispatchQueue.main.async {
+                    self.finalizeCurrentWeekIfNeeded(now: Date())
+                    
+                    // Check trophy states after finalization
+                    print("🔄 [PULL DOWN REFRESH] After finalization - checking trophy states")
+                    for member in self.viewModel.teamMembers {
+                        let trophyState = self.viewModel.loadStreak(for: member.id)
+                        print("🔄 [PULL DOWN REFRESH] After finalization - \(member.name): \(trophyState.streakCount) trophies")
+                    }
+                }
+            }
             viewModel.fetchGoalNamesFromCloud()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
@@ -477,6 +478,7 @@ private var header: some View {
 
 private var teamCardsList: some View {
     TeamCardsListView(
+        viewModel: viewModel,
         teamMembers: $viewModel.teamMembers,
         teamData: $viewModel.teamData,
         lastNonEmptyTeamData: $lastNonEmptyTeamData,
@@ -699,6 +701,10 @@ private func handleOnAppear() {
         didRunInitialSync = true
         isBootstrapping = false
         WinTheDayViewModel.globalIsBootstrapping = false
+        
+        // 🏆 RUN TROPHY LOGIC: Finalize trophies when entering WinTheDay with warm data
+        print("🏆 [WinTheDay] handleOnAppear - running trophy finalization for warm data")
+        finalizeCurrentWeekIfNeeded(now: Date())
         return
     }
 
@@ -708,6 +714,10 @@ private func handleOnAppear() {
         viewModel.performAutoResetsIfNeeded(currentDate: Date())
         isBootstrapping = false
         WinTheDayViewModel.globalIsBootstrapping = false
+        
+        // 🏆 RUN TROPHY LOGIC: Finalize trophies when entering WinTheDay after sync
+        print("🏆 [WinTheDay] handleOnAppear - running trophy finalization after sync")
+        finalizeCurrentWeekIfNeeded(now: Date())
         return
     }
 
@@ -716,6 +726,10 @@ private func handleOnAppear() {
         print("🚀 [WinTheDay] handleOnAppear - no bootstrap needed, data already available")
         isBootstrapping = false
         WinTheDayViewModel.globalIsBootstrapping = false
+        
+        // 🏆 RUN TROPHY LOGIC: Finalize trophies when entering WinTheDay with available data
+        print("🏆 [WinTheDay] handleOnAppear - running trophy finalization with available data")
+        finalizeCurrentWeekIfNeeded(now: Date())
         return
     }
 
@@ -754,18 +768,32 @@ private func isWeeklyMet(for member: TeamMember) -> Bool {
 private func finalizeCurrentWeekIfNeeded(now: Date = Date()) {
     // Determine this week id (we finalize the week ending now)
     let weekId = currentWeekId(now)
+    print("🏆 [FINALIZE] Starting finalizeCurrentWeekIfNeeded for week: \(weekId)")
+    
     // For each member, if we haven't finalized this week yet, finalize using current values.
     for member in viewModel.teamMembers {
-        var state = loadStreak(for: member.id)
+        var state = viewModel.loadStreak(for: member.id)
+        print("🏆 [FINALIZE] Member \(member.name) - Current: \(state.streakCount) trophies, lastFinalizedWeekId: \(state.lastFinalizedWeekId ?? "nil")")
+        
         // Only finalize once per week per member
-        if state.lastFinalizedWeekId == weekId { continue }
-        if isWeeklyMet(for: member) {
+        if state.lastFinalizedWeekId == weekId { 
+            print("🏆 [FINALIZE] Member \(member.name) - Already finalized this week, skipping")
+            continue 
+        }
+        
+        let wasWeeklyMet = isWeeklyMet(for: member)
+        print("🏆 [FINALIZE] Member \(member.name) - Weekly goals met: \(wasWeeklyMet)")
+        
+        if wasWeeklyMet {
             state.streakCount += 1
+            print("🏆 [FINALIZE] Member \(member.name) - Incremented streak to: \(state.streakCount)")
         } else {
             state.streakCount = 0
+            print("🏆 [FINALIZE] Member \(member.name) - Reset streak to: \(state.streakCount)")
         }
         state.lastFinalizedWeekId = weekId
-        saveStreak(state, for: member.id)
+        viewModel.saveStreak(state, for: member.id)
+        print("🏆 [FINALIZE] Member \(member.name) - Saved streak: \(state.streakCount) trophies")
     }
     // Force a redraw so trophy rows reflect any changes
     viewModel.teamMembers = viewModel.teamMembers.map { $0 }
@@ -789,6 +817,12 @@ private func scheduleWeeklyFinalizeTimer() {
 
     // Reset function to reset values
     private func resetValues() {
+        // 🏆 PRESERVE TROPHY DATA: Store current trophy states before resetting
+        var trophyStates: [UUID: TrophyStreakState] = [:]
+        for member in viewModel.teamMembers {
+            trophyStates[member.id] = viewModel.loadStreak(for: member.id)
+        }
+        
         for index in viewModel.teamMembers.indices {
             // Only reset Win The Day specific progress values
             // Preserve Life Scoreboard fields (score, pending, projected, actual)
@@ -806,6 +840,14 @@ private func scheduleWeeklyFinalizeTimer() {
             // Save only the Win The Day fields to avoid affecting Life Scoreboard data
             viewModel.saveWinTheDayFields(viewModel.teamMembers[index])
         }
+        
+        // 🏆 RESTORE TROPHY DATA: Ensure trophy states are preserved after reset
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            for (memberID, trophyState) in trophyStates {
+                self.viewModel.saveStreak(trophyState, for: memberID)
+            }
+        }
+        
         // Force update to trigger SwiftUI redraw
         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
     }
@@ -1184,6 +1226,7 @@ private struct TeamMemberCardView: View {
     @Binding var celebrationMemberID: UUID?
     @Binding var celebrationField: String
     @Binding var confettiMemberID: UUID?
+    let trophyCount: Int
 
     var body: some View {
         ZStack {
@@ -1210,7 +1253,7 @@ private struct TeamMemberCardView: View {
                     }
                     Spacer()
                     // Far-right trophy row (right-justified, grows leftward)
-                    TrophyRowView(count: loadStreak(for: member.id).streakCount)
+                    TrophyRowView(count: trophyCount)
                 }
                 .padding(6)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1413,6 +1456,7 @@ struct ConfettiView: UIViewRepresentable {
 
 // MARK: - Extracted Team Cards List (lighter for the type checker)
 private struct TeamCardsListView: View {
+    @ObservedObject var viewModel: WinTheDayViewModel
     @Binding var teamMembers: [TeamMember]
     @Binding var teamData: [TeamMember]
     @Binding var lastNonEmptyTeamData: [TeamMember]
@@ -1468,7 +1512,8 @@ private struct TeamCardsListView: View {
                                 salesMTDLabel: goalNames.salesMTD,
                                 celebrationMemberID: $celebrationMemberID,
                                 celebrationField: $celebrationField,
-                                confettiMemberID: $confettiMemberID
+                                confettiMemberID: $confettiMemberID,
+                                trophyCount: viewModel.loadStreak(for: member.id).streakCount
                             )
                             .id(member.id)
                         }

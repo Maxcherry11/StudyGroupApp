@@ -2,7 +2,16 @@ import Foundation
 import CloudKit
 import SwiftUI
 
+// MARK: - Trophy Streak State
+struct TrophyStreakState: Codable {
+    var streakCount: Int
+    var lastFinalizedWeekId: String?
+}
+
 class WinTheDayViewModel: ObservableObject {
+    /// Shared instance to preserve trophy data across navigation
+    static let shared = WinTheDayViewModel()
+    
     @Published var teamData: [TeamMember] = []
     /// Set to true once CloudKit data has been loaded and sorted
     @Published var isLoaded = false
@@ -144,9 +153,59 @@ class WinTheDayViewModel: ObservableObject {
             return
         }
         print("[REORDER] reorderAfterSave executing")
+        
+        // 🏆 PRESERVE TROPHY DATA: Store current trophy states before reordering
+        let trophyStates = preserveTrophyData()
+        
         reorderCards()
         teamData = teamMembers
+        
+        // 🏆 RESTORE TROPHY DATA: Ensure trophy states are preserved after reordering
+        restoreTrophyData(trophyStates)
     }
+    
+    // MARK: - Trophy Data Protection
+    
+    /// Preserves trophy data for all team members during data operations
+    private func preserveTrophyData() -> [UUID: TrophyStreakState] {
+        var trophyStates: [UUID: TrophyStreakState] = [:]
+        for member in teamMembers {
+            trophyStates[member.id] = loadStreak(for: member.id)
+        }
+        return trophyStates
+    }
+    
+    /// Restores trophy data for all team members after data operations
+    private func restoreTrophyData(_ trophyStates: [UUID: TrophyStreakState]) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            for (memberID, trophyState) in trophyStates {
+                self.saveStreak(trophyState, for: memberID)
+            }
+        }
+    }
+    
+    // MARK: - Trophy Streak Persistence
+    
+    private func streakKey(for memberID: UUID) -> String { "trophyStreak.\(memberID.uuidString)" }
+    
+    func loadStreak(for memberID: UUID) -> TrophyStreakState {
+        let key = streakKey(for: memberID)
+        
+        if let data = UserDefaults.standard.data(forKey: key),
+           let state = try? JSONDecoder().decode(TrophyStreakState.self, from: data) {
+            return state
+        }
+        return TrophyStreakState(streakCount: 0, lastFinalizedWeekId: nil)
+    }
+    
+    func saveStreak(_ state: TrophyStreakState, for memberID: UUID) {
+        let key = streakKey(for: memberID)
+        if let data = try? JSONEncoder().encode(state) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+    
+
 
     // MARK: - Card Sync Helpers
 
@@ -210,6 +269,10 @@ class WinTheDayViewModel: ObservableObject {
                 completion?()
                 return
             }
+            
+            // 🏆 PRESERVE TROPHY DATA: Store current trophy states before CloudKit sync
+            let trophyStates = self.preserveTrophyData()
+            
             CloudKitManager.shared.migrateTeamMemberFieldsIfNeeded()
 
             CloudKitManager.shared.fetchTeam { [weak self] fetched in
@@ -231,6 +294,9 @@ class WinTheDayViewModel: ObservableObject {
                         self.teamData = merged
                         self.lastFetchHash = newHash
                         self.saveLocalIfNonEmpty()
+                        
+                        // 🏆 RESTORE TROPHY DATA: Ensure trophy states are preserved after CloudKit merge
+                        self.restoreTrophyData(trophyStates)
                     } else {
                         print("⚠️ CloudKit fetchTeam returned 0 members; keeping local cache to avoid blank screen.")
                     }
@@ -239,6 +305,8 @@ class WinTheDayViewModel: ObservableObject {
                     let allNames = UserManager.shared.userList
                     if !allNames.isEmpty {
                         self.updateLocalEntries(names: allNames)
+                        // 🏆 RESTORE TROPHY DATA AGAIN: Ensure trophy states are preserved after updateLocalEntries
+                        self.restoreTrophyData(trophyStates)
                     } else {
                         print("ℹ️ User list is empty; skipping updateLocalEntries to avoid clearing cached members.")
                     }
@@ -299,6 +367,10 @@ class WinTheDayViewModel: ObservableObject {
 
                             self.lastGoalHash = Self.computeGoalHash(for: self.goalNames)
                             self.isLoaded = true
+                            
+                            // 🏆 FINAL TROPHY RESTORATION: Ensure trophy states are preserved after ALL operations
+                            self.restoreTrophyData(trophyStates)
+                            
                             completion?()
                         }
                     }
@@ -341,9 +413,12 @@ class WinTheDayViewModel: ObservableObject {
     }
 
     private func saveLocal() {
+        // 🏆 SAFETY CHECK: Ensure we don't accidentally clear trophy data
+        // Trophy data is stored separately and should not be affected by team member saves
         let codable = teamMembers.map { $0.codable }
         if let data = try? JSONEncoder().encode(codable) {
             UserDefaults.standard.set(data, forKey: storageKey)
+            print("💾 Saved \(teamMembers.count) team members to local storage (trophy data preserved)")
         }
     }
 
@@ -408,6 +483,10 @@ class WinTheDayViewModel: ObservableObject {
 
     private func updateLocalEntries(names: [String]) {
         guard !names.isEmpty else { return }
+        
+        // 🏆 PRESERVE TROPHY DATA: Store current trophy states before updating entries
+        let trophyStates = preserveTrophyData()
+        
         teamMembers.removeAll { member in !names.contains(member.name) }
 
         let stored = loadLocalMembers()
@@ -419,6 +498,9 @@ class WinTheDayViewModel: ObservableObject {
             // Note: New TeamMember objects are now created in ensureCardsForAllUsers
             // to ensure they have proper goal values copied from existing members
         }
+        
+        // 🏆 RESTORE TROPHY DATA: Ensure trophy states are preserved after updating entries
+        restoreTrophyData(trophyStates)
     }
 
 
@@ -431,6 +513,9 @@ class WinTheDayViewModel: ObservableObject {
 
     /// Saves only Win The Day specific fields to avoid affecting Life Scoreboard data
     func saveWinTheDayFields(_ member: TeamMember, completion: ((CKRecord.ID?) -> Void)? = nil) {
+        // 🏆 PRESERVE TROPHY DATA: Store current trophy state before saving
+        let currentTrophyState = loadStreak(for: member.id)
+        
         // First fetch the existing record to update it properly
         let recordID = CKRecord.ID(recordName: "member-\(member.name)")
         
@@ -467,6 +552,11 @@ class WinTheDayViewModel: ObservableObject {
                 }
                 completion?(record.recordID)
             }
+        }
+        
+        // 🏆 RESTORE TROPHY DATA: Ensure trophy state is preserved after saving
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.saveStreak(currentTrophyState, for: member.id)
         }
         
         saveLocal()
@@ -581,6 +671,9 @@ class WinTheDayViewModel: ObservableObject {
         var didWeekly = false
         var didMonthly = false
 
+        // 🏆 PRESERVE TROPHY DATA: Store current trophy states before any resets
+        let trophyStates = preserveTrophyData()
+
         // WEEKLY (Sunday): reset quotesToday & salesWTD once per new week
         if weekday == 1 {
             let thisWeekStart = startOfWeek(for: currentDate)
@@ -608,6 +701,9 @@ class WinTheDayViewModel: ObservableObject {
         }
 
         if didWeekly || didMonthly {
+            // 🏆 RESTORE TROPHY DATA: Ensure trophy states are preserved after resets
+            restoreTrophyData(trophyStates)
+            
             // Persist & refresh bindings/UI
             saveLocal()
             DispatchQueue.main.async { [weak self] in self?.objectWillChange.send() }
@@ -710,6 +806,9 @@ class WinTheDayViewModel: ObservableObject {
     /// Pre-fetch so WinTheDayView can render instantly (call from Splash/App launch).
     /// Safe to call multiple times.
     func prewarm(userList: [String], currentUser: String) {
+        // 🏆 PRESERVE TROPHY DATA: Store current trophy states before prewarm operations
+        let trophyStates = preserveTrophyData()
+        
         // Run auto-resets first so saved/fetched data reflects the new period.
         performAutoResetsIfNeeded(currentDate: Date())
 
@@ -719,7 +818,16 @@ class WinTheDayViewModel: ObservableObject {
             guard let self = self else { return }
             self.ensureCardsForAllUsers(userList)
             self.loadCardOrderFromCloud(for: currentUser)
-            DispatchQueue.main.async { self.isWarm = true }
+            
+            // 🏆 RESTORE TROPHY DATA: Ensure trophy states are preserved after prewarm
+            self.restoreTrophyData(trophyStates)
+            
+            DispatchQueue.main.async { 
+                self.isWarm = true
+                // 🏆 RUN TROPHY LOGIC: Finalize trophies after data is loaded and warm
+                print("🔥 [PREWARM] Data loaded and warm - running trophy finalization")
+                // Note: finalizeCurrentWeekIfNeeded will be called from WinTheDayView.onAppear
+            }
         }
     }
 } // end of class WinTheDayViewModel
