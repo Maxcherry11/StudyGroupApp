@@ -13,13 +13,12 @@ struct CardView: View {
     var body: some View {
         let isCurrent = member.name == userManager.currentUser
         let totalPercentage = member.goals.isEmpty ? 0 : member.goals.map { $0.percent }.reduce(0, +) / Double(member.goals.count)
-        
-        NavigationView {
-            VStack(spacing: 24) {
+
+        VStack(spacing: 24) {
                 Text(member.name)
                     .font(.system(size: 40, weight: .heavy))
                     .foregroundColor(.white)
-                    .padding(.top, 150)
+                    .padding(.top, UIDevice.current.userInterfaceIdiom == .pad ? 40 : 24)
                 
                 Text("\(Int(totalPercentage * 100))%")
                     .font(.system(size: 28, weight: .medium))
@@ -90,10 +89,12 @@ struct CardView: View {
                 }
                 Spacer()
             }
-            .padding()
-            .background(Color(red: 60/255, green: 90/255, blue: 140/255))
-            .ignoresSafeArea()
-            .sheet(isPresented: Binding(get: {
+        .padding()
+        .background(
+            Color(red: 60/255, green: 90/255, blue: 140/255)
+                .ignoresSafeArea()
+        )
+            .fullScreenCover(isPresented: Binding(get: {
                 editingGoal != nil && isCurrent
             }, set: { value in
                 if !value { 
@@ -101,23 +102,11 @@ struct CardView: View {
                     resetInteraction()
                 }
             })) {
-                if #available(iOS 16.0, *) {
-                    GoalEditListView(member: $member, isInteracting: Binding(
-                        get: { isInteracting },
-                        set: { isInteracting = $0 }
-                    ), resetInteraction: resetInteraction)
-                        .environmentObject(viewModel)
-                        .ignoresSafeArea(.keyboard)
-                        .presentationDetents([.large])
-                        .presentationDragIndicator(.visible)
-                } else {
-                    GoalEditListView(member: $member, isInteracting: Binding(
-                        get: { isInteracting },
-                        set: { isInteracting = $0 }
-                    ), resetInteraction: resetInteraction)
-                        .environmentObject(viewModel)
-                        .ignoresSafeArea(.keyboard)
-                }
+                GoalEditListView(member: $member, isInteracting: Binding(
+                    get: { isInteracting },
+                    set: { isInteracting = $0 }
+                ), resetInteraction: resetInteraction)
+                    .environmentObject(viewModel)
             }
             .onDisappear {
                 resetInteraction()
@@ -138,9 +127,8 @@ struct CardView: View {
                     }
                 }
             }
-        }
-    }
-}
+        } // end body
+} // end CardView
 
 struct CircleProgressView: View {
     var progress: Double
@@ -201,41 +189,62 @@ struct GoalEditListView: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var isInteracting: Bool
     let resetInteraction: () -> Void
+    @State private var keyboardHeight: CGFloat = 0
 
     var body: some View {
-        NavigationView {
-            Form {
-                ForEach(member.goals.indices, id: \.self) { index in
-                    GoalRowEditor(
-                        goal: $member.goals[index],
-                        isInteracting: $isInteracting,
-                        resetInteraction: resetInteraction
-                    )
+        ZStack {
+            // Full-screen background to avoid white bar near the home indicator
+            Color(red: 60/255, green: 90/255, blue: 140/255)
+                .ignoresSafeArea()
+
+            NavigationView {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(member.goals.indices, id: \.self) { index in
+                            GoalRowEditor(
+                                goal: $member.goals[index],
+                                isInteracting: $isInteracting,
+                                resetInteraction: resetInteraction
+                            )
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                        }
+                    }
+                    .padding(.top, 8)
+                    .padding(.bottom, 34) // roughly the home indicator height
                 }
-            }
-            .allowsHitTesting(true)
-            .ignoresSafeArea(.keyboard)
-            .navigationTitle("Edit All Goals")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
-                        viewModel.saveMember(member)
-                        resetInteraction()
-                        dismiss()
+                .allowsHitTesting(true)
+                .navigationTitle("Edit All Goals")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Save") {
+                            viewModel.saveMember(member)
+                            resetInteraction()
+                            dismiss()
+                        }
+                    }
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(action: {
+                            resetInteraction()
+                            dismiss()
+                        }) {
+                            Label("Back", systemImage: "chevron.left")
+                                .labelStyle(.titleOnly)
+                        }
+                        .foregroundColor(.white)
                     }
                 }
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
-                        resetInteraction()
-                        dismiss()
-                    }) {
-                        Label("Back", systemImage: "chevron.left")
-                            .labelStyle(.titleOnly)
-                    }
-                    .foregroundColor(.white)
-                }
             }
+            .navigationViewStyle(StackNavigationViewStyle())
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
+            if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue {
+                keyboardHeight = keyboardFrame.cgRectValue.height
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardHeight = 0
         }
     }
 }
@@ -245,17 +254,22 @@ private struct GoalRowEditor: View {
     @Binding var isInteracting: Bool
     let resetInteraction: () -> Void
     @State private var isDragging = false
+    @FocusState private var isTextFieldFocused: Bool
 
     var body: some View {
-        Section(header: Text(goal.title).foregroundColor(.gray)) {
+        VStack(alignment: .leading, spacing: 12) {
+            // Goal title header
+            Text(goal.title.isEmpty ? "Goal" : goal.title)
+                .font(.subheadline)
+                .foregroundColor(.gray)
+            
             VStack(alignment: .leading, spacing: 12) {
-                TextField("Title", text: $goal.title)
-                    .padding(8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.gray.opacity(0.4))
-                    )
-                    .onTapGesture { isInteracting = true }
+                TextField("Goal Title", text: $goal.title)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .focused($isTextFieldFocused)
+                    .onTapGesture { 
+                        isInteracting = true
+                    }
                     .onChange(of: goal.title) { _ in isInteracting = true }
 
                 HStack {
@@ -267,6 +281,12 @@ private struct GoalRowEditor: View {
                         }
                     )
                     .frame(height: 40)
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { _ in
+                                // This ensures the slider gesture takes priority over scroll
+                            }
+                    )
                     
                     Text("\(Int(goal.percent * 100))%")
                         .foregroundColor(.black)
@@ -275,6 +295,11 @@ private struct GoalRowEditor: View {
                 }
                 .frame(height: 40)
             }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(.systemGray6))
+            )
         }
     }
 }
@@ -334,7 +359,7 @@ struct AppleMusicStyleSlider: View {
     }
 }
 
-private func goalColor(for progress: Double) -> Color {
+func goalColor(for progress: Double) -> Color {
     let target = onTimeTargetProgress()
 
     switch progress {
@@ -349,7 +374,7 @@ private func goalColor(for progress: Double) -> Color {
     }
 }
 
-private func onTimeTargetProgress() -> Double {
+func onTimeTargetProgress() -> Double {
     let calendar = Calendar.current
     let now = Date()
 

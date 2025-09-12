@@ -79,8 +79,12 @@ class WinTheDayViewModel: ObservableObject {
     }
 
     /// MARK: - Date Helpers
+    private let resetTimeZone = TimeZone(identifier: "America/Chicago")!
+
     private func startOfWeek(for date: Date) -> Date {
-        var cal = Calendar.current
+        // Use Chicago time to align with trophy finalization and app logic
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = resetTimeZone
         cal.firstWeekday = 1 // Sunday
         let parts = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
         return cal.date(from: parts) ?? date
@@ -699,7 +703,9 @@ class WinTheDayViewModel: ObservableObject {
 
     /// MARK: - Auto Reset Logic (Quotes/Sales WTD weekly on Sunday, Sales MTD monthly on 1st)
     func performAutoResetsIfNeeded(currentDate: Date = Date()) {
-        let cal = Calendar.current
+        // Align reset calendar with Chicago time so "Sunday" is consistent
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = resetTimeZone
         let weekday = cal.component(.weekday, from: currentDate) // 1 = Sunday
         let day = cal.component(.day, from: currentDate)
 
@@ -915,4 +921,3 @@ extension TeamMember {
         )
     ]
 }
-

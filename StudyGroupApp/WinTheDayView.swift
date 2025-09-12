@@ -232,6 +232,9 @@ struct WinTheDayView: View {
             viewModel.fetchGoalNamesFromCloud()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            // Ensure weekly/monthly auto-resets run whenever app returns to foreground
+            viewModel.performAutoResetsIfNeeded(currentDate: Date())
+            // Also check trophy finalize and reschedule timer on foreground
             finalizeWeekAtBoundary(now: Date())
             scheduleWeeklyFinalizeTimer()
         }
@@ -682,6 +685,9 @@ private func handleOnAppear() {
         didRunInitialSync = true
         isBootstrapping = false
         WinTheDayViewModel.globalIsBootstrapping = false
+        
+        // Run auto-resets even when warm so Sunday/Monday transitions are honored
+        viewModel.performAutoResetsIfNeeded(currentDate: Date())
         
         // 🏆 RUN TROPHY LOGIC: Check for week boundary finalization with warm data
         print("🏆 [WinTheDay] handleOnAppear - checking for week boundary finalization with warm data")

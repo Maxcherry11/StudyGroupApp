@@ -199,6 +199,7 @@ struct TwelveWeekYearView: View {
                         GaugeView(percentage: overallPercent)
                             .frame(height: 140)
                             .padding(.bottom, 10)
+                            .offset(y: UIDevice.current.userInterfaceIdiom == .pad ? -28 : 0)
 
                         Text("On-Time % for Team")
                             .font(.system(size: 30, weight: .semibold))
@@ -209,10 +210,10 @@ struct TwelveWeekYearView: View {
                                 HStack {
                                     let isCurrent = member.name == userManager.currentUser
                                     Text(member.name)
-                                            .font(.system(size: 26, weight: isCurrent ? .bold : .medium))
+                                            .font(.system(size: UIDevice.current.userInterfaceIdiom == .pad ? 32 : 26, weight: isCurrent ? .bold : .medium))
                                         .foregroundColor(.white)
-                                        .frame(width: 100, alignment: .leading)
-                                        .padding(.trailing, 40)
+                                        .frame(width: UIDevice.current.userInterfaceIdiom == .pad ? 180 : 120, alignment: .leading)
+                                        .padding(.trailing, UIDevice.current.userInterfaceIdiom == .pad ? 50 : 40)
 
                                     ZStack(alignment: .leading) {
                                         RoundedRectangle(cornerRadius: 5)
@@ -223,7 +224,7 @@ struct TwelveWeekYearView: View {
                                             .fill(Color.blue)
                                             .frame(width: CGFloat(member.progress) * 200, height: 15)
                                     }
-                                    .frame(width: 200, height: 10)
+                                    .frame(width: UIDevice.current.userInterfaceIdiom == .pad ? 360 : 220, height: UIDevice.current.userInterfaceIdiom == .pad ? 16 : 12)
                                 }
                                 .frame(maxWidth: .infinity)
                                 .contentShape(Rectangle())
@@ -298,6 +299,7 @@ struct TwelveWeekYearView: View {
                         }
                     }
             }
+            .navigationViewStyle(.stack)
         }
         .onChange(of: selectedMember) { newValue in
             if newValue == nil {
