@@ -8,24 +8,7 @@ import UIKit
 // MARK: - Trophy Streak Helpers (Time/Week)
 private let chicagoTimeZone = TimeZone(identifier: "America/Chicago")!
 
-private func currentWeekId(_ date: Date = Date()) -> String {
-    var cal = Calendar(identifier: .iso8601)
-    cal.timeZone = chicagoTimeZone
-    let weekOfYear = cal.component(.weekOfYear, from: date)
-    let yearForWeek = cal.component(.yearForWeekOfYear, from: date)
-    return String(format: "%04d-W%02d", yearForWeek, weekOfYear)
-}
-
-private func nextWeekStart(from date: Date = Date()) -> Date? {
-    var cal = Calendar(identifier: .iso8601)
-    cal.timeZone = chicagoTimeZone
-    // ISO weeks start on Monday; our rollover is Sunday night -> Monday 00:00 local
-    // Find the next Monday at 00:00
-    if let nextMonday = cal.nextDate(after: date, matching: DateComponents(hour: 0, minute: 0, second: 0, weekday: 2), matchingPolicy: .nextTime) {
-        return nextMonday
-    }
-    return nil
-}
+// Helper functions moved to WinTheDayViewModel
 
 // MARK: - Trophy Streak Persistence (Moved to WinTheDayViewModel)
 
@@ -126,10 +109,7 @@ struct WinTheDayView: View {
     // Bootstrap flag to prevent initial blink during first data load
     @State private var isBootstrapping: Bool = false
 
-    // Trophy timer for weekly finalize
-    @State private var weeklyFinalizeTimer: Timer?
-    // Flag to prevent multiple finalizations
-    @State private var hasFinalizedThisWeek: Bool = false
+    // Trophy finalization is now handled in WinTheDayViewModel
 
     // Check if view model is already warm when view is created
     private var shouldBootstrap: Bool {
@@ -233,10 +213,8 @@ struct WinTheDayView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             // Ensure weekly/monthly auto-resets run whenever app returns to foreground
+            // Trophy finalization is now handled within performAutoResetsIfNeeded
             viewModel.performAutoResetsIfNeeded(currentDate: Date())
-            // Also check trophy finalize and reschedule timer on foreground
-            finalizeWeekAtBoundary(now: Date())
-            scheduleWeeklyFinalizeTimer()
         }
     }
 private var confettiOverlay: some View {
@@ -324,7 +302,7 @@ private var confettiOverlay: some View {
                         editingSalesMTDLabel = viewModel.goalNames.salesMTD
                     }
                 }
-                .onDisappear { weeklyFinalizeTimer?.invalidate() }
+                // Timer cleanup no longer needed
         )
     }
 
@@ -689,9 +667,8 @@ private func handleOnAppear() {
         // Run auto-resets even when warm so Sunday/Monday transitions are honored
         viewModel.performAutoResetsIfNeeded(currentDate: Date())
         
-        // 🏆 RUN TROPHY LOGIC: Check for week boundary finalization with warm data
-        print("🏆 [WinTheDay] handleOnAppear - checking for week boundary finalization with warm data")
-        finalizeWeekAtBoundary(now: Date())
+        // Trophy finalization is now handled within performAutoResetsIfNeeded
+        print("🏆 [WinTheDay] handleOnAppear - trophy finalization handled in performAutoResetsIfNeeded")
         return
     }
 
@@ -702,9 +679,8 @@ private func handleOnAppear() {
         isBootstrapping = false
         WinTheDayViewModel.globalIsBootstrapping = false
         
-        // 🏆 RUN TROPHY LOGIC: Check for week boundary finalization after sync
-        print("🏆 [WinTheDay] handleOnAppear - checking for week boundary finalization after sync")
-        finalizeWeekAtBoundary(now: Date())
+        // Trophy finalization is now handled within performAutoResetsIfNeeded
+        print("🏆 [WinTheDay] handleOnAppear - trophy finalization handled in performAutoResetsIfNeeded")
         return
     }
 
@@ -714,9 +690,8 @@ private func handleOnAppear() {
         isBootstrapping = false
         WinTheDayViewModel.globalIsBootstrapping = false
         
-        // 🏆 RUN TROPHY LOGIC: Check for week boundary finalization with available data
-        print("🏆 [WinTheDay] handleOnAppear - checking for week boundary finalization with available data")
-        finalizeWeekAtBoundary(now: Date())
+        // Trophy finalization is now handled within performAutoResetsIfNeeded
+        print("🏆 [WinTheDay] handleOnAppear - trophy finalization handled in performAutoResetsIfNeeded")
         return
     }
 
@@ -740,94 +715,23 @@ private func handleOnAppear() {
     }
     viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
     
-    // Schedule weekly finalize (last minute before reset) and also check for boundary on appear
-    scheduleWeeklyFinalizeTimer()
-    finalizeWeekAtBoundary(now: Date())
+    // Trophy finalization is now handled within performAutoResetsIfNeeded
+    // No need for separate scheduling since it runs on every performAutoResetsIfNeeded call
 }
 
 // MARK: - Hybrid Trophy System
-private func isWeeklyMet(for member: TeamMember) -> Bool {
-    // Applies to weekly goals: Quotes Week (stored in quotesToday for WTD) and Sales Week (salesWTD)
-    let quotesHit = member.quotesToday >= member.quotesGoal
-    let salesHit  = member.salesWTD >= member.salesWTDGoal
-    return quotesHit || salesHit
-}
+// isWeeklyMet function moved to WinTheDayViewModel
 
 
 
-private func finalizeCurrentWeekIfNeeded(now: Date = Date()) {
-    // Prevent multiple finalizations in the same session
-    if hasFinalizedThisWeek {
-        print("🏆 [FINALIZE] Already finalized this week in this session, skipping")
-        return
-    }
-    
-    // Determine this week id (we finalize the week ending now)
-    let weekId = currentWeekId(now)
-    print("🏆 [FINALIZE] Starting finalizeCurrentWeekIfNeeded for week: \(weekId)")
-    
-    // For each member, if we haven't finalized this week yet, finalize using current values.
-    for member in viewModel.teamMembers {
-        var state = viewModel.loadStreak(for: member.id)
-        print("🏆 [FINALIZE] Member \(member.name) - Current: \(state.streakCount) trophies, lastFinalizedWeekId: \(state.lastFinalizedWeekId ?? "nil")")
-        
-        // Only finalize once per week per member
-        if state.lastFinalizedWeekId == weekId { 
-            print("🏆 [FINALIZE] Member \(member.name) - Already finalized this week, skipping")
-            continue 
-        }
-        
-        let wasWeeklyMet = isWeeklyMet(for: member)
-        print("🏆 [FINALIZE] Member \(member.name) - Weekly goals met: \(wasWeeklyMet)")
-        
-        if wasWeeklyMet {
-            state.streakCount += 1
-            print("🏆 [FINALIZE] Member \(member.name) - Incremented streak to: \(state.streakCount)")
-        } else {
-            state.streakCount = 0
-            print("🏆 [FINALIZE] Member \(member.name) - Reset streak to: \(state.streakCount)")
-        }
-        state.lastFinalizedWeekId = weekId
-        viewModel.saveStreak(state, for: member.id)
-        print("🏆 [FINALIZE] Member \(member.name) - Saved streak: \(state.streakCount) trophies")
-    }
-    
-    // Mark as finalized for this session
-    hasFinalizedThisWeek = true
-    
-    // Force a redraw so trophy rows reflect any changes
-    viewModel.teamMembers = viewModel.teamMembers.map { $0 }
-}
+// Trophy finalization is now handled in WinTheDayViewModel.performAutoResetsIfNeeded()
+// This ensures trophies are finalized BEFORE the weekly reset, not after
 
-// Only run finalization at week boundaries, not on every view appearance
-private func finalizeWeekAtBoundary(now: Date = Date()) {
-    // Check if we're at a week boundary (Sunday night -> Monday morning)
-    var calendar = Calendar(identifier: .iso8601)
-    calendar.timeZone = chicagoTimeZone
-    let weekday = calendar.component(.weekday, from: now)
-    
-    // Only finalize if it's Monday (weekday 2) AND it's early morning (before 6 AM)
-    // This ensures we only finalize the previous week, not the current week
-    let hour = calendar.component(.hour, from: now)
-    if weekday == 2 && hour < 6 {
-        finalizeCurrentWeekIfNeeded(now: now)
-    } else {
-        print("🏆 [FINALIZE] Not at week boundary (weekday: \(weekday), hour: \(hour)), skipping finalization")
-    }
-}
+// Trophy finalization is now handled in WinTheDayViewModel.performAutoResetsIfNeeded()
+// This ensures trophies are finalized BEFORE the weekly reset, not after
 
-private func scheduleWeeklyFinalizeTimer() {
-    weeklyFinalizeTimer?.invalidate()
-    guard let next = nextWeekStart() else { return }
-    // Fire 2 seconds *before* the rollover to capture "last minute before reset"
-    let fireDate = next.addingTimeInterval(-2)
-    weeklyFinalizeTimer = Timer(fireAt: fireDate, interval: 0, target: BlockOperation {
-        self.finalizeWeekAtBoundary(now: Date())
-    }, selector: #selector(Operation.main), userInfo: nil, repeats: false)
-    if let t = weeklyFinalizeTimer {
-        RunLoop.main.add(t, forMode: .common)
-    }
-}
+// Trophy finalization is now handled within performAutoResetsIfNeeded
+// No need for separate timer scheduling
 
 
 

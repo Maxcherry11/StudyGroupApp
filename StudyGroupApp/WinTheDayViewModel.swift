@@ -33,6 +33,8 @@ class WinTheDayViewModel: ObservableObject {
     private var saveTimers: [UUID: Timer] = [:]
     // Counter for logging saves
     private var saveCount = 0
+    // Flag to prevent multiple finalizations in the same session
+    private var hasFinalizedThisWeek: Bool = false
 
     init() {
         let stored = loadLocalMembers().sorted { $0.sortIndex < $1.sortIndex }
@@ -701,6 +703,86 @@ class WinTheDayViewModel: ObservableObject {
         CloudKitManager.shared.saveGoalNames(goalNames)
     }
 
+    // MARK: - Trophy Finalization Logic
+    
+    /// Checks if weekly goals are met for a member
+    private func isWeeklyMet(for member: TeamMember) -> Bool {
+        // Applies to weekly goals: Quotes Week (stored in quotesToday for WTD) and Sales Week (salesWTD)
+        let quotesHit = member.quotesToday >= member.quotesGoal
+        let salesHit = member.salesWTD >= member.salesWTDGoal
+        return quotesHit || salesHit
+    }
+    
+    /// Generates a unique week ID for trophy finalization tracking
+    private func currentWeekId(_ date: Date) -> String {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = resetTimeZone
+        cal.firstWeekday = 1 // Sunday
+        let components = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
+        return "\(components.yearForWeekOfYear ?? 0)-W\(components.weekOfYear ?? 0)"
+    }
+    
+    /// Resets the session finalization flag when a new week starts
+    private func resetFinalizationFlagIfNewWeek(now: Date = Date()) {
+        let weekId = currentWeekId(now)
+        // Check if we're in a new week by comparing with stored week
+        let lastFinalizedWeekKey = "lastFinalizedWeekId"
+        let lastWeekId = UserDefaults.standard.string(forKey: lastFinalizedWeekKey)
+        
+        if lastWeekId != weekId {
+            hasFinalizedThisWeek = false
+            UserDefaults.standard.set(weekId, forKey: lastFinalizedWeekKey)
+            print("🏆 [FINALIZE] New week detected (\(weekId)), resetting finalization flag")
+        }
+    }
+    
+    /// Finalizes trophies for the current week if needed
+    func finalizeCurrentWeekIfNeeded(now: Date = Date()) {
+        // Prevent multiple finalizations in the same session
+        if hasFinalizedThisWeek {
+            print("🏆 [FINALIZE] Already finalized this week in this session, skipping")
+            return
+        }
+        
+        // Determine this week id (we finalize the week ending now)
+        let weekId = currentWeekId(now)
+        print("🏆 [FINALIZE] Starting finalizeCurrentWeekIfNeeded for week: \(weekId)")
+        
+        // For each member, if we haven't finalized this week yet, finalize using current values.
+        for member in teamMembers {
+            var state = loadStreak(for: member.id)
+            print("🏆 [FINALIZE] Member \(member.name) - Current: \(state.streakCount) trophies, lastFinalizedWeekId: \(state.lastFinalizedWeekId ?? "nil")")
+            
+            // Only finalize once per week per member
+            if state.lastFinalizedWeekId == weekId { 
+                print("🏆 [FINALIZE] Member \(member.name) - Already finalized this week, skipping")
+                continue 
+            }
+            
+            let wasWeeklyMet = isWeeklyMet(for: member)
+            print("🏆 [FINALIZE] Member \(member.name) - Weekly goals met: \(wasWeeklyMet)")
+            
+            if wasWeeklyMet {
+                state.streakCount += 1
+                print("🏆 [FINALIZE] Member \(member.name) - Incremented streak to: \(state.streakCount)")
+            } else {
+                state.streakCount = 0
+                print("🏆 [FINALIZE] Member \(member.name) - Reset streak to: \(state.streakCount)")
+            }
+            state.lastFinalizedWeekId = weekId
+            saveStreak(state, for: member.id)
+            print("🏆 [FINALIZE] Member \(member.name) - Saved streak: \(state.streakCount) trophies")
+        }
+        
+        // Mark as finalized for this session
+        hasFinalizedThisWeek = true
+        
+        // Force a redraw so trophy rows reflect any changes
+        DispatchQueue.main.async { [weak self] in
+            self?.objectWillChange.send()
+        }
+    }
+
     /// MARK: - Auto Reset Logic (Quotes/Sales WTD weekly on Sunday, Sales MTD monthly on 1st)
     func performAutoResetsIfNeeded(currentDate: Date = Date()) {
         // Align reset calendar with Chicago time so "Sunday" is consistent
@@ -714,6 +796,16 @@ class WinTheDayViewModel: ObservableObject {
 
         // 🏆 PRESERVE TROPHY DATA: Store current trophy states before any resets
         let trophyStates = preserveTrophyData()
+
+        // 🏆 RESET FINALIZATION FLAG: Check if we're in a new week
+        resetFinalizationFlagIfNewWeek(now: currentDate)
+
+        // 🏆 FINALIZE TROPHIES BEFORE RESET: Check if we need to finalize trophies for the previous week
+        // This should happen on Sunday before we reset the weekly values
+        if weekday == 1 {
+            // Finalize trophies for the week that just ended (Saturday night -> Sunday morning)
+            finalizeCurrentWeekIfNeeded(now: currentDate)
+        }
 
         // WEEKLY (Sunday): reset quotesToday & salesWTD once per new week
         if weekday == 1 {
