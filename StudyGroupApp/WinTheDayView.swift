@@ -425,6 +425,10 @@ private var header: some View {
                 showProductionGoalEditor = true
             }
             Divider()
+            Button(action: shareWinTheDay) {
+                Label("Share Progress", systemImage: "square.and.arrow.up")
+            }
+            Divider()
             Button(role: .destructive, action: resetValues) {
                 Label("Reset", systemImage: "trash.fill")
             }
@@ -735,6 +739,289 @@ private func handleOnAppear() {
 
 
 
+
+    // MARK: - Share Functionality
+    
+    private func shareWinTheDay() {
+        let image = generateShareableImage()
+        let activityVC = UIActivityViewController(activityItems: [image], applicationActivities: nil)
+        
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first,
+           let rootVC = window.rootViewController {
+            
+            // For iPad, set the popover source
+            if let popover = activityVC.popoverPresentationController {
+                popover.sourceView = window
+                popover.sourceRect = CGRect(x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
+                popover.permittedArrowDirections = []
+            }
+            
+            rootVC.present(activityVC, animated: true)
+        }
+    }
+    
+    private func generateShareableImage() -> UIImage {
+        let targetSize = CGSize(width: 400, height: 500)
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        
+        return renderer.image { context in
+            let cgContext = context.cgContext
+            
+            // Use the same dynamic background as Win the Day based on team progress
+            let teamProgress = viewModel.teamMembers
+            var totalActual = 0
+            var totalGoal = 0
+            
+            for member in teamProgress {
+                totalActual += member.quotesToday + member.salesWTD + member.salesMTD
+                totalGoal += member.quotesGoal + member.salesWTDGoal + member.salesMTDGoal
+            }
+            
+            let colors: [UIColor]
+            if totalGoal > 0 {
+                let percent = Double(totalActual) / Double(totalGoal)
+                switch percent {
+                case 0..<0.26:
+                    colors = [UIColor.red.withAlphaComponent(0.3), UIColor.red]
+                case 0.26..<0.51:
+                    colors = [UIColor.orange.withAlphaComponent(0.3), UIColor.orange]
+                case 0.51..<0.8:
+                    colors = [UIColor.yellow.withAlphaComponent(0.3), UIColor.yellow]
+                default:
+                    colors = [UIColor.green.withAlphaComponent(0.0), UIColor.green]
+                }
+            } else {
+                colors = [UIColor.gray.withAlphaComponent(0.3), UIColor.gray]
+            }
+            
+            // Create gradient background matching Win the Day
+            let cgColors = colors.map { $0.cgColor }
+            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: cgColors as CFArray, locations: [0.0, 1.0])!
+            cgContext.drawLinearGradient(gradient, start: CGPoint(x: 0, y: 0), end: CGPoint(x: targetSize.width, y: targetSize.height), options: [])
+            
+            // Header matching your app - ensure full banner is visible
+            let headerRect = CGRect(x: 0, y: 0, width: targetSize.width, height: 55)
+            drawAppHeader(in: headerRect, context: cgContext)
+            
+            // Get the actual top 3 performers based on their current scores
+            let sortedMembers = viewModel.teamMembers.sorted { lhs, rhs in
+                let lScore = lhs.quotesToday + lhs.salesWTD + lhs.salesMTD
+                let rScore = rhs.quotesToday + rhs.salesWTD + rhs.salesMTD
+                if lScore != rScore {
+                    return lScore > rScore  // Higher scores first
+                }
+                // If scores are equal, maintain stable sort by name
+                return lhs.name < rhs.name
+            }
+            let membersToShow = Array(sortedMembers.prefix(3))
+            
+            // Draw cards optimized for text preview - use extra space
+            let cardStartY = headerRect.maxY + 15
+            let cardHeight: CGFloat = 125
+            let cardSpacing: CGFloat = 12
+            
+            for (index, member) in membersToShow.enumerated() {
+                let cardY = cardStartY + CGFloat(index) * (cardHeight + cardSpacing)
+                let cardRect = CGRect(x: 20, y: cardY, width: targetSize.width - 40, height: cardHeight)
+                drawAppStyleCard(member: member, in: cardRect, context: cgContext)
+            }
+        }
+    }
+    
+    private func drawAppHeader(in rect: CGRect, context: CGContext) {
+        // Blue gradient header with "TOP PERFORMERS" banner
+        let colors = [UIColor(red: 0.2, green: 0.6, blue: 0.9, alpha: 1.0).cgColor,
+                      UIColor(red: 0.1, green: 0.4, blue: 0.8, alpha: 1.0).cgColor]
+        let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors as CFArray, locations: [0.0, 1.0])!
+        context.drawLinearGradient(gradient, start: CGPoint(x: 0, y: 0), end: CGPoint(x: 0, y: rect.height), options: [])
+        
+        // Title with trophy
+        let titleText = "🏆 TOP PERFORMERS"
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateStyle = .medium
+        let dateText = dateFormatter.string(from: Date())
+        let subtitleText = "Win the Day • \(dateText)"
+        
+        let titleAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.boldSystemFont(ofSize: 20),
+            .foregroundColor: UIColor.white
+        ]
+        
+        let subtitleAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 12, weight: .medium),
+            .foregroundColor: UIColor.white.withAlphaComponent(0.8)
+        ]
+        
+        let titleSize = titleText.size(withAttributes: titleAttributes)
+        let subtitleSize = subtitleText.size(withAttributes: subtitleAttributes)
+        
+        let titleRect = CGRect(
+            x: rect.midX - titleSize.width / 2,
+            y: 12,
+            width: titleSize.width,
+            height: titleSize.height
+        )
+        
+        let subtitleRect = CGRect(
+            x: rect.midX - subtitleSize.width / 2,
+            y: titleRect.maxY + 2,
+            width: subtitleSize.width,
+            height: subtitleSize.height
+        )
+        
+        titleText.draw(in: titleRect, withAttributes: titleAttributes)
+        subtitleText.draw(in: subtitleRect, withAttributes: subtitleAttributes)
+    }
+    
+    private func drawAppStyleCard(member: TeamMember, in rect: CGRect, context: CGContext) {
+        // Card background with rounded corners and shadow (matching your app)
+        let cardRect = rect
+        context.setFillColor(UIColor.systemBackground.cgColor)
+        context.setShadow(offset: CGSize(width: 0, height: 2), blur: 2, color: UIColor.black.withAlphaComponent(0.1).cgColor)
+        
+        // Draw rounded rectangle for card background
+        let path = UIBezierPath(roundedRect: cardRect, cornerRadius: 12)
+        context.addPath(path.cgPath)
+        context.fillPath()
+        context.setShadow(offset: .zero, blur: 0, color: nil)
+        
+        // Add white border to match Win the Day cards
+        let borderPath = UIBezierPath(roundedRect: cardRect, cornerRadius: 12)
+        context.setStrokeColor(UIColor.white.cgColor)
+        context.setLineWidth(6.0)
+        context.addPath(borderPath.cgPath)
+        context.strokePath()
+        
+        // Red header section - compact for text preview
+        let headerHeight: CGFloat = 40
+        let headerRect = CGRect(x: cardRect.minX, y: cardRect.minY, width: cardRect.width, height: headerHeight)
+        let headerPath = UIBezierPath(roundedRect: headerRect, byRoundingCorners: [.topLeft, .topRight], cornerRadii: CGSize(width: 12, height: 12))
+        context.setFillColor(UIColor(red: 237/255, green: 29/255, blue: 36/255, alpha: 1.0).cgColor)
+        context.addPath(headerPath.cgPath)
+        context.fillPath()
+        
+        // Emoji and name in header with larger fonts
+        let emojiText = member.emoji
+        let nameText = member.name
+        let emojiAttributes: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 24)]
+        let nameAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.boldSystemFont(ofSize: 20),
+            .foregroundColor: UIColor.white
+        ]
+        
+        let emojiSize = emojiText.size(withAttributes: emojiAttributes)
+        let nameSize = nameText.size(withAttributes: nameAttributes)
+        
+        let emojiRect = CGRect(x: headerRect.minX + 10, y: headerRect.midY - emojiSize.height/2, width: emojiSize.width, height: emojiSize.height)
+        let nameRect = CGRect(x: emojiRect.maxX + 8, y: headerRect.midY - nameSize.height/2, width: nameSize.width, height: nameSize.height)
+        
+        emojiText.draw(in: emojiRect, withAttributes: emojiAttributes)
+        nameText.draw(in: nameRect, withAttributes: nameAttributes)
+        
+        // Trophy count on the right side of header with larger font
+        let trophyCount = getTrophyCount(for: member)
+        if trophyCount > 0 {
+            let trophyText = String(repeating: "🏆", count: trophyCount)
+            let trophyAttributes: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 20)]
+            let trophySize = trophyText.size(withAttributes: trophyAttributes)
+            let trophyRect = CGRect(x: headerRect.maxX - trophySize.width - 10, y: headerRect.midY - trophySize.height/2, width: trophySize.width, height: trophySize.height)
+            trophyText.draw(in: trophyRect, withAttributes: trophyAttributes)
+        }
+        
+        // Progress rows in white content area - optimized spacing
+        let contentStartY = headerRect.maxY + 8
+        let rowSpacing: CGFloat = 24  // Slightly increased spacing
+        
+        let progressItems = [
+            (member.quotesToday, member.quotesGoal, viewModel.goalNames.quotes),
+            (member.salesWTD, member.salesWTDGoal, viewModel.goalNames.salesWTD),
+            (member.salesMTD, member.salesMTDGoal, viewModel.goalNames.salesMTD)
+        ]
+        
+        for (index, (value, goal, label)) in progressItems.enumerated() {
+            let progressY = contentStartY + CGFloat(index) * rowSpacing
+            drawAppStyleProgressRow(value: value, goal: goal, label: label, in: CGRect(x: cardRect.minX + 12, y: progressY, width: cardRect.width - 24, height: 24), context: context)
+        }
+    }
+    
+    private func drawAppStyleProgressRow(value: Int, goal: Int, label: String, in rect: CGRect, context: CGContext) {
+        // Label on the left with larger font
+        let labelText = label
+        let labelAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.boldSystemFont(ofSize: 16),
+            .foregroundColor: UIColor.label
+        ]
+        let labelSize = labelText.size(withAttributes: labelAttributes)
+        let labelRect = CGRect(x: rect.minX, y: rect.midY - labelSize.height/2, width: labelSize.width, height: labelSize.height)
+        labelText.draw(in: labelRect, withAttributes: labelAttributes)
+        
+        // Progress bar positioned correctly to match your app
+        let barWidth: CGFloat = 140
+        let barHeight: CGFloat = 10
+        let barX = rect.maxX - barWidth - 80
+        let barY = rect.midY - barHeight/2
+        let barRect = CGRect(x: barX, y: barY, width: barWidth, height: barHeight)
+        
+        // Background bar with rounded rectangle (not oval)
+        let backgroundPath = UIBezierPath(roundedRect: barRect, cornerRadius: barHeight/2)
+        context.setFillColor(UIColor.systemGray5.cgColor)
+        context.addPath(backgroundPath.cgPath)
+        context.fillPath()
+        
+        // Progress fill with rounded rectangle
+        let progress = goal > 0 ? min(CGFloat(value) / CGFloat(goal), 1.0) : 0
+        let fillWidth = barWidth * progress
+        
+        if fillWidth > 0 {
+            let fillRect = CGRect(x: barX, y: barY, width: fillWidth, height: barHeight)
+            let fillPath = UIBezierPath(roundedRect: fillRect, cornerRadius: barHeight/2)
+            let progressColor = getProgressColor(value: value, goal: goal)
+            context.setFillColor(progressColor.cgColor)
+            context.addPath(fillPath.cgPath)
+            context.fillPath()
+        }
+        
+        // Value on the right with larger font
+        let valueText = "\(value) / \(goal)"
+        let valueAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.boldSystemFont(ofSize: 16),
+            .foregroundColor: UIColor.label
+        ]
+        let valueSize = valueText.size(withAttributes: valueAttributes)
+        let valueRect = CGRect(x: rect.maxX - valueSize.width, y: rect.midY - valueSize.height/2, width: valueSize.width, height: valueSize.height)
+        valueText.draw(in: valueRect, withAttributes: valueAttributes)
+    }
+    
+    private func getProgressColor(value: Int, goal: Int) -> UIColor {
+        guard goal > 0 else { return UIColor.systemGray }
+        
+        let calendar = Calendar.current
+        let today = Date()
+        let weekday = calendar.component(.weekday, from: today)
+        let dayOfWeek = max(weekday - 1, 1)
+        let expected = Double(goal) * Double(dayOfWeek) / 7.0
+        let isOnTrack = Double(value) >= expected
+        
+        return isOnTrack ? UIColor.systemGreen : UIColor.systemYellow
+    }
+    
+    private func getTrophyCount(for member: TeamMember) -> Int {
+        let key = viewModel.streakKey(for: member.id)
+        let cachedState: TrophyStreakState
+        if let data = UserDefaults.standard.data(forKey: key),
+           let state = try? JSONDecoder().decode(TrophyStreakState.self, from: data) {
+            cachedState = state
+        } else {
+            cachedState = TrophyStreakState(streakCount: 0, lastFinalizedWeekId: nil, memberName: member.name)
+        }
+        
+        let quotesHit = member.quotesToday >= member.quotesGoal
+        let salesHit = member.salesWTD >= member.salesWTDGoal
+        let currentWeekProgress = (quotesHit || salesHit) ? 1 : 0
+        return cachedState.streakCount + currentWeekProgress
+    }
+    
 
     // Reset function to reset values
     private func resetValues() {
