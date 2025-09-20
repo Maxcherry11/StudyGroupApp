@@ -933,19 +933,31 @@ private func handleOnAppear() {
         let contentStartY = headerRect.maxY + 8
         let rowSpacing: CGFloat = 24  // Slightly increased spacing
         
-        let progressItems = [
-            (member.quotesToday, member.quotesGoal, viewModel.goalNames.quotes),
-            (member.salesWTD, member.salesWTDGoal, viewModel.goalNames.salesWTD),
-            (member.salesMTD, member.salesMTDGoal, viewModel.goalNames.salesMTD)
+        let progressItems: [(value: Int, goal: Int, label: String, type: StatType)] = [
+            (member.quotesToday, member.quotesGoal, viewModel.goalNames.quotes, .quotes),
+            (member.salesWTD, member.salesWTDGoal, viewModel.goalNames.salesWTD, .salesWTD),
+            (member.salesMTD, member.salesMTDGoal, viewModel.goalNames.salesMTD, .salesMTD)
         ]
         
-        for (index, (value, goal, label)) in progressItems.enumerated() {
+        for (index, item) in progressItems.enumerated() {
             let progressY = contentStartY + CGFloat(index) * rowSpacing
-            drawAppStyleProgressRow(value: value, goal: goal, label: label, in: CGRect(x: cardRect.minX + 12, y: progressY, width: cardRect.width - 24, height: 24), context: context)
+            drawAppStyleProgressRow(
+                value: item.value,
+                goal: item.goal,
+                label: item.label,
+                type: item.type,
+                in: CGRect(
+                    x: cardRect.minX + 12,
+                    y: progressY,
+                    width: cardRect.width - 24,
+                    height: 24
+                ),
+                context: context
+            )
         }
     }
     
-    private func drawAppStyleProgressRow(value: Int, goal: Int, label: String, in rect: CGRect, context: CGContext) {
+    private func drawAppStyleProgressRow(value: Int, goal: Int, label: String, type: StatType, in rect: CGRect, context: CGContext) {
         // Label on the left with larger font
         let labelText = label
         let labelAttributes: [NSAttributedString.Key: Any] = [
@@ -976,7 +988,7 @@ private func handleOnAppear() {
         if fillWidth > 0 {
             let fillRect = CGRect(x: barX, y: barY, width: fillWidth, height: barHeight)
             let fillPath = UIBezierPath(roundedRect: fillRect, cornerRadius: barHeight/2)
-            let progressColor = getProgressColor(value: value, goal: goal)
+            let progressColor = getProgressColor(for: type, value: value, goal: goal)
             context.setFillColor(progressColor.cgColor)
             context.addPath(fillPath.cgPath)
             context.fillPath()
@@ -993,16 +1005,26 @@ private func handleOnAppear() {
         valueText.draw(in: valueRect, withAttributes: valueAttributes)
     }
     
-    private func getProgressColor(value: Int, goal: Int) -> UIColor {
+    private func getProgressColor(for type: StatType, value: Int, goal: Int) -> UIColor {
         guard goal > 0 else { return UIColor.systemGray }
-        
+
         let calendar = Calendar.current
         let today = Date()
-        let weekday = calendar.component(.weekday, from: today)
-        let dayOfWeek = max(weekday - 1, 1)
-        let expected = Double(goal) * Double(dayOfWeek) / 7.0
-        let isOnTrack = Double(value) >= expected
-        
+
+        let isOnTrack: Bool
+        switch type {
+        case .quotes, .salesWTD:
+            let weekday = calendar.component(.weekday, from: today)
+            let dayOfWeek = max(weekday - 1, 1)
+            let expected = Double(goal) * Double(dayOfWeek) / 7.0
+            isOnTrack = Double(value) >= expected
+        case .salesMTD:
+            let dayOfMonth = calendar.component(.day, from: today)
+            let totalDays = calendar.range(of: .day, in: .month, for: today)?.count ?? 30
+            let expected = Double(goal) * Double(dayOfMonth) / Double(totalDays)
+            isOnTrack = Double(value) >= expected
+        }
+
         return isOnTrack ? UIColor.systemGreen : UIColor.systemYellow
     }
     

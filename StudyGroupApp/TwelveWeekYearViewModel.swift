@@ -103,20 +103,76 @@ class TwelveWeekYearViewModel: ObservableObject {
     }
 
     func saveMember(_ member: TwelveWeekMember) {
-        CloudKitManager.saveTwelveWeekMember(member) { result in
-            switch result {
-            case .success:
-                print("✅ TWY member saved: \(member.name)")
-            case .failure(let error):
-                print("❌ Failed to save TWY member \(member.name): \(error.localizedDescription)")
-            }
+        // Capture the prior state so we can detect placeholder vs. intentional edits
+        let previous = members.first { existing in
+            existing.id == member.id || existing.name == member.name
         }
-        if let idx = members.firstIndex(where: { $0.name == member.name }) {
+
+        if let idx = members.firstIndex(where: { $0.id == member.id }) {
+            members[idx] = member
+        } else if let idx = members.firstIndex(where: { $0.name == member.name }) {
             members[idx] = member
         } else {
             members.append(member)
         }
+        // Persist immediately so manual edits survive even if we bail on CloudKit
         saveLocalMembers()
+
+        let recordID = CKRecord.ID(recordName: "twy-\(member.name)")
+        CloudKitManager.container.publicCloudDatabase.fetch(withRecordID: recordID) { [weak self] record, error in
+            guard let self else { return }
+
+            let hadGoalsBeforeEdit = !(previous?.goals.isEmpty ?? true)
+            let hasGoalsAfterEdit = !member.goals.isEmpty
+
+            var remoteGoals: [GoalProgress] = []
+            if let data = record?["goals"] as? Data,
+               let decoded = try? JSONDecoder().decode([GoalProgress].self, from: data) {
+                remoteGoals = decoded
+            }
+            let remoteHasGoals = !remoteGoals.isEmpty
+
+            // Scenario: local snapshot is just a placeholder (no goals, default state) but
+            // CloudKit already has real data. Avoid overwriting the real progress.
+            if record != nil && !hasGoalsAfterEdit && !hadGoalsBeforeEdit && remoteHasGoals {
+                DispatchQueue.main.async {
+                    if let idx = self.members.firstIndex(where: { $0.id == member.id }) {
+                        self.members[idx].goals = remoteGoals
+                    } else if let idx = self.members.firstIndex(where: { $0.name == member.name }) {
+                        self.members[idx].goals = remoteGoals
+                    }
+                    self.saveLocalMembers()
+                }
+                return
+            }
+
+            // Decide whether we should attempt a CloudKit save based on the
+            // current vs. previous state and the fetch outcome.
+            if let ckError = error as? CKError {
+                if ckError.code == .unknownItem {
+                    // Record truly does not exist yet; safe to create it with current data.
+                    CloudKitManager.saveTwelveWeekMember(member) { _ in }
+                } else {
+                    print("❌ TWY fetch failed for \(member.name): \(ckError.localizedDescription)")
+                    // If we only have placeholder data, skip saving to avoid wiping real Cloud data.
+                    if hasGoalsAfterEdit || hadGoalsBeforeEdit {
+                        CloudKitManager.saveTwelveWeekMember(member) { _ in }
+                    }
+                }
+                return
+            }
+
+            if error != nil {
+                // Non-CKError (unlikely). Apply the same placeholder guard.
+                if hasGoalsAfterEdit || hadGoalsBeforeEdit {
+                    CloudKitManager.saveTwelveWeekMember(member) { _ in }
+                }
+                return
+            }
+
+            // No error: either record exists (handled above) or is brand new. Persist the edit.
+            CloudKitManager.saveTwelveWeekMember(member) { _ in }
+        }
     }
 
     func deleteMember(named name: String) {
@@ -167,8 +223,10 @@ class TwelveWeekYearViewModel: ObservableObject {
 
     /// If we have locals but the server fetch came back empty, schedule pushing locals up.
     private func scheduleUploadOfLocalMembersIfNeeded() {
-        guard !members.isEmpty else { return }
-        for m in members { CloudKitManager.saveTwelveWeekMember(m) { _ in } }
+        guard members.contains(where: { !$0.goals.isEmpty }) else { return }
+        for member in members where !member.goals.isEmpty {
+            CloudKitManager.saveTwelveWeekMember(member) { _ in }
+        }
     }
 
     /// Temporary compatibility key until all members have a stable id in storage and CloudKit

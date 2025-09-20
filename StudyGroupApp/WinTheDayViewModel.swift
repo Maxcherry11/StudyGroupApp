@@ -70,33 +70,48 @@ class WinTheDayViewModel: ObservableObject {
     /// MARK: - Auto Reset Tracking (Weekly/Monthly)
     private let wtdLastWeeklyResetKey  = "wtd-last-weekly-reset"
     private let wtdLastMonthlyResetKey = "wtd-last-monthly-reset"
+    private let wtdLastWeeklyResetIdKey  = "wtd-last-weekly-reset-id"
+    private let wtdLastMonthlyResetIdKey = "wtd-last-monthly-reset-id"
 
-    private var lastWeeklyReset: Date? {
-        get { UserDefaults.standard.object(forKey: wtdLastWeeklyResetKey) as? Date }
-        set { UserDefaults.standard.set(newValue, forKey: wtdLastWeeklyResetKey) }
+    private var lastWeeklyResetId: String? {
+        get {
+            if let id = UserDefaults.standard.string(forKey: wtdLastWeeklyResetIdKey) {
+                return id
+            }
+            if let legacyDate = UserDefaults.standard.object(forKey: wtdLastWeeklyResetKey) as? Date {
+                let id = currentWeekId(legacyDate)
+                UserDefaults.standard.set(id, forKey: wtdLastWeeklyResetIdKey)
+                UserDefaults.standard.removeObject(forKey: wtdLastWeeklyResetKey)
+                return id
+            }
+            return nil
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: wtdLastWeeklyResetIdKey)
+            UserDefaults.standard.removeObject(forKey: wtdLastWeeklyResetKey)
+        }
     }
-    private var lastMonthlyReset: Date? {
-        get { UserDefaults.standard.object(forKey: wtdLastMonthlyResetKey) as? Date }
-        set { UserDefaults.standard.set(newValue, forKey: wtdLastMonthlyResetKey) }
+    private var lastMonthlyResetId: String? {
+        get {
+            if let id = UserDefaults.standard.string(forKey: wtdLastMonthlyResetIdKey) {
+                return id
+            }
+            if let legacyDate = UserDefaults.standard.object(forKey: wtdLastMonthlyResetKey) as? Date {
+                let id = currentMonthId(legacyDate)
+                UserDefaults.standard.set(id, forKey: wtdLastMonthlyResetIdKey)
+                UserDefaults.standard.removeObject(forKey: wtdLastMonthlyResetKey)
+                return id
+            }
+            return nil
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: wtdLastMonthlyResetIdKey)
+            UserDefaults.standard.removeObject(forKey: wtdLastMonthlyResetKey)
+        }
     }
 
     /// MARK: - Date Helpers
     private let resetTimeZone = TimeZone(identifier: "America/Chicago")!
-
-    private func startOfWeek(for date: Date) -> Date {
-        // Use Chicago time to align with trophy finalization and app logic
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = resetTimeZone
-        cal.firstWeekday = 1 // Sunday
-        let parts = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
-        return cal.date(from: parts) ?? date
-    }
-    private func isSameMonth(_ a: Date, _ b: Date) -> Bool {
-        let cal = Calendar.current
-        let ca = cal.dateComponents([.year, .month], from: a)
-        let cb = cal.dateComponents([.year, .month], from: b)
-        return ca.year == cb.year && ca.month == cb.month
-    }
 
     /// Calculates a simple hash representing the current production values for
     /// the provided team members. This allows quick comparison between
@@ -561,19 +576,68 @@ class WinTheDayViewModel: ObservableObject {
         let recordID = CKRecord.ID(recordName: "member-\(member.name)")
         
         CloudKitManager.container.publicCloudDatabase.fetch(withRecordID: recordID) { [weak self] existingRecord, error in
+            guard let self else { return }
+
             if let error = error {
                 print("❌ Failed to fetch existing record for \(member.name): \(error.localizedDescription)")
-                // Fallback to regular save if fetch fails
-                self?.saveMember(member, completion: completion)
+
+                if let ckError = error as? CKError, ckError.code == .unknownItem {
+                    // Record truly does not exist yet; allow normal save path to create it
+                    self.saveMember(member, completion: completion)
+                } else {
+                    // Network/server issues — do not overwrite existing CloudKit data with defaults
+                    DispatchQueue.main.async { completion?(nil) }
+                }
                 return
             }
             
             guard let record = existingRecord else {
                 print("❌ No existing record found for \(member.name), falling back to regular save")
-                self?.saveMember(member, completion: completion)
+                self.saveMember(member, completion: completion)
                 return
             }
-            
+
+            // Protect against overwriting real CloudKit progress with placeholder defaults
+            let remoteQuotesToday = record["quotesToday"] as? Int ?? 0
+            let remoteSalesWTD = record["salesWTD"] as? Int ?? 0
+            let remoteSalesMTD = record["salesMTD"] as? Int ?? 0
+            let remoteQuotesGoal = record["quotesGoal"] as? Int ?? 0
+            let remoteSalesWTDGoal = record["salesWTDGoal"] as? Int ?? 0
+            let remoteSalesMTDGoal = record["salesMTDGoal"] as? Int ?? 0
+            let remoteEmoji = (record["emoji"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let remoteEmojiUserSet = record["emojiUserSet"] as? Bool ?? false
+
+            let placeholderEmojis: Set<String> = ["", "🙂", "\u{2728}"]
+            let localEmojiTrimmed = member.emoji.trimmingCharacters(in: .whitespacesAndNewlines)
+            let localLooksUninitialized = member.quotesToday == 0 && member.salesWTD == 0 && member.salesMTD == 0 &&
+                placeholderEmojis.contains(localEmojiTrimmed) && !member.emojiUserSet
+            let remoteHasMeaningfulState = remoteQuotesToday != 0 || remoteSalesWTD != 0 || remoteSalesMTD != 0 ||
+                !placeholderEmojis.contains(remoteEmoji)
+
+            if localLooksUninitialized && remoteHasMeaningfulState {
+                DispatchQueue.main.async {
+                    member.quotesToday = remoteQuotesToday
+                    member.salesWTD = remoteSalesWTD
+                    member.salesMTD = remoteSalesMTD
+                    if remoteQuotesGoal > 0 { member.quotesGoal = remoteQuotesGoal }
+                    if remoteSalesWTDGoal > 0 { member.salesWTDGoal = remoteSalesWTDGoal }
+                    if remoteSalesMTDGoal > 0 { member.salesMTDGoal = remoteSalesMTDGoal }
+                    member.emoji = remoteEmoji.isEmpty ? member.emoji : remoteEmoji
+                    member.emojiUserSet = remoteEmojiUserSet || !placeholderEmojis.contains(remoteEmoji)
+
+                    if let cardIndex = self.cards.firstIndex(where: { $0.name == member.name }) {
+                        self.cards[cardIndex].emoji = member.emoji
+                        self.saveCardsToDevice()
+                    }
+
+                    self.saveLocal()
+                    self.teamMembers = self.teamMembers.map { $0 }
+                    self.teamData = self.teamMembers
+                    completion?(record.recordID)
+                }
+                return
+            }
+
             // Update only the Win The Day fields in the existing record
             record["quotesToday"] = member.quotesToday as CKRecordValue
             record["salesWTD"] = member.salesWTD as CKRecordValue
@@ -582,6 +646,7 @@ class WinTheDayViewModel: ObservableObject {
             record["salesWTDGoal"] = member.salesWTDGoal as CKRecordValue
             record["salesMTDGoal"] = member.salesMTDGoal as CKRecordValue
             record["emoji"] = member.emoji as CKRecordValue
+            record["emojiUserSet"] = member.emojiUserSet as CKRecordValue
             record["sortIndex"] = member.sortIndex as CKRecordValue
             
             // Save the updated record
@@ -721,6 +786,15 @@ class WinTheDayViewModel: ObservableObject {
         let components = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
         return "\(components.yearForWeekOfYear ?? 0)-W\(components.weekOfYear ?? 0)"
     }
+
+    private func currentMonthId(_ date: Date) -> String {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = resetTimeZone
+        let components = cal.dateComponents([.year, .month], from: date)
+        let year = components.year ?? 0
+        let month = components.month ?? 0
+        return String(format: "%04d-M%02d", year, month)
+    }
     
     /// Resets the session finalization flag when a new week starts
     private func resetFinalizationFlagIfNewWeek(now: Date = Date()) {
@@ -790,6 +864,8 @@ class WinTheDayViewModel: ObservableObject {
         cal.timeZone = resetTimeZone
         let weekday = cal.component(.weekday, from: currentDate) // 1 = Sunday
         let day = cal.component(.day, from: currentDate)
+        let weekId = currentWeekId(currentDate)
+        let monthId = currentMonthId(currentDate)
 
         var didWeekly = false
         var didMonthly = false
@@ -808,29 +884,24 @@ class WinTheDayViewModel: ObservableObject {
         }
 
         // WEEKLY (Sunday): reset quotesToday & salesWTD once per new week
-        if weekday == 1 {
-            let thisWeekStart = startOfWeek(for: currentDate)
-            if lastWeeklyReset == nil || startOfWeek(for: lastWeeklyReset!) < thisWeekStart {
-                for i in teamMembers.indices {
-                    teamMembers[i].quotesToday = 0
-                    teamMembers[i].salesWTD = 0
-                    saveWinTheDayFields(teamMembers[i])
-                }
-                lastWeeklyReset = currentDate
-                didWeekly = true
+        if weekday == 1 && lastWeeklyResetId != weekId {
+            for i in teamMembers.indices {
+                teamMembers[i].quotesToday = 0
+                teamMembers[i].salesWTD = 0
+                saveWinTheDayFields(teamMembers[i])
             }
+            lastWeeklyResetId = weekId
+            didWeekly = true
         }
 
         // MONTHLY (day=1): reset salesMTD once per new month
-        if day == 1 {
-            if lastMonthlyReset == nil || !isSameMonth(lastMonthlyReset!, currentDate) {
-                for i in teamMembers.indices {
-                    teamMembers[i].salesMTD = 0
-                    saveWinTheDayFields(teamMembers[i])
-                }
-                lastMonthlyReset = currentDate
-                didMonthly = true
+        if day == 1 && lastMonthlyResetId != monthId {
+            for i in teamMembers.indices {
+                teamMembers[i].salesMTD = 0
+                saveWinTheDayFields(teamMembers[i])
             }
+            lastMonthlyResetId = monthId
+            didMonthly = true
         }
 
         if didWeekly || didMonthly {
