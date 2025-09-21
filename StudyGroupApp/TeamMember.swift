@@ -10,7 +10,17 @@ import Foundation
 class TeamMember: Identifiable, ObservableObject {
     var id: UUID
     @Published var name: String
+    // NOTE: This represents Quotes Week (WTD) in Win the Day, retained as 'quotesToday' for persistence compatibility.
     @Published var quotesToday: Int
+    
+    // MARK: - Backwards-compatible alias: Quotes Week (WTD)
+    // The app's business logic and UI treat this as Quotes Week.
+    // Keep storage key 'quotesToday' for CloudKit/UserDefaults compatibility.
+    var quotesWTD: Int {
+        get { quotesToday }
+        set { quotesToday = newValue }
+    }
+    
     @Published var salesWTD: Int
     @Published var salesMTD: Int
     @Published var quotesGoal: Int

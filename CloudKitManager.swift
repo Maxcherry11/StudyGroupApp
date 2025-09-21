@@ -104,6 +104,21 @@ class CloudKitManager: ObservableObject {
         var fetchedMembers: [TeamMember] = []
 
         let operation = CKQueryOperation(query: query)
+        operation.desiredKeys = [
+            "name",
+            "quotesToday",
+            "salesWTD",
+            "salesMTD",
+            "quotesGoal",
+            "salesWTDGoal",
+            "salesMTDGoal",
+            "emoji",
+            "emojiUserSet",
+            "sortIndex",
+            "actual",
+            "pending",
+            "projected"
+        ]
         operation.recordMatchedBlock = { recordID, result in
             switch result {
             case .success(let record):
