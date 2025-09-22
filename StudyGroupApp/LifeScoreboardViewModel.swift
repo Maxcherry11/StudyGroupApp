@@ -1,6 +1,7 @@
 import CloudKit
 import Foundation
 
+@MainActor
 class LifeScoreboardViewModel: ObservableObject {
     /// CloudKit container shared with WinTheDay
     private let container = CloudKitManager.container
@@ -585,4 +586,3 @@ extension LifeScoreboardViewModel {
         Int(round((Double(honorGoal) / Double(daysInYear)) * Double(currentDayOfYear)))
     }
 }
-

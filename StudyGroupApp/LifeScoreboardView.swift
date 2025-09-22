@@ -68,6 +68,7 @@ private struct IntStepperRow: View {
     }
 }
 
+@MainActor
 struct LifeScoreboardView: View {
     @StateObject private var viewModel: LifeScoreboardViewModel
     @ObservedObject var userManager = UserManager.shared
@@ -75,8 +76,12 @@ struct LifeScoreboardView: View {
     @State private var selectedRow: LifeScoreboardViewModel.ActivityRow?
     @State private var hasLoaded = false
 
-    init(viewModel: LifeScoreboardViewModel = LifeScoreboardViewModel()) {
-        _viewModel = StateObject(wrappedValue: viewModel)
+    init(viewModel: LifeScoreboardViewModel? = nil) {
+        if let viewModel {
+            _viewModel = StateObject(wrappedValue: viewModel)
+        } else {
+            _viewModel = StateObject(wrappedValue: LifeScoreboardViewModel())
+        }
     }
 
 

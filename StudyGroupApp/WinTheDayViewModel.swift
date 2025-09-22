@@ -15,6 +15,7 @@ struct TrophyStreakState: Codable {
     }
 }
 
+@MainActor
 class WinTheDayViewModel: ObservableObject {
     /// Shared instance to preserve trophy data across navigation
     static let shared = WinTheDayViewModel()
@@ -569,64 +570,72 @@ class WinTheDayViewModel: ObservableObject {
 
     /// Saves only Win The Day specific fields to avoid affecting Life Scoreboard data
     func saveWinTheDayFields(_ member: TeamMember, completion: ((CKRecord.ID?) -> Void)? = nil) {
+        let memberID = member.id
+        let memberName = member.name
+
         // 🏆 PRESERVE TROPHY DATA: Store current trophy state before saving
-        let currentTrophyState = loadStreak(for: member.id)
+        let currentTrophyState = loadStreak(for: memberID)
         
         // First fetch the existing record to update it properly
-        let recordID = CKRecord.ID(recordName: "member-\(member.name)")
-        
+        let recordID = CKRecord.ID(recordName: "member-\(memberName)")
+
         CloudKitManager.container.publicCloudDatabase.fetch(withRecordID: recordID) { [weak self] existingRecord, error in
-            guard let self else { return }
-
-            if let error = error {
-                print("❌ Failed to fetch existing record for \(member.name): \(error.localizedDescription)")
-
-                if let ckError = error as? CKError, ckError.code == .unknownItem {
-                    // Record truly does not exist yet; allow normal save path to create it
-                    self.saveMember(member, completion: completion)
-                } else {
-                    // Network/server issues — do not overwrite existing CloudKit data with defaults
-                    DispatchQueue.main.async { completion?(nil) }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard let memberIndex = self.teamMembers.firstIndex(where: { $0.id == memberID }) else {
+                    completion?(nil)
+                    return
                 }
-                return
-            }
-            
-            guard let record = existingRecord else {
-                print("❌ No existing record found for \(member.name), falling back to regular save")
-                self.saveMember(member, completion: completion)
-                return
-            }
+                let memberRef = self.teamMembers[memberIndex]
 
-            // Protect against overwriting real CloudKit progress with placeholder defaults
-            let remoteQuotesToday = record["quotesToday"] as? Int ?? 0
-            let remoteSalesWTD = record["salesWTD"] as? Int ?? 0
-            let remoteSalesMTD = record["salesMTD"] as? Int ?? 0
-            let remoteQuotesGoal = record["quotesGoal"] as? Int ?? 0
-            let remoteSalesWTDGoal = record["salesWTDGoal"] as? Int ?? 0
-            let remoteSalesMTDGoal = record["salesMTDGoal"] as? Int ?? 0
-            let remoteEmoji = (record["emoji"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            let remoteEmojiUserSet = record["emojiUserSet"] as? Bool ?? false
+                if let error = error {
+                    print("❌ Failed to fetch existing record for \(memberName): \(error.localizedDescription)")
 
-            let placeholderEmojis: Set<String> = ["", "🙂", "\u{2728}"]
-            let localEmojiTrimmed = member.emoji.trimmingCharacters(in: .whitespacesAndNewlines)
-            let localLooksUninitialized = member.quotesToday == 0 && member.salesWTD == 0 && member.salesMTD == 0 &&
-                placeholderEmojis.contains(localEmojiTrimmed) && !member.emojiUserSet
-            let remoteHasMeaningfulState = remoteQuotesToday != 0 || remoteSalesWTD != 0 || remoteSalesMTD != 0 ||
-                !placeholderEmojis.contains(remoteEmoji)
+                    if let ckError = error as? CKError, ckError.code == .unknownItem {
+                        // Record truly does not exist yet; allow normal save path to create it
+                        self.saveMember(memberRef, completion: completion)
+                    } else {
+                        // Network/server issues — do not overwrite existing CloudKit data with defaults
+                        completion?(nil)
+                    }
+                    return
+                }
+                
+                guard let record = existingRecord else {
+                    print("❌ No existing record found for \(memberName), falling back to regular save")
+                    self.saveMember(memberRef, completion: completion)
+                    return
+                }
 
-            if localLooksUninitialized && remoteHasMeaningfulState {
-                DispatchQueue.main.async {
-                    member.quotesToday = remoteQuotesToday
-                    member.salesWTD = remoteSalesWTD
-                    member.salesMTD = remoteSalesMTD
-                    if remoteQuotesGoal > 0 { member.quotesGoal = remoteQuotesGoal }
-                    if remoteSalesWTDGoal > 0 { member.salesWTDGoal = remoteSalesWTDGoal }
-                    if remoteSalesMTDGoal > 0 { member.salesMTDGoal = remoteSalesMTDGoal }
-                    member.emoji = remoteEmoji.isEmpty ? member.emoji : remoteEmoji
-                    member.emojiUserSet = remoteEmojiUserSet || !placeholderEmojis.contains(remoteEmoji)
+                // Protect against overwriting real CloudKit progress with placeholder defaults
+                let remoteQuotesToday = record["quotesToday"] as? Int ?? 0
+                let remoteSalesWTD = record["salesWTD"] as? Int ?? 0
+                let remoteSalesMTD = record["salesMTD"] as? Int ?? 0
+                let remoteQuotesGoal = record["quotesGoal"] as? Int ?? 0
+                let remoteSalesWTDGoal = record["salesWTDGoal"] as? Int ?? 0
+                let remoteSalesMTDGoal = record["salesMTDGoal"] as? Int ?? 0
+                let remoteEmoji = (record["emoji"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let remoteEmojiUserSet = record["emojiUserSet"] as? Bool ?? false
 
-                    if let cardIndex = self.cards.firstIndex(where: { $0.name == member.name }) {
-                        self.cards[cardIndex].emoji = member.emoji
+                let placeholderEmojis: Set<String> = ["", "🙂", "\u{2728}"]
+                let localEmojiTrimmed = memberRef.emoji.trimmingCharacters(in: .whitespacesAndNewlines)
+                let localLooksUninitialized = memberRef.quotesToday == 0 && memberRef.salesWTD == 0 && memberRef.salesMTD == 0 &&
+                    placeholderEmojis.contains(localEmojiTrimmed) && !memberRef.emojiUserSet
+                let remoteHasMeaningfulState = remoteQuotesToday != 0 || remoteSalesWTD != 0 || remoteSalesMTD != 0 ||
+                    !placeholderEmojis.contains(remoteEmoji)
+
+                if localLooksUninitialized && remoteHasMeaningfulState {
+                    memberRef.quotesToday = remoteQuotesToday
+                    memberRef.salesWTD = remoteSalesWTD
+                    memberRef.salesMTD = remoteSalesMTD
+                    if remoteQuotesGoal > 0 { memberRef.quotesGoal = remoteQuotesGoal }
+                    if remoteSalesWTDGoal > 0 { memberRef.salesWTDGoal = remoteSalesWTDGoal }
+                    if remoteSalesMTDGoal > 0 { memberRef.salesMTDGoal = remoteSalesMTDGoal }
+                    memberRef.emoji = remoteEmoji.isEmpty ? memberRef.emoji : remoteEmoji
+                    memberRef.emojiUserSet = remoteEmojiUserSet || !placeholderEmojis.contains(remoteEmoji)
+
+                    if let cardIndex = self.cards.firstIndex(where: { $0.name == memberName }) {
+                        self.cards[cardIndex].emoji = memberRef.emoji
                         self.saveCardsToDevice()
                     }
 
@@ -634,35 +643,34 @@ class WinTheDayViewModel: ObservableObject {
                     self.teamMembers = self.teamMembers.map { $0 }
                     self.teamData = self.teamMembers
                     completion?(record.recordID)
+                    return
                 }
-                return
-            }
 
-            // Update only the Win The Day fields in the existing record
-            record["quotesToday"] = member.quotesToday as CKRecordValue
-            record["salesWTD"] = member.salesWTD as CKRecordValue
-            record["salesMTD"] = member.salesMTD as CKRecordValue
-            record["quotesGoal"] = member.quotesGoal as CKRecordValue
-            record["salesWTDGoal"] = member.salesWTDGoal as CKRecordValue
-            record["salesMTDGoal"] = member.salesMTDGoal as CKRecordValue
-            record["emoji"] = member.emoji as CKRecordValue
-            record["emojiUserSet"] = member.emojiUserSet as CKRecordValue
-            record["sortIndex"] = member.sortIndex as CKRecordValue
-            
-            // Save the updated record
-            CloudKitManager.container.publicCloudDatabase.save(record) { _, error in
-                if let error = error {
+                // Update only the Win The Day fields in the existing record
+                record["quotesToday"] = memberRef.quotesToday as CKRecordValue
+                record["salesWTD"] = memberRef.salesWTD as CKRecordValue
+                record["salesMTD"] = memberRef.salesMTD as CKRecordValue
+                record["quotesGoal"] = memberRef.quotesGoal as CKRecordValue
+                record["salesWTDGoal"] = memberRef.salesWTDGoal as CKRecordValue
+                record["salesMTDGoal"] = memberRef.salesMTDGoal as CKRecordValue
+                record["emoji"] = memberRef.emoji as CKRecordValue
+                record["emojiUserSet"] = memberRef.emojiUserSet as CKRecordValue
+                record["sortIndex"] = memberRef.sortIndex as CKRecordValue
+
+                do {
+                    _ = try await CloudKitManager.container.publicCloudDatabase.save(record)
+                    print("✅ Saved Win The Day fields for \(memberName)")
+                    completion?(record.recordID)
+                } catch {
                     print("❌ Failed to save Win The Day fields: \(error.localizedDescription)")
-                } else {
-                    print("✅ Saved Win The Day fields for \(member.name)")
+                    completion?(nil)
                 }
-                completion?(record.recordID)
             }
         }
         
         // 🏆 RESTORE TROPHY DATA: Ensure trophy state is preserved after saving
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            self.saveStreak(currentTrophyState, for: member.id)
+            self.saveStreak(currentTrophyState, for: memberID)
         }
         
         saveLocal()
@@ -862,13 +870,14 @@ class WinTheDayViewModel: ObservableObject {
         // Align reset calendar with Chicago time so "Sunday" is consistent
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = resetTimeZone
-        let weekday = cal.component(.weekday, from: currentDate) // 1 = Sunday
-        let day = cal.component(.day, from: currentDate)
         let weekId = currentWeekId(currentDate)
         let monthId = currentMonthId(currentDate)
 
         var didWeekly = false
         var didMonthly = false
+
+        let isNewWeek = lastWeeklyResetId != weekId
+        let isNewMonth = lastMonthlyResetId != monthId
 
         // 🏆 PRESERVE TROPHY DATA: Store current trophy states before any resets
         let trophyStates = preserveTrophyData()
@@ -876,15 +885,14 @@ class WinTheDayViewModel: ObservableObject {
         // 🏆 RESET FINALIZATION FLAG: Check if we're in a new week
         resetFinalizationFlagIfNewWeek(now: currentDate)
 
-        // 🏆 FINALIZE TROPHIES BEFORE RESET: Check if we need to finalize trophies for the previous week
-        // This should happen on Sunday before we reset the weekly values
-        if weekday == 1 {
-            // Finalize trophies for the week that just ended (Saturday night -> Sunday morning)
-            finalizeCurrentWeekIfNeeded(now: currentDate)
+        // 🏆 FINALIZE TROPHIES BEFORE RESET: Run once when a new week boundary has been reached
+        if isNewWeek {
+            let weekStartDate = cal.dateInterval(of: .weekOfYear, for: currentDate)?.start ?? currentDate
+            finalizeCurrentWeekIfNeeded(now: weekStartDate)
         }
 
-        // WEEKLY (Sunday): reset quotesToday & salesWTD once per new week
-        if weekday == 1 && lastWeeklyResetId != weekId {
+        // WEEKLY: reset quotesToday & salesWTD once per new week
+        if isNewWeek {
             for i in teamMembers.indices {
                 teamMembers[i].quotesToday = 0
                 teamMembers[i].salesWTD = 0
@@ -895,7 +903,7 @@ class WinTheDayViewModel: ObservableObject {
         }
 
         // MONTHLY (day=1): reset salesMTD once per new month
-        if day == 1 && lastMonthlyResetId != monthId {
+        if isNewMonth {
             for i in teamMembers.indices {
                 teamMembers[i].salesMTD = 0
                 saveWinTheDayFields(teamMembers[i])
