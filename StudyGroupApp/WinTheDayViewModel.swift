@@ -15,7 +15,6 @@ struct TrophyStreakState: Codable {
     }
 }
 
-@MainActor
 class WinTheDayViewModel: ObservableObject {
     /// Shared instance to preserve trophy data across navigation
     static let shared = WinTheDayViewModel()
@@ -36,11 +35,6 @@ class WinTheDayViewModel: ObservableObject {
     private var saveCount = 0
     // Flag to prevent multiple finalizations in the same session
     private var hasFinalizedThisWeek: Bool = false
-
-    private let sessionFinalizedWeekKey = "wtd.session.lastFinalizedWeekId"
-    
-    // Serial queue to prevent re-entrant resets/finalization
-    private let maintenanceQueue = DispatchQueue(label: "wtd.maintenance.queue")
 
     init() {
         let stored = loadLocalMembers().sorted { $0.sortIndex < $1.sortIndex }
@@ -126,7 +120,7 @@ class WinTheDayViewModel: ObservableObject {
         var hasher = Hasher()
         for m in members {
             hasher.combine(m.name)
-            hasher.combine(m.quotesWTD)
+            hasher.combine(m.quotesToday)
             hasher.combine(m.salesWTD)
             hasher.combine(m.salesMTD)
             hasher.combine(m.quotesGoal)
@@ -136,7 +130,7 @@ class WinTheDayViewModel: ObservableObject {
 
     // MARK: - Stable sorting helpers
     func productionScore(_ m: TeamMember) -> Int {
-        return m.quotesToday + m.salesWTD + m.salesMTD
+        m.quotesToday + m.salesWTD + m.salesMTD
     }
 
     func stableByScoreThenIndex(_ lhs: TeamMember, _ rhs: TeamMember) -> Bool {
@@ -209,24 +203,23 @@ class WinTheDayViewModel: ObservableObject {
     // MARK: - Trophy Data Protection
     
     /// Preserves trophy data for all team members during data operations
-    private func preserveTrophyData() -> [String: TrophyStreakState] {
-        var trophyStates: [String: TrophyStreakState] = [:]
+    private func preserveTrophyData() -> [UUID: TrophyStreakState] {
+        var trophyStates: [UUID: TrophyStreakState] = [:]
         for member in teamMembers {
-            trophyStates[member.name] = loadStreak(forName: member.name)
+            trophyStates[member.id] = loadStreak(for: member.id)
         }
         return trophyStates
     }
     
     /// Restores trophy data for all team members after data operations
-    private func restoreTrophyData(_ trophyStates: [String: TrophyStreakState]) {
+    private func restoreTrophyData(_ trophyStates: [UUID: TrophyStreakState]) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            for member in self.teamMembers {
-                if let desired = trophyStates[member.name] {
-                    let current = self.loadStreak(forName: member.name)
-                    if current.streakCount != desired.streakCount ||
-                       current.lastFinalizedWeekId != desired.lastFinalizedWeekId {
-                        self.saveStreak(desired, forName: member.name)
-                    }
+            for (memberID, trophyState) in trophyStates {
+                // Only save if the trophy data has actually changed
+                let currentState = self.loadStreak(for: memberID)
+                if currentState.streakCount != trophyState.streakCount || 
+                   currentState.lastFinalizedWeekId != trophyState.lastFinalizedWeekId {
+                    self.saveStreak(trophyState, for: memberID)
                 }
             }
         }
@@ -234,47 +227,40 @@ class WinTheDayViewModel: ObservableObject {
     
     // MARK: - Trophy Streak Persistence
     
-    func streakKey(forName name: String) -> String { "trophyStreak.name.\(name)" }
+    func streakKey(for memberID: UUID) -> String { "trophyStreak.\(memberID.uuidString)" }
     
-    func loadStreak(forName name: String) -> TrophyStreakState {
-        let key = streakKey(forName: name)
+    func loadStreak(for memberID: UUID) -> TrophyStreakState {
+        // Load from local storage only
+        let key = streakKey(for: memberID)
         if let data = UserDefaults.standard.data(forKey: key),
            let state = try? JSONDecoder().decode(TrophyStreakState.self, from: data) {
             return state
         }
-        return TrophyStreakState(streakCount: 0, lastFinalizedWeekId: nil, memberName: name)
+        
+        // Return default state if no cached data
+        guard let member = teamMembers.first(where: { $0.id == memberID }) else {
+            return TrophyStreakState(streakCount: 0, lastFinalizedWeekId: nil, memberName: "")
+        }
+        
+        return TrophyStreakState(streakCount: 0, lastFinalizedWeekId: nil, memberName: member.name)
     }
     
-    func saveStreak(_ state: TrophyStreakState, forName name: String) {
-        let key = streakKey(forName: name)
+    func saveStreak(_ state: TrophyStreakState, for memberID: UUID) {
+        // Save to local storage only (like other features in the app)
+        let key = streakKey(for: memberID)
         if let data = try? JSONEncoder().encode(state) {
             UserDefaults.standard.set(data, forKey: key)
         }
+        
+        // Log occasionally to reduce spam
         saveCount += 1
         if saveCount % 10 == 0 {
             print("🏆 [TROPHY] Saved trophy streak locally for \(state.memberName): \(state.streakCount) - \(saveCount) saves")
         }
     }
     
-    /// Debounced variant to reduce CloudKit chatter during rapid edits
-    func saveWinTheDayFieldsDebounced(_ member: TeamMember, delay: TimeInterval = 0.35, completion: ((CKRecord.ID?) -> Void)? = nil) {
-        let key = member.id
-        let memberID = member.id
-        // Invalidate any pending timer for this member
-        saveTimers[key]?.invalidate()
-        // Schedule a new timer
-        let timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self, key, memberID, completion] _ in
-            Task { @MainActor in
-                guard let self = self else { return }
-                // Clear the pending timer for this key on the main actor
-                self.saveTimers[key] = nil
-                // Resolve the latest member by ID and perform the save on the main actor
-                guard let currentMember = self.teamMembers.first(where: { $0.id == memberID }) else { return }
-                self.saveWinTheDayFields(currentMember, completion: completion)
-            }
-        }
-        saveTimers[key] = timer
-    }
+
+    
 
 
     // MARK: - Card Sync Helpers
@@ -475,7 +461,7 @@ class WinTheDayViewModel: ObservableObject {
 
                 print("🔄 Re-sorted after Save:")
                 for member in self.teamData {
-                    let total = member.quotesWTD + member.salesWTD + member.salesMTD
+                    let total = member.quotesToday + member.salesWTD + member.salesMTD
                     print("➡️ \(member.name): \(total)")
                 }
             }
@@ -584,7 +570,7 @@ class WinTheDayViewModel: ObservableObject {
     /// Saves only Win The Day specific fields to avoid affecting Life Scoreboard data
     func saveWinTheDayFields(_ member: TeamMember, completion: ((CKRecord.ID?) -> Void)? = nil) {
         // 🏆 PRESERVE TROPHY DATA: Store current trophy state before saving
-        let currentTrophyState = loadStreak(forName: member.name)
+        let currentTrophyState = loadStreak(for: member.id)
         
         // First fetch the existing record to update it properly
         let recordID = CKRecord.ID(recordName: "member-\(member.name)")
@@ -597,9 +583,7 @@ class WinTheDayViewModel: ObservableObject {
 
                 if let ckError = error as? CKError, ckError.code == .unknownItem {
                     // Record truly does not exist yet; allow normal save path to create it
-                    Task { @MainActor in
-                        self.saveMember(member, completion: completion)
-                    }
+                    self.saveMember(member, completion: completion)
                 } else {
                     // Network/server issues — do not overwrite existing CloudKit data with defaults
                     DispatchQueue.main.async { completion?(nil) }
@@ -609,9 +593,7 @@ class WinTheDayViewModel: ObservableObject {
             
             guard let record = existingRecord else {
                 print("❌ No existing record found for \(member.name), falling back to regular save")
-                Task { @MainActor in
-                    self.saveMember(member, completion: completion)
-                }
+                self.saveMember(member, completion: completion)
                 return
             }
 
@@ -627,14 +609,14 @@ class WinTheDayViewModel: ObservableObject {
 
             let placeholderEmojis: Set<String> = ["", "🙂", "\u{2728}"]
             let localEmojiTrimmed = member.emoji.trimmingCharacters(in: .whitespacesAndNewlines)
-            let localLooksUninitialized = member.quotesWTD == 0 && member.salesWTD == 0 && member.salesMTD == 0 &&
+            let localLooksUninitialized = member.quotesToday == 0 && member.salesWTD == 0 && member.salesMTD == 0 &&
                 placeholderEmojis.contains(localEmojiTrimmed) && !member.emojiUserSet
             let remoteHasMeaningfulState = remoteQuotesToday != 0 || remoteSalesWTD != 0 || remoteSalesMTD != 0 ||
                 !placeholderEmojis.contains(remoteEmoji)
 
             if localLooksUninitialized && remoteHasMeaningfulState {
                 DispatchQueue.main.async {
-                    member.quotesWTD = remoteQuotesToday
+                    member.quotesToday = remoteQuotesToday
                     member.salesWTD = remoteSalesWTD
                     member.salesMTD = remoteSalesMTD
                     if remoteQuotesGoal > 0 { member.quotesGoal = remoteQuotesGoal }
@@ -657,7 +639,7 @@ class WinTheDayViewModel: ObservableObject {
             }
 
             // Update only the Win The Day fields in the existing record
-            record["quotesToday"] = member.quotesWTD as CKRecordValue
+            record["quotesToday"] = member.quotesToday as CKRecordValue
             record["salesWTD"] = member.salesWTD as CKRecordValue
             record["salesMTD"] = member.salesMTD as CKRecordValue
             record["quotesGoal"] = member.quotesGoal as CKRecordValue
@@ -680,7 +662,7 @@ class WinTheDayViewModel: ObservableObject {
         
         // 🏆 RESTORE TROPHY DATA: Ensure trophy state is preserved after saving
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            self.saveStreak(currentTrophyState, forName: member.name)
+            self.saveStreak(currentTrophyState, for: member.id)
         }
         
         saveLocal()
@@ -735,7 +717,7 @@ class WinTheDayViewModel: ObservableObject {
             guard let self = self else { return }
             if let savedOrder = savedOrder {
                 let ordered = savedOrder.compactMap { name in
-                    self.teamMembers.first(where: { $0.name == name })
+                    self.teamMembers.first { $0.name == name }
                 }
                 self.displayedMembers = ordered
             } else {
@@ -788,11 +770,10 @@ class WinTheDayViewModel: ObservableObject {
 
     // MARK: - Trophy Finalization Logic
     
-    // NOTE: This currently treats quotesToday as a weekly threshold participant. If quotesToday is daily-only, switch to a weekly field or adjust logic per business rules.
     /// Checks if weekly goals are met for a member
     private func isWeeklyMet(for member: TeamMember) -> Bool {
-        // Applies to weekly goals: Quotes Week (quotesWTD) and Sales Week (salesWTD)
-        let quotesHit = member.quotesWTD >= member.quotesGoal
+        // Applies to weekly goals: Quotes Week (stored in quotesToday for WTD) and Sales Week (salesWTD)
+        let quotesHit = member.quotesToday >= member.quotesGoal
         let salesHit = member.salesWTD >= member.salesWTDGoal
         return quotesHit || salesHit
     }
@@ -804,18 +785,6 @@ class WinTheDayViewModel: ObservableObject {
         cal.firstWeekday = 1 // Sunday
         let components = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
         return "\(components.yearForWeekOfYear ?? 0)-W\(components.weekOfYear ?? 0)"
-    }
-    
-    /// Returns the week id for the last fully completed week relative to the provided date (Chicago time)
-    private func lastCompletedWeekId(_ date: Date) -> String {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = resetTimeZone
-        cal.firstWeekday = 1 // Sunday
-        if let weekInterval = cal.dateInterval(of: .weekOfYear, for: date),
-           let lastMomentPrevWeek = cal.date(byAdding: .second, value: -1, to: weekInterval.start) {
-            return currentWeekId(lastMomentPrevWeek)
-        }
-        return currentWeekId(date)
     }
 
     private func currentMonthId(_ date: Date) -> String {
@@ -830,157 +799,122 @@ class WinTheDayViewModel: ObservableObject {
     /// Resets the session finalization flag when a new week starts
     private func resetFinalizationFlagIfNewWeek(now: Date = Date()) {
         let weekId = currentWeekId(now)
-        let lastWeekId = UserDefaults.standard.string(forKey: sessionFinalizedWeekKey)
+        // Check if we're in a new week by comparing with stored week
+        let lastFinalizedWeekKey = "lastFinalizedWeekId"
+        let lastWeekId = UserDefaults.standard.string(forKey: lastFinalizedWeekKey)
         
         if lastWeekId != weekId {
             hasFinalizedThisWeek = false
-            UserDefaults.standard.set(weekId, forKey: sessionFinalizedWeekKey)
+            UserDefaults.standard.set(weekId, forKey: lastFinalizedWeekKey)
             print("🏆 [FINALIZE] New week detected (\(weekId)), resetting finalization flag")
         }
     }
     
     /// Finalizes trophies for the current week if needed
     func finalizeCurrentWeekIfNeeded(now: Date = Date()) {
-        // Idempotent: safe to call multiple times; per-member guard prevents double-finalization
-        let weekId = lastCompletedWeekId(now)
-        print("🏆 [FINALIZE] Checking finalization for last completed week: \(weekId)")
-
-        var didChange = false
+        // Prevent multiple finalizations in the same session
+        if hasFinalizedThisWeek {
+            print("🏆 [FINALIZE] Already finalized this week in this session, skipping")
+            return
+        }
+        
+        // Determine this week id (we finalize the week ending now)
+        let weekId = currentWeekId(now)
+        print("🏆 [FINALIZE] Starting finalizeCurrentWeekIfNeeded for week: \(weekId)")
+        
+        // For each member, if we haven't finalized this week yet, finalize using current values.
         for member in teamMembers {
-            var state = loadStreak(forName: member.name)
-            // Only finalize once per member per week
-            if state.lastFinalizedWeekId == weekId { continue }
-
+            var state = loadStreak(for: member.id)
+            print("🏆 [FINALIZE] Member \(member.name) - Current: \(state.streakCount) trophies, lastFinalizedWeekId: \(state.lastFinalizedWeekId ?? "nil")")
+            
+            // Only finalize once per week per member
+            if state.lastFinalizedWeekId == weekId { 
+                print("🏆 [FINALIZE] Member \(member.name) - Already finalized this week, skipping")
+                continue 
+            }
+            
             let wasWeeklyMet = isWeeklyMet(for: member)
+            print("🏆 [FINALIZE] Member \(member.name) - Weekly goals met: \(wasWeeklyMet)")
+            
             if wasWeeklyMet {
                 state.streakCount += 1
-                print("🏆 [FINALIZE] \(member.name) met weekly goals -> streak \(state.streakCount)")
+                print("🏆 [FINALIZE] Member \(member.name) - Incremented streak to: \(state.streakCount)")
             } else {
                 state.streakCount = 0
-                print("🏆 [FINALIZE] \(member.name) missed weekly goals -> streak reset")
+                print("🏆 [FINALIZE] Member \(member.name) - Reset streak to: \(state.streakCount)")
             }
             state.lastFinalizedWeekId = weekId
-            saveStreak(state, forName: member.name)
-            didChange = true
+            saveStreak(state, for: member.id)
+            print("🏆 [FINALIZE] Member \(member.name) - Saved streak: \(state.streakCount) trophies")
         }
-
-        if didChange {
-            DispatchQueue.main.async { [weak self] in
-                self?.objectWillChange.send()
-            }
+        
+        // Mark as finalized for this session
+        hasFinalizedThisWeek = true
+        
+        // Force a redraw so trophy rows reflect any changes
+        DispatchQueue.main.async { [weak self] in
+            self?.objectWillChange.send()
         }
     }
 
     /// MARK: - Auto Reset Logic (Quotes/Sales WTD weekly on Sunday, Sales MTD monthly on 1st)
     func performAutoResetsIfNeeded(currentDate: Date = Date()) {
-        maintenanceQueue.async { [weak self] in
-            guard let self = self else { return }
+        // Align reset calendar with Chicago time so "Sunday" is consistent
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = resetTimeZone
+        let weekday = cal.component(.weekday, from: currentDate) // 1 = Sunday
+        let day = cal.component(.day, from: currentDate)
+        let weekId = currentWeekId(currentDate)
+        let monthId = currentMonthId(currentDate)
 
-            // Compute date components off-main
-            var cal = Calendar(identifier: .gregorian)
-            cal.timeZone = self.resetTimeZone
-            let weekday = cal.component(.weekday, from: currentDate) // 1 = Sunday
-            let day = cal.component(.day, from: currentDate)
-            let weekId = self.currentWeekId(currentDate)
-            let monthId = self.currentMonthId(currentDate)
+        var didWeekly = false
+        var didMonthly = false
 
-            // Switch to main actor for any state reads/writes
-            Task { @MainActor in
-                var didWeekly = false
-                var didMonthly = false
+        // 🏆 PRESERVE TROPHY DATA: Store current trophy states before any resets
+        let trophyStates = preserveTrophyData()
 
-                // Idempotent finalization (safe to call multiple times)
-                self.finalizeCurrentWeekIfNeeded(now: currentDate)
+        // 🏆 RESET FINALIZATION FLAG: Check if we're in a new week
+        resetFinalizationFlagIfNewWeek(now: currentDate)
 
-                // WEEKLY (Sunday): reset quotesWTD & salesWTD once per new week
-                if weekday == 1 && self.lastWeeklyResetId != weekId {
-                    for i in self.teamMembers.indices {
-                        self.teamMembers[i].quotesWTD = 0
-                        self.teamMembers[i].salesWTD = 0
-                    }
-                    self.batchSaveWeeklyReset(for: self.teamMembers)
-                    self.lastWeeklyResetId = weekId
-                    didWeekly = true
-                }
+        // 🏆 FINALIZE TROPHIES BEFORE RESET: Check if we need to finalize trophies for the previous week
+        // This should happen on Sunday before we reset the weekly values
+        if weekday == 1 {
+            // Finalize trophies for the week that just ended (Saturday night -> Sunday morning)
+            finalizeCurrentWeekIfNeeded(now: currentDate)
+        }
 
-                // MONTHLY (day=1): reset salesMTD once per new month
-                if day == 1 && self.lastMonthlyResetId != monthId {
-                    for i in self.teamMembers.indices {
-                        self.teamMembers[i].salesMTD = 0
-                    }
-                    self.batchSaveMonthlyReset(for: self.teamMembers)
-                    self.lastMonthlyResetId = monthId
-                    didMonthly = true
-                }
-
-                if didWeekly || didMonthly {
-                    self.saveLocal()
-                    self.objectWillChange.send()
-                }
+        // WEEKLY (Sunday): reset quotesToday & salesWTD once per new week
+        if weekday == 1 && lastWeeklyResetId != weekId {
+            for i in teamMembers.indices {
+                teamMembers[i].quotesToday = 0
+                teamMembers[i].salesWTD = 0
+                saveWinTheDayFields(teamMembers[i])
             }
+            lastWeeklyResetId = weekId
+            didWeekly = true
+        }
+
+        // MONTHLY (day=1): reset salesMTD once per new month
+        if day == 1 && lastMonthlyResetId != monthId {
+            for i in teamMembers.indices {
+                teamMembers[i].salesMTD = 0
+                saveWinTheDayFields(teamMembers[i])
+            }
+            lastMonthlyResetId = monthId
+            didMonthly = true
+        }
+
+        if didWeekly || didMonthly {
+            // 🏆 RESTORE TROPHY DATA: Ensure trophy states are preserved after resets
+            restoreTrophyData(trophyStates)
+            
+            // Persist & refresh bindings/UI
+            saveLocal()
+            DispatchQueue.main.async { [weak self] in self?.objectWillChange.send() }
         }
     }
 
-    // MARK: - Batched CloudKit Saves for Resets
-    private func batchSaveWeeklyReset(for members: [TeamMember]) {
-        let ids = members.map { CKRecord.ID(recordName: "member-\($0.name)") }
-        let fetch = CKFetchRecordsOperation(recordIDs: ids)
-        var fetched: [CKRecord] = []
-        fetch.perRecordResultBlock = { _, result in
-            if case .success(let record) = result { fetched.append(record) }
-        }
-        fetch.fetchRecordsResultBlock = { [weak self] result in
-            guard let self = self else { return }
-            switch result {
-            case .success:
-                // Update weekly fields
-                for record in fetched {
-                    record["quotesToday"] = 0 as CKRecordValue
-                    record["salesWTD"] = 0 as CKRecordValue
-                }
-                guard !fetched.isEmpty else { return }
-                let modify = CKModifyRecordsOperation(recordsToSave: fetched, recordIDsToDelete: nil)
-                CloudKitManager.container.publicCloudDatabase.add(modify)
-            case .failure(let error):
-                print("❌ batchSaveWeeklyReset fetch failed: \(error.localizedDescription). Falling back to per-member saves.")
-                // Fallback to per-member path
-                for m in members {
-                    DispatchQueue.main.async {
-                        self.saveWinTheDayFields(m)
-                    }
-                }
-            }
-        }
-        CloudKitManager.container.publicCloudDatabase.add(fetch)
-    }
 
-    private func batchSaveMonthlyReset(for members: [TeamMember]) {
-        let ids = members.map { CKRecord.ID(recordName: "member-\($0.name)") }
-        let fetch = CKFetchRecordsOperation(recordIDs: ids)
-        var fetched: [CKRecord] = []
-        fetch.perRecordResultBlock = { _, result in
-            if case .success(let record) = result { fetched.append(record) }
-        }
-        fetch.fetchRecordsResultBlock = { [weak self] result in
-            guard let self = self else { return }
-            switch result {
-            case .success:
-                // Update monthly field
-                for record in fetched { record["salesMTD"] = 0 as CKRecordValue }
-                guard !fetched.isEmpty else { return }
-                let modify = CKModifyRecordsOperation(recordsToSave: fetched, recordIDsToDelete: nil)
-                CloudKitManager.container.publicCloudDatabase.add(modify)
-            case .failure(let error):
-                print("❌ batchSaveMonthlyReset fetch failed: \(error.localizedDescription). Falling back to per-member saves.")
-                for m in members {
-                    DispatchQueue.main.async {
-                        self.saveWinTheDayFields(m)
-                    }
-                }
-            }
-        }
-        CloudKitManager.container.publicCloudDatabase.add(fetch)
-    }
 
     /// Ensures a placeholder card exists for each provided user name.
     /// Local cards are persisted so the UI can appear immediately before
@@ -1150,4 +1084,3 @@ extension TeamMember {
         )
     ]
 }
-
