@@ -5,8 +5,8 @@
 //  Created by D.J. Jones on 5/18/25.
 //
 
-
 import SwiftUI
+import UIKit
 
 struct MainTabView: View {
     @EnvironmentObject var userManager: UserManager
@@ -16,7 +16,25 @@ struct MainTabView: View {
     @StateObject private var twyVM = TwelveWeekYearViewModel()
     @Environment(\.scenePhase) private var scenePhase
     init() {
-        UITabBar.appearance().backgroundColor = UIColor.systemGray6
+        // Translucent, blurred tab bar and navigation bar with no black flash when switching
+        let tabAppearance = UITabBarAppearance()
+        tabAppearance.configureWithDefaultBackground()
+        tabAppearance.backgroundEffect = UIBlurEffect(style: .systemThinMaterial)
+        tabAppearance.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.6)
+
+        UITabBar.appearance().standardAppearance = tabAppearance
+        UITabBar.appearance().scrollEdgeAppearance = tabAppearance
+        UITabBar.appearance().isTranslucent = true
+
+        let navAppearance = UINavigationBarAppearance()
+        navAppearance.configureWithDefaultBackground()
+        navAppearance.backgroundEffect = UIBlurEffect(style: .systemThinMaterial)
+        navAppearance.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.6)
+
+        UINavigationBar.appearance().standardAppearance = navAppearance
+        UINavigationBar.appearance().scrollEdgeAppearance = navAppearance
+        UINavigationBar.appearance().compactAppearance = navAppearance
+        UINavigationBar.appearance().isTranslucent = true
     }
     var body: some View {
         TabView {
@@ -61,3 +79,4 @@ struct MainTabView: View {
         }
     }
 }
+
