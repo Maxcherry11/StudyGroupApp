@@ -457,18 +457,73 @@ class CloudKitManager: ObservableObject {
     }
 
     /// Updates only the emoji value for the given member without overwriting
-    /// their production stats.
+    /// their production stats. Falls back to query-by-name and creates the
+    /// canonical record if needed.
     func updateEmoji(for name: String, emoji: String, completion: @escaping (Bool) -> Void = { _ in }) {
         let id = memberID(for: name)
+        print("\u{1F4DD} updateEmoji() attempting fetch-by-ID: \(id.recordName) -> emoji=\(emoji)")
         database.fetch(withRecordID: id) { record, error in
-            guard let record = record, error == nil else {
-                DispatchQueue.main.async { completion(false) }
+            if let record = record, error == nil {
+                record["emoji"] = emoji as CKRecordValue
+                self.database.save(record) { _, error in
+                    DispatchQueue.main.async {
+                        if let error = error {
+                            print("❌ updateEmoji() save failed (by-ID path): \(error.localizedDescription)")
+                            completion(false)
+                        } else {
+                            print("✅ updateEmoji() saved (by-ID path) for \(name)")
+                            completion(true)
+                        }
+                    }
+                }
                 return
             }
-            record["emoji"] = emoji as CKRecordValue
-            self.database.save(record) { _, error in
-                DispatchQueue.main.async { completion(error == nil) }
+
+            // Fallback: query by name to find any existing record with a non-canonical ID
+            let predicate = NSPredicate(format: "name == %@", name)
+            let query = CKQuery(recordType: self.recordType, predicate: predicate)
+            print("\u{1F50D} updateEmoji() falling back to query-by-name for: \(name)")
+            let op = CKQueryOperation(query: query)
+            op.resultsLimit = 1
+
+            var matched: CKRecord?
+            op.recordMatchedBlock = { _, result in
+                if case .success(let rec) = result { matched = rec }
             }
+            op.queryResultBlock = { _ in
+                if let existing = matched {
+                    existing["emoji"] = emoji as CKRecordValue
+                    self.database.save(existing) { _, error in
+                        DispatchQueue.main.async {
+                            if let error = error {
+                                print("❌ updateEmoji() save failed (query path): \(error.localizedDescription)")
+                                completion(false)
+                            } else {
+                                print("✅ updateEmoji() saved (query path) for \(name)")
+                                completion(true)
+                            }
+                        }
+                    }
+                } else {
+                    // Create canonical record with stable ID
+                    print("ℹ️ updateEmoji() no existing record found for \(name); creating canonical record \(id.recordName)")
+                    let newRecord = CKRecord(recordType: self.recordType, recordID: id)
+                    newRecord["name"] = name as CKRecordValue
+                    newRecord["emoji"] = emoji as CKRecordValue
+                    self.database.save(newRecord) { _, error in
+                        DispatchQueue.main.async {
+                            if let error = error {
+                                print("❌ updateEmoji() failed to create canonical record: \(error.localizedDescription)")
+                                completion(false)
+                            } else {
+                                print("✅ updateEmoji() created canonical record and saved emoji for \(name)")
+                                completion(true)
+                            }
+                        }
+                    }
+                }
+            }
+            self.database.add(op)
         }
     }
 
