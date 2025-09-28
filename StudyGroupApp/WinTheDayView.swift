@@ -1038,8 +1038,8 @@ private func handleOnAppear() {
             cachedState = TrophyStreakState(streakCount: 0, lastFinalizedWeekId: nil, memberName: member.name)
         }
         
-        let quotesHit = member.quotesToday >= member.quotesGoal
-        let salesHit = member.salesWTD >= member.salesWTDGoal
+        let quotesHit = member.quotesGoal > 0 && member.quotesToday >= member.quotesGoal
+        let salesHit = member.salesWTDGoal > 0 && member.salesWTD >= member.salesWTDGoal
         let currentWeekProgress = (quotesHit || salesHit) ? 1 : 0
         return cachedState.streakCount + currentWeekProgress
     }

@@ -863,7 +863,7 @@ class WinTheDayViewModel: ObservableObject {
         let isNewMonth = lastMonthlyResetId != monthId
 
         // 🏆 PRESERVE TROPHY DATA: Store current trophy states before any resets
-        let trophyStates = preserveTrophyData()
+        var trophyStates = preserveTrophyData()
 
         // 🏆 RESET FINALIZATION FLAG: Check if we're in a new week
         resetFinalizationFlagIfNewWeek(now: currentDate)
@@ -872,6 +872,8 @@ class WinTheDayViewModel: ObservableObject {
         if isNewWeek {
             let weekStartDate = cal.dateInterval(of: .weekOfYear, for: currentDate)?.start ?? currentDate
             finalizeCurrentWeekIfNeeded(now: weekStartDate)
+            // Refresh preserved states so we keep the finalized streak values
+            trophyStates = preserveTrophyData()
         }
 
         // WEEKLY: reset quotesToday & salesWTD once per new week
