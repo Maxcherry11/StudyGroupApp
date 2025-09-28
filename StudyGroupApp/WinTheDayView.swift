@@ -438,7 +438,24 @@ private var header: some View {
         }
     }
     .padding(.horizontal, 20)
-    .padding(.top, 20)
+    .padding(.top, topContentPadding)
+}
+
+private var topContentPadding: CGFloat {
+    max(currentSafeAreaInsets.top - 28, 16)
+}
+
+private var currentSafeAreaInsets: UIEdgeInsets {
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    guard let windowScene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first else {
+        return .zero
+    }
+
+    if let keyWindow = windowScene.windows.first(where: { $0.isKeyWindow }) {
+        return keyWindow.safeAreaInsets
+    }
+
+    return windowScene.windows.first?.safeAreaInsets ?? .zero
 }
 
 

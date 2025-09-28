@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ScoreboardEditorOverlay: View {
     @State var entry: LifeScoreboardViewModel.ScoreEntry
@@ -89,7 +90,7 @@ struct LifeScoreboardView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .center, spacing: 24) {
-                
+
                 // Header
                 VStack(spacing: 8) {
                     Text("Life Scoreboard")
@@ -119,7 +120,8 @@ struct LifeScoreboardView: View {
                     .environmentObject(viewModel)
                     .environmentObject(userManager)
             }
-            .padding()
+            .padding(.top, topContentPadding)
+            .padding([.horizontal, .bottom])
         }
         .onAppear {
             if !hasLoaded {
@@ -158,6 +160,23 @@ struct LifeScoreboardView: View {
                 .environmentObject(viewModel)
             }
         }
+    }
+}
+
+private extension LifeScoreboardView {
+    var topContentPadding: CGFloat { max(safeTopInset - 28, 16) }
+
+    var safeTopInset: CGFloat {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        guard let windowScene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first else {
+            return 0
+        }
+
+        if let keyWindow = windowScene.windows.first(where: { $0.isKeyWindow }) {
+            return keyWindow.safeAreaInsets.top
+        }
+
+        return windowScene.windows.first?.safeAreaInsets.top ?? 0
     }
 }
 

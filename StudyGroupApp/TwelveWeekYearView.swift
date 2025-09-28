@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct TwelveWeekYearView: View {
     @StateObject private var viewModel: TwelveWeekYearViewModel
@@ -250,7 +251,10 @@ struct TwelveWeekYearView: View {
                             }
                         }
                     }
-                    .padding(.top, UIDevice.current.userInterfaceIdiom == .pad ? 70 : 15)
+                    .padding(
+                        .top,
+                        topContentPadding + (UIDevice.current.userInterfaceIdiom == .pad ? 70 : 15)
+                    )
                     .padding(.horizontal, 16)
                     .scaleEffect(UIDevice.current.userInterfaceIdiom == .pad ? 0.75 : 1.0)
                 }
@@ -306,6 +310,23 @@ struct TwelveWeekYearView: View {
                 resetInteractionState()
             }
         }
+    }
+}
+
+private extension TwelveWeekYearView {
+    var topContentPadding: CGFloat { max(safeTopInset - 28, 16) }
+
+    var safeTopInset: CGFloat {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        guard let windowScene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first else {
+            return 0
+        }
+
+        if let keyWindow = windowScene.windows.first(where: { $0.isKeyWindow }) {
+            return keyWindow.safeAreaInsets.top
+        }
+
+        return windowScene.windows.first?.safeAreaInsets.top ?? 0
     }
 }
 

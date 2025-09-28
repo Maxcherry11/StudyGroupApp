@@ -27,9 +27,9 @@ struct MainTabView: View {
         UITabBar.appearance().isTranslucent = true
 
         let navAppearance = UINavigationBarAppearance()
-        navAppearance.configureWithDefaultBackground()
-        navAppearance.backgroundEffect = UIBlurEffect(style: .systemThinMaterial)
-        navAppearance.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.6)
+        navAppearance.configureWithTransparentBackground()
+        navAppearance.backgroundColor = .clear
+        navAppearance.shadowColor = .clear
 
         UINavigationBar.appearance().standardAppearance = navAppearance
         UINavigationBar.appearance().scrollEdgeAppearance = navAppearance
@@ -79,4 +79,3 @@ struct MainTabView: View {
         }
     }
 }
-
