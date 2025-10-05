@@ -74,6 +74,11 @@ class WinTheDayViewModel: ObservableObject {
     private let wtdLastWeeklyResetIdKey  = "wtd-last-weekly-reset-id"
     private let wtdLastMonthlyResetIdKey = "wtd-last-monthly-reset-id"
 
+    /// Flag a deferred weekly reset when the member list is empty at the moment we detect a new week.
+    private var pendingWeeklyReset: Bool = false
+    /// Flag a deferred monthly reset when the member list is empty at the moment we detect a new month.
+    private var pendingMonthlyReset: Bool = false
+
     private var lastWeeklyResetId: String? {
         get {
             if let id = UserDefaults.standard.string(forKey: wtdLastWeeklyResetIdKey) {
@@ -354,6 +359,12 @@ class WinTheDayViewModel: ObservableObject {
                         
                         // 🏆 RESTORE TROPHY DATA: Ensure trophy states are preserved after CloudKit merge
                         self.restoreTrophyData(trophyStates)
+
+                        // If a weekly/monthly reset was deferred because members were missing, retry now that data is present.
+                        if self.pendingWeeklyReset || self.pendingMonthlyReset {
+                            print("⚠️ [AutoReset] Retrying deferred resets after CloudKit sync")
+                            self.performAutoResetsIfNeeded(currentDate: Date())
+                        }
                     } else {
                         print("⚠️ CloudKit fetchTeam returned 0 members; keeping local cache to avoid blank screen.")
                     }
@@ -878,23 +889,43 @@ class WinTheDayViewModel: ObservableObject {
 
         // WEEKLY: reset quotesToday & salesWTD once per new week
         if isNewWeek {
-            for i in teamMembers.indices {
-                teamMembers[i].quotesToday = 0
-                teamMembers[i].salesWTD = 0
-                saveWinTheDayFields(teamMembers[i])
+            if teamMembers.isEmpty {
+                if !pendingWeeklyReset {
+                    print("⚠️ [AutoReset] Detected new week (\(weekId)) but no members are loaded yet — deferring reset")
+                }
+                pendingWeeklyReset = true
+            } else {
+                for i in teamMembers.indices {
+                    teamMembers[i].quotesToday = 0
+                    teamMembers[i].salesWTD = 0
+                    saveWinTheDayFields(teamMembers[i])
+                }
+                lastWeeklyResetId = weekId
+                didWeekly = true
+                pendingWeeklyReset = false
             }
-            lastWeeklyResetId = weekId
-            didWeekly = true
+        } else {
+            pendingWeeklyReset = false
         }
 
         // MONTHLY (day=1): reset salesMTD once per new month
         if isNewMonth {
-            for i in teamMembers.indices {
-                teamMembers[i].salesMTD = 0
-                saveWinTheDayFields(teamMembers[i])
+            if teamMembers.isEmpty {
+                if !pendingMonthlyReset {
+                    print("⚠️ [AutoReset] Detected new month (\(monthId)) but no members are loaded yet — deferring reset")
+                }
+                pendingMonthlyReset = true
+            } else {
+                for i in teamMembers.indices {
+                    teamMembers[i].salesMTD = 0
+                    saveWinTheDayFields(teamMembers[i])
+                }
+                lastMonthlyResetId = monthId
+                didMonthly = true
+                pendingMonthlyReset = false
             }
-            lastMonthlyResetId = monthId
-            didMonthly = true
+        } else {
+            pendingMonthlyReset = false
         }
 
         if didWeekly || didMonthly {
