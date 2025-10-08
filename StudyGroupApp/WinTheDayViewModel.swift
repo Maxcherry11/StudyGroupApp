@@ -870,6 +870,23 @@ class WinTheDayViewModel: ObservableObject {
         var didWeekly = false
         var didMonthly = false
 
+        // Replace block below with new logic as per instructions:
+
+        // Compute boundary components in reset timezone
+        let weekday = cal.component(.weekday, from: currentDate) // 1 = Sunday (firstWeekday set to 1 elsewhere for week id)
+        let day = cal.component(.day, from: currentDate)
+
+        // Bootstrap missing IDs without resetting mid-period
+        if lastWeeklyResetId == nil && weekday != 1 {
+            print("🧭 [AutoReset] Bootstrap weekly id (no reset) — setting lastWeeklyResetId=\(weekId) on non-Sunday")
+            lastWeeklyResetId = weekId
+        }
+        if lastMonthlyResetId == nil && day != 1 {
+            print("🧭 [AutoReset] Bootstrap monthly id (no reset) — setting lastMonthlyResetId=\(monthId) on non-day-1")
+            lastMonthlyResetId = monthId
+        }
+
+        // Recompute newness after bootstrap
         let isNewWeek = lastWeeklyResetId != weekId
         let isNewMonth = lastMonthlyResetId != monthId
 
@@ -879,19 +896,23 @@ class WinTheDayViewModel: ObservableObject {
         // 🏆 RESET FINALIZATION FLAG: Check if we're in a new week
         resetFinalizationFlagIfNewWeek(now: currentDate)
 
-        // 🏆 FINALIZE TROPHIES BEFORE RESET: Run once when a new week boundary has been reached
-        if isNewWeek {
+        // Boundary gates
+        let isSunday = (weekday == 1)
+        let isDayOne = (day == 1)
+
+        // 🏆 FINALIZE TROPHIES BEFORE RESET: Only at true weekly boundary
+        if isNewWeek && isSunday {
             let weekStartDate = cal.dateInterval(of: .weekOfYear, for: currentDate)?.start ?? currentDate
             finalizeCurrentWeekIfNeeded(now: weekStartDate)
             // Refresh preserved states so we keep the finalized streak values
             trophyStates = preserveTrophyData()
         }
 
-        // WEEKLY: reset quotesToday & salesWTD once per new week
-        if isNewWeek {
+        // WEEKLY: reset quotesToday & salesWTD once per new week, ONLY on Sunday
+        if isNewWeek && isSunday {
             if teamMembers.isEmpty {
                 if !pendingWeeklyReset {
-                    print("⚠️ [AutoReset] Detected new week (\(weekId)) but no members are loaded yet — deferring reset")
+                    print("⚠️ [AutoReset] Detected new week (\(weekId)) on Sunday but no members are loaded — deferring reset")
                 }
                 pendingWeeklyReset = true
             } else {
@@ -905,14 +926,15 @@ class WinTheDayViewModel: ObservableObject {
                 pendingWeeklyReset = false
             }
         } else {
+            // Do not carry a pending weekly reset outside the boundary window
             pendingWeeklyReset = false
         }
 
-        // MONTHLY (day=1): reset salesMTD once per new month
-        if isNewMonth {
+        // MONTHLY: reset salesMTD once per new month, ONLY on day 1
+        if isNewMonth && isDayOne {
             if teamMembers.isEmpty {
                 if !pendingMonthlyReset {
-                    print("⚠️ [AutoReset] Detected new month (\(monthId)) but no members are loaded yet — deferring reset")
+                    print("⚠️ [AutoReset] Detected new month (\(monthId)) on day 1 but no members are loaded — deferring reset")
                 }
                 pendingMonthlyReset = true
             } else {
@@ -925,6 +947,7 @@ class WinTheDayViewModel: ObservableObject {
                 pendingMonthlyReset = false
             }
         } else {
+            // Do not carry a pending monthly reset outside the boundary window
             pendingMonthlyReset = false
         }
 
