@@ -5,6 +5,7 @@
 //  Created by D.J. Jones on 5/11/25.
 //
 
+import Combine
 import Foundation
 
 class TeamMember: Identifiable, ObservableObject {
@@ -33,6 +34,13 @@ class TeamMember: Identifiable, ObservableObject {
     @Published var projected: Double
     @Published var actual: Int
     @Published var score: Int
+    @Published var weekKey: String?
+    @Published var monthKey: String?
+    @Published var streakCountWeek: Int
+    @Published var streakCountMonth: Int
+    @Published var trophies: [String]
+    @Published var totalWins: Int
+    @Published var lastCompletedAt: Date?
 
     init(
         id: UUID = UUID(),
@@ -49,7 +57,14 @@ class TeamMember: Identifiable, ObservableObject {
         pending: Int = 0,
         projected: Double = 0.0,
         actual: Int = 0,
-        score: Int = 0
+        score: Int = 0,
+        weekKey: String? = nil,
+        monthKey: String? = nil,
+        streakCountWeek: Int = 0,
+        streakCountMonth: Int = 0,
+        trophies: [String] = [],
+        totalWins: Int = 0,
+        lastCompletedAt: Date? = nil
     ) {
         self.id = id
         self.name = name
@@ -66,6 +81,13 @@ class TeamMember: Identifiable, ObservableObject {
         self.projected = projected
         self.actual = actual
         self.score = score
+        self.weekKey = weekKey
+        self.monthKey = monthKey
+        self.streakCountWeek = streakCountWeek
+        self.streakCountMonth = streakCountMonth
+        self.trophies = trophies
+        self.totalWins = totalWins
+        self.lastCompletedAt = lastCompletedAt
     }
 
     convenience init(name: String) {
@@ -138,6 +160,13 @@ extension TeamMember {
         var projected: Double
         var actual: Int
         var score: Int
+        var weekKey: String?
+        var monthKey: String?
+        var streakCountWeek: Int = 0
+        var streakCountMonth: Int = 0
+        var trophies: [String] = []
+        var totalWins: Int = 0
+        var lastCompletedAt: Date?
     }
 
     var codable: CodableModel {
@@ -156,7 +185,14 @@ extension TeamMember {
             pending: pending,
             projected: projected,
             actual: actual,
-            score: score
+            score: score,
+            weekKey: weekKey,
+            monthKey: monthKey,
+            streakCountWeek: streakCountWeek,
+            streakCountMonth: streakCountMonth,
+            trophies: trophies,
+            totalWins: totalWins,
+            lastCompletedAt: lastCompletedAt
         )
     }
 
@@ -176,7 +212,14 @@ extension TeamMember {
             pending: codable.pending,
             projected: codable.projected,
             actual: codable.actual,
-            score: codable.score
+            score: codable.score,
+            weekKey: codable.weekKey,
+            monthKey: codable.monthKey,
+            streakCountWeek: codable.streakCountWeek,
+            streakCountMonth: codable.streakCountMonth,
+            trophies: codable.trophies,
+            totalWins: codable.totalWins,
+            lastCompletedAt: codable.lastCompletedAt
         )
     }
 }
@@ -204,6 +247,13 @@ extension TeamMember {
         let projected = record["projected"] as? Double ?? 0.0
         let actual = record["actual"] as? Int ?? 0
         let score = record["score"] as? Int ?? 0
+        let weekKey = record["weekKey"] as? String
+        let monthKey = record["monthKey"] as? String
+        let streakCountWeek = record["streakCountWeek"] as? Int ?? 0
+        let streakCountMonth = record["streakCountMonth"] as? Int ?? 0
+        let trophies = record["trophies"] as? [String] ?? []
+        let totalWins = record["totalWins"] as? Int ?? 0
+        let lastCompletedAt = record["lastCompletedAt"] as? Date
 
         self.init(
             id: UUID(),
@@ -220,7 +270,14 @@ extension TeamMember {
             pending: pending,
             projected: projected,
             actual: actual,
-            score: score
+            score: score,
+            weekKey: weekKey,
+            monthKey: monthKey,
+            streakCountWeek: streakCountWeek,
+            streakCountMonth: streakCountMonth,
+            trophies: trophies,
+            totalWins: totalWins,
+            lastCompletedAt: lastCompletedAt
         )
     }
 
@@ -243,6 +300,25 @@ extension TeamMember {
         record["salesWTDGoal"] = self.salesWTDGoal as CKRecordValue
         record["score"] = self.score as CKRecordValue
         record["sortIndex"] = self.sortIndex as CKRecordValue
+        if let weekKey = self.weekKey {
+            record["weekKey"] = weekKey as CKRecordValue
+        } else {
+            record["weekKey"] = nil
+        }
+        if let monthKey = self.monthKey {
+            record["monthKey"] = monthKey as CKRecordValue
+        } else {
+            record["monthKey"] = nil
+        }
+        record["streakCountWeek"] = self.streakCountWeek as CKRecordValue
+        record["streakCountMonth"] = self.streakCountMonth as CKRecordValue
+        record["trophies"] = self.trophies as CKRecordValue
+        record["totalWins"] = self.totalWins as CKRecordValue
+        if let lastCompletedAt = self.lastCompletedAt {
+            record["lastCompletedAt"] = lastCompletedAt as CKRecordValue
+        } else {
+            record["lastCompletedAt"] = nil
+        }
         return record
     }
 }

@@ -117,7 +117,14 @@ class CloudKitManager: ObservableObject {
             "sortIndex",
             "actual",
             "pending",
-            "projected"
+            "projected",
+            "weekKey",
+            "monthKey",
+            "streakCountWeek",
+            "streakCountMonth",
+            "trophies",
+            "totalWins",
+            "lastCompletedAt"
         ]
         operation.recordMatchedBlock = { recordID, result in
             switch result {

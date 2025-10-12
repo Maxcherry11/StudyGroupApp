@@ -187,8 +187,16 @@ class WinTheDayViewModel: ObservableObject {
         teamData = teamMembers
     }
 
-    /// Reorders cards and updates ``teamData`` after the user saves edits.
-    /// This keeps the visible list in sync with the latest production values.
+    private func sortedMembersByScore() -> [TeamMember] {
+        var sorted = teamMembers.sorted(by: stableByScoreThenIndex)
+        for idx in sorted.indices {
+            sorted[idx].sortIndex = idx
+        }
+        return sorted
+    }
+
+    /// Reorders cards and updates ``teamMembers`` / ``displayedMembers`` after the user saves edits.
+    /// Caller (usually the view) updates ``teamData`` inside any desired animation.
     func reorderAfterSave() {
         guard !isEditing else {
             print("[REORDER] reorderAfterSave blocked because isEditing = \(isEditing)")
@@ -198,10 +206,12 @@ class WinTheDayViewModel: ObservableObject {
         
         // 🏆 PRESERVE TROPHY DATA: Store current trophy states before reordering
         let trophyStates = preserveTrophyData()
-        
-        reorderCards()
-        teamData = teamMembers
-        
+
+        let sorted = sortedMembersByScore()
+        teamMembers = sorted
+        displayedMembers = sorted
+        lastFetchHash = computeHash(for: sorted)
+
         // 🏆 RESTORE TROPHY DATA: Ensure trophy states are preserved after reordering
         restoreTrophyData(trophyStates)
     }
@@ -703,12 +713,11 @@ class WinTheDayViewModel: ObservableObject {
             return
         }
         print("[REORDER] reorderCards executing")
-        teamMembers.sort(by: stableByScoreThenIndex)
-        for index in teamMembers.indices {
-            teamMembers[index].sortIndex = index
-        }
-        displayedMembers = teamMembers
-        lastFetchHash = computeHash(for: teamMembers)
+        let sorted = sortedMembersByScore()
+        teamMembers = sorted
+        displayedMembers = sorted
+        teamData = sorted
+        lastFetchHash = computeHash(for: sorted)
     }
 
     func loadCardOrderFromCloud(for user: String) {
