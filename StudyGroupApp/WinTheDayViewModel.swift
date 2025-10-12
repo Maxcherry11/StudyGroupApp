@@ -37,8 +37,35 @@ class WinTheDayViewModel: ObservableObject {
     // Flag to prevent multiple finalizations in the same session
     private var hasFinalizedThisWeek: Bool = false
 
+    // MARK: - Data Sanitization Helpers
+    nonisolated private static let valueCap: Int = 1_000_000
+    nonisolated private static func clampNonNegative(_ v: Int) -> Int { max(0, min(v, Self.valueCap)) }
+
+    nonisolated private static func sanitized(_ m: TeamMember) -> TeamMember {
+        let copy = m
+        copy.quotesToday  = Self.clampNonNegative(copy.quotesToday)
+        copy.salesWTD     = Self.clampNonNegative(copy.salesWTD)
+        copy.salesMTD     = Self.clampNonNegative(copy.salesMTD)
+        copy.quotesGoal   = Self.clampNonNegative(copy.quotesGoal)
+        copy.salesWTDGoal = Self.clampNonNegative(copy.salesWTDGoal)
+        copy.salesMTDGoal = Self.clampNonNegative(copy.salesMTDGoal)
+        return copy
+    }
+
+    private func sanitizeMembersArray(_ arr: [TeamMember]) -> [TeamMember] {
+        arr.map { Self.sanitized($0) }
+    }
+
+    private func sanitizeCardsArray(_ arr: [Card]) -> [Card] {
+        arr.map { card in
+            var c = card
+            c.production = Self.clampNonNegative(c.production)
+            return c
+        }
+    }
+
     init() {
-        let stored = loadLocalMembers().sorted { $0.sortIndex < $1.sortIndex }
+        let stored = sanitizeMembersArray(loadLocalMembers()).sorted { $0.sortIndex < $1.sortIndex }
         self.teamMembers = stored
         self.displayedMembers = stored
         // Use locally stored order as a placeholder until CloudKit loads
@@ -136,7 +163,7 @@ class WinTheDayViewModel: ObservableObject {
 
     // MARK: - Stable sorting helpers
     func productionScore(_ m: TeamMember) -> Int {
-        m.quotesToday + m.salesWTD + m.salesMTD
+        max(0, m.quotesToday + m.salesWTD + m.salesMTD)
     }
 
     func stableByScoreThenIndex(_ lhs: TeamMember, _ rhs: TeamMember) -> Bool {
@@ -188,7 +215,7 @@ class WinTheDayViewModel: ObservableObject {
     }
 
     private func sortedMembersByScore() -> [TeamMember] {
-        var sorted = teamMembers.sorted(by: stableByScoreThenIndex)
+        let sorted = teamMembers.sorted(by: stableByScoreThenIndex)
         for idx in sorted.indices {
             sorted[idx].sortIndex = idx
         }
@@ -196,6 +223,7 @@ class WinTheDayViewModel: ObservableObject {
     }
 
     /// Reorders cards and updates ``teamMembers`` / ``displayedMembers`` after the user saves edits.
+    @MainActor
     /// Caller (usually the view) updates ``teamData`` inside any desired animation.
     func reorderAfterSave() {
         guard !isEditing else {
@@ -299,7 +327,9 @@ class WinTheDayViewModel: ObservableObject {
                     return
                 }
                 print("[REORDER] fetchTeam: applying sorted order from CloudKit")
-                self.teamData = members.sorted(by: self.stableByScoreThenIndex)
+
+                let cleaned = self.sanitizeMembersArray(members)
+                self.teamData = cleaned.sorted(by: self.stableByScoreThenIndex)
 
                 self.teamMembers = self.teamData
                 self.displayedMembers = self.teamData
@@ -324,7 +354,8 @@ class WinTheDayViewModel: ObservableObject {
         CloudKitManager.fetchCards { [weak self] records in
             guard let self = self else { return }
             DispatchQueue.main.async {
-                self.cards = records.sorted { $0.orderIndex < $1.orderIndex }
+                let cleaned = self.sanitizeCardsArray(records)
+                self.cards = cleaned.sorted { $0.orderIndex < $1.orderIndex }
                 self.displayedCards = self.cards
                 self.saveCardsToDevice()
             }
@@ -350,14 +381,15 @@ class WinTheDayViewModel: ObservableObject {
             CloudKitManager.shared.fetchTeam { [weak self] fetched in
                 guard let self = self else { return }
                 let newHash = self.computeHash(for: fetched)
+                let fetchedClean = self.sanitizeMembersArray(fetched)
 
                 DispatchQueue.main.async {
                     // ⚠️ Non-destructive merge: only override from CloudKit when it returns non-empty
-                    if !fetched.isEmpty {
+                    if !fetchedClean.isEmpty {
                         // Merge by name so we don't drop fields if only some members changed
                         var byName: [String: TeamMember] = [:]
                         for m in self.teamMembers { byName[m.name] = m }
-                        for m in fetched {
+                        for m in fetchedClean {
                             byName[m.name] = m // fetched wins entirely per member
                         }
                         let merged = Array(byName.values).sorted { $0.sortIndex < $1.sortIndex }
@@ -391,11 +423,12 @@ class WinTheDayViewModel: ObservableObject {
 
                     CloudKitManager.fetchCards { cards in
                         DispatchQueue.main.async {
-                            if cards.isEmpty {
+                            let cleanedCards = self.sanitizeCardsArray(cards)
+                            if cleanedCards.isEmpty {
                                 print("⚠️ CloudKit fetchCards returned 0; preserving local cards to avoid blank UI.")
                             } else {
                                 var merged = self.cards
-                                for card in cards {
+                                for card in cleanedCards {
                                     if let idx = merged.firstIndex(where: { $0.id == card.id }) {
                                         merged[idx] = card
                                     } else {
@@ -493,7 +526,7 @@ class WinTheDayViewModel: ObservableObject {
     private func saveLocal() {
         // 🏆 SAFETY CHECK: Ensure we don't accidentally clear trophy data
         // Trophy data is stored separately and should not be affected by team member saves
-        let codable = teamMembers.map { $0.codable }
+        let codable = sanitizeMembersArray(teamMembers).map { $0.codable }
         if let data = try? JSONEncoder().encode(codable) {
             UserDefaults.standard.set(data, forKey: storageKey)
             print("💾 Saved \(teamMembers.count) team members to local storage (trophy data preserved)")
@@ -505,7 +538,7 @@ class WinTheDayViewModel: ObservableObject {
               let decoded = try? JSONDecoder().decode([TeamMember.CodableModel].self, from: data) else {
             return []
         }
-        return decoded.map { TeamMember(codable: $0) }
+        return sanitizeMembersArray(decoded.map { TeamMember(codable: $0) })
     }
 
     // MARK: - Card Persistence
@@ -519,7 +552,7 @@ class WinTheDayViewModel: ObservableObject {
     }
 
     private func saveCardsToDevice() {
-        let stored = cards.map { card in
+        let stored = sanitizeCardsArray(cards).map { card in
             StoredCard(id: card.id, name: card.name, emoji: card.emoji, production: card.production, orderIndex: card.orderIndex)
         }
         if let data = try? JSONEncoder().encode(stored) {
@@ -532,7 +565,8 @@ class WinTheDayViewModel: ObservableObject {
               let decoded = try? JSONDecoder().decode([StoredCard].self, from: data) else {
             return []
         }
-        return decoded.map { Card(id: $0.id, name: $0.name, emoji: $0.emoji, production: $0.production, orderIndex: $0.orderIndex) }
+        let mapped = decoded.map { Card(id: $0.id, name: $0.name, emoji: $0.emoji, production: $0.production, orderIndex: $0.orderIndex) }
+        return sanitizeCardsArray(mapped)
     }
 
     // MARK: - Goal Name Persistence
@@ -610,18 +644,21 @@ class WinTheDayViewModel: ObservableObject {
                 let memberRef = self.teamMembers[memberIndex]
 
                 func applyAndSave(to record: CKRecord) async {
+                    // Clamp values before write
+                    let safe = Self.sanitized(memberRef)
+                    
                     // Update only Win The Day fields
-                    record["quotesToday"] = memberRef.quotesToday as CKRecordValue
-                    record["salesWTD"] = memberRef.salesWTD as CKRecordValue
-                    record["salesMTD"] = memberRef.salesMTD as CKRecordValue
-                    record["quotesGoal"] = memberRef.quotesGoal as CKRecordValue
-                    record["salesWTDGoal"] = memberRef.salesWTDGoal as CKRecordValue
-                    record["salesMTDGoal"] = memberRef.salesMTDGoal as CKRecordValue
-                    record["emoji"] = memberRef.emoji as CKRecordValue
-                    record["emojiUserSet"] = memberRef.emojiUserSet as CKRecordValue
-                    record["sortIndex"] = memberRef.sortIndex as CKRecordValue
+                    record["quotesToday"] = safe.quotesToday as CKRecordValue
+                    record["salesWTD"] = safe.salesWTD as CKRecordValue
+                    record["salesMTD"] = safe.salesMTD as CKRecordValue
+                    record["quotesGoal"] = safe.quotesGoal as CKRecordValue
+                    record["salesWTDGoal"] = safe.salesWTDGoal as CKRecordValue
+                    record["salesMTDGoal"] = safe.salesMTDGoal as CKRecordValue
+                    record["emoji"] = safe.emoji as CKRecordValue
+                    record["emojiUserSet"] = safe.emojiUserSet as CKRecordValue
+                    record["sortIndex"] = safe.sortIndex as CKRecordValue
 
-                    print("\u{1F4BE} saveWinTheDayFields() saving for \(memberName) [quotes=\(memberRef.quotesToday), wtd=\(memberRef.salesWTD), mtd=\(memberRef.salesMTD), emoji=\(memberRef.emoji)] -> \(record.recordID.recordName)")
+                    print("\u{1F4BE} saveWinTheDayFields() saving for \(memberName) [quotes=\(safe.quotesToday), wtd=\(safe.salesWTD), mtd=\(safe.salesMTD), emoji=\(safe.emoji)] -> \(record.recordID.recordName)")
                     do {
                         let saved = try await CloudKitManager.container.publicCloudDatabase.save(record)
                         print("✅ saveWinTheDayFields() saved: \(saved.recordID.recordName)")
@@ -879,8 +916,6 @@ class WinTheDayViewModel: ObservableObject {
         var didWeekly = false
         var didMonthly = false
 
-        // Replace block below with new logic as per instructions:
-
         // Compute boundary components in reset timezone
         let weekday = cal.component(.weekday, from: currentDate) // 1 = Sunday (firstWeekday set to 1 elsewhere for week id)
         let day = cal.component(.day, from: currentDate)
@@ -1033,6 +1068,8 @@ class WinTheDayViewModel: ObservableObject {
         saveCardsToDevice()
         
         // Update teamData to reflect the new members so the UI displays them properly
+        teamData = teamMembers
+        teamMembers = sanitizeMembersArray(teamMembers)
         teamData = teamMembers
     }
 
