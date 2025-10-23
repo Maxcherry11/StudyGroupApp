@@ -17,9 +17,12 @@ class WinTheDayViewModel: ObservableObject {
     // Used to mute list animations during bootstrap from outside the view model easily.
     static var globalIsBootstrapping: Bool = false
     
-    // Flag to prevent multiple finalizations in the same session
-    private var hasFinalizedThisWeek: Bool = false
+    // Track which week has been finalized during the current app session
+    private var sessionFinalizedWeekId: String?
     private var isProcessingAutoReset: Bool = false
+    private let lastFinalizedWeekKey = "lastFinalizedWeekId"
+    private let finalizationDefaultsVersionKey = "lastFinalizedWeekVersion"
+    private let finalizationDefaultsVersion = 2
 
     // MARK: - Data Sanitization Helpers
     nonisolated private static let valueCap: Int = 1_000_000
@@ -61,6 +64,7 @@ class WinTheDayViewModel: ObservableObject {
         self.goalNames = names
         self.lastGoalHash = Self.computeGoalHash(for: names)
         self.lastFetchHash = computeHash(for: stored)
+        migrateFinalizationTrackingIfNeeded()
         // Initialize members from the splash screen user list
         fetchMembersFromCloud()
     }
@@ -729,32 +733,99 @@ class WinTheDayViewModel: ObservableObject {
         return String(format: "%04d-M%02d", year, month)
     }
     
-    /// Resets the session finalization flag when a new week starts
-    private func resetFinalizationFlagIfNewWeek(now: Date = Date()) {
-        let weekId = currentWeekId(now)
-        // Check if we're in a new week by comparing with stored week
-        let lastFinalizedWeekKey = "lastFinalizedWeekId"
-        let lastWeekId = UserDefaults.standard.string(forKey: lastFinalizedWeekKey)
-        
-        if lastWeekId != weekId {
-            hasFinalizedThisWeek = false
-            UserDefaults.standard.set(weekId, forKey: lastFinalizedWeekKey)
-            print("🏆 [FINALIZE] New week detected (\(weekId)), resetting finalization flag")
+    private var lastPersistedFinalizedWeekId: String? {
+        get { UserDefaults.standard.string(forKey: lastFinalizedWeekKey) }
+        set {
+            let defaults = UserDefaults.standard
+            if let newValue {
+                defaults.set(newValue, forKey: lastFinalizedWeekKey)
+            } else {
+                defaults.removeObject(forKey: lastFinalizedWeekKey)
+            }
         }
     }
     
-    /// Finalizes trophies for the current week using CloudKit-backed streaks.
+    private func weekIdToFinalize(for date: Date) -> String? {
+        adjustWeekId(currentWeekId(date), by: -1)
+    }
+    
+    private func adjustWeekId(_ weekId: String, by offset: Int) -> String? {
+        guard offset != 0 else { return weekId }
+        guard let baseDate = date(forWeekId: weekId) else { return nil }
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = resetTimeZone
+        guard let adjusted = cal.date(byAdding: .weekOfYear, value: offset, to: baseDate) else { return nil }
+        return currentWeekId(adjusted)
+    }
+    
+    private func date(forWeekId weekId: String) -> Date? {
+        let parts = weekId.split(separator: "-")
+        guard parts.count == 2,
+              let year = Int(parts[0]) else { return nil }
+        let weekPart = parts[1]
+        guard weekPart.first == "W",
+              let weekNumber = Int(weekPart.dropFirst()) else { return nil }
+        
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = resetTimeZone
+        cal.firstWeekday = 1
+        cal.minimumDaysInFirstWeek = 1
+        
+        var components = DateComponents()
+        components.yearForWeekOfYear = year
+        components.weekOfYear = weekNumber
+        components.weekday = cal.firstWeekday
+        components.hour = 12
+        
+        return cal.date(from: components)
+    }
+    
+    private func migrateFinalizationTrackingIfNeeded() {
+        let defaults = UserDefaults.standard
+        let storedVersion = defaults.integer(forKey: finalizationDefaultsVersionKey)
+        guard storedVersion < finalizationDefaultsVersion else { return }
+        
+        if let storedWeekId = defaults.string(forKey: lastFinalizedWeekKey),
+           let adjusted = adjustWeekId(storedWeekId, by: -1) {
+            defaults.set(adjusted, forKey: lastFinalizedWeekKey)
+        }
+        
+        defaults.set(finalizationDefaultsVersion, forKey: finalizationDefaultsVersionKey)
+    }
+    
+    /// Resets the in-memory finalization guard when the target week changes.
+    private func resetSessionFinalizationIfNeeded(now: Date = Date()) {
+        guard let targetWeekId = weekIdToFinalize(for: now) else { return }
+        if let finalizedWeek = sessionFinalizedWeekId, finalizedWeek == targetWeekId {
+            return
+        }
+        if sessionFinalizedWeekId != nil {
+            print("🏆 [FINALIZE] New week detected (\(targetWeekId)), resetting finalization flag")
+        }
+        sessionFinalizedWeekId = nil
+    }
+    
+    /// Finalizes trophies for the prior week using CloudKit-backed streaks.
     func finalizeCurrentWeekIfNeeded(now: Date = Date()) async {
-        if hasFinalizedThisWeek {
-            print("🏆 [FINALIZE] Already finalized this week in this session, skipping")
+        guard let targetWeekId = weekIdToFinalize(for: now) else {
+            print("🏆 [FINALIZE] No prior week available to finalize (date=\(now))")
             return
         }
 
-        let weekId = currentWeekId(now)
-        print("🏆 [FINALIZE] Starting finalizeCurrentWeekIfNeeded for week: \(weekId)")
-        let lastFinalizedWeekKey = "lastFinalizedWeekId"
-        let lastWeekId = UserDefaults.standard.string(forKey: lastFinalizedWeekKey) ?? "nil"
-        print("🏆 [FINALIZE] Previously finalized week id: \(lastWeekId)")
+        if sessionFinalizedWeekId == targetWeekId {
+            print("🏆 [FINALIZE] Already finalized week \(targetWeekId) in this session, skipping")
+            return
+        }
+
+        let previousWeekId = lastPersistedFinalizedWeekId ?? "nil"
+        print("🏆 [FINALIZE] Starting finalizeCurrentWeekIfNeeded for week: \(targetWeekId)")
+        print("🏆 [FINALIZE] Previously finalized week id: \(previousWeekId)")
+
+        if let lastPersistedFinalizedWeekId, lastPersistedFinalizedWeekId == targetWeekId {
+            print("🏆 [FINALIZE] Week \(targetWeekId) already finalized (persisted), skipping")
+            sessionFinalizedWeekId = targetWeekId
+            return
+        }
 
         let membersSnapshot = teamMembers
         guard !membersSnapshot.isEmpty else {
@@ -762,28 +833,36 @@ class WinTheDayViewModel: ObservableObject {
             return
         }
 
+        var didFinalizeAny = false
+        var allSucceeded = true
         for member in membersSnapshot {
             let wasWeeklyMet = isWeeklyMet(for: member)
             print("🏆 [FINALIZE] Member \(member.name) - Weekly goals met: \(wasWeeklyMet)")
 
             if let record = await finalizeWeekInCloud(memberName: member.name,
-                                                      weekId: weekId,
+                                                      weekId: targetWeekId,
                                                       didWin: wasWeeklyMet) {
+                didFinalizeAny = true
                 let newStreak = record["trophyStreakCount"] as? Int ?? (wasWeeklyMet ? member.trophyStreakCount + 1 : 0)
-                let lastId = record["trophyLastFinalizedWeekId"] as? String ?? weekId
+                let lastId = record["trophyLastFinalizedWeekId"] as? String ?? targetWeekId
                 if let idx = teamMembers.firstIndex(where: { $0.id == member.id }) {
                     teamMembers[idx].trophyStreakCount = newStreak
                     teamMembers[idx].trophyLastFinalizedWeekId = lastId
                 }
                 print("🏆 [FINALIZE] Member \(member.name) - Cloud streak now \(newStreak) (last finalized: \(lastId))")
             } else {
+                allSucceeded = false
                 print("🏆 [FINALIZE] Member \(member.name) - Cloud update failed or skipped")
             }
         }
 
-        hasFinalizedThisWeek = true
-        UserDefaults.standard.set(weekId, forKey: lastFinalizedWeekKey)
-        objectWillChange.send()
+        if didFinalizeAny {
+            if allSucceeded {
+                sessionFinalizedWeekId = targetWeekId
+                lastPersistedFinalizedWeekId = targetWeekId
+            }
+            objectWillChange.send()
+        }
     }
 
     private func finalizeWeekInCloud(memberName: String,
@@ -891,7 +970,7 @@ class WinTheDayViewModel: ObservableObject {
         let isNewWeek = lastWeeklyResetId != weekId
         let isNewMonth = lastMonthlyResetId != monthId
 
-        resetFinalizationFlagIfNewWeek(now: currentDate)
+        resetSessionFinalizationIfNeeded(now: currentDate)
 
         let isSunday = (weekday == 1)
         let isDayOne = (day == 1)
@@ -927,14 +1006,11 @@ class WinTheDayViewModel: ObservableObject {
 
         isProcessingAutoReset = true
         let memberNames = teamMembers.map { $0.name }
-        let weekStartDate = cal.dateInterval(of: .weekOfYear, for: currentDate)?.start ?? currentDate
 
         Task { @MainActor in
             defer { self.isProcessingAutoReset = false }
 
-            if needsWeeklyReset {
-                await self.finalizeCurrentWeekIfNeeded(now: weekStartDate)
-            }
+            await self.finalizeCurrentWeekIfNeeded(now: currentDate)
 
             var resetRecords: [CKRecord] = []
             if needsWeeklyReset || needsMonthlyReset {
