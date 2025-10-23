@@ -1358,9 +1358,9 @@ private struct EditingOverlayView: View {
     // MARK: - Field stepper using FieldStepperRow
     @ViewBuilder
     private var fieldStepper: some View {
-        FieldStepperRow(label: "Quotes WTD", value: $member.quotesToday)
-        FieldStepperRow(label: "Sales WTD", value: $member.salesWTD)
-        FieldStepperRow(label: "Sales MTD", value: $member.salesMTD)
+        FieldStepperRow(label: viewModel.goalNames.quotes, value: $member.quotesToday)
+        FieldStepperRow(label: viewModel.goalNames.salesWTD, value: $member.salesWTD)
+        FieldStepperRow(label: viewModel.goalNames.salesMTD, value: $member.salesMTD)
     }
     
     // Helper functions to check progress color changes
@@ -1716,17 +1716,26 @@ private struct TeamCardsListView: View {
                                 onEdit: { field in
                                     guard isEditable else { return }
 
-                                    // Freeze immediately using the exact on-screen order to prevent any movement
-                                    freezeNow(dataSource.map { $0.id })
-                                    // Now proceed to open the editor
-                                    editingMemberID = member.id
-                                    editingField = field
-                                    if field == "emoji" {
-                                        emojiPickerVisible = true
-                                        emojiEditingID = member.id
-                                        editingMemberID = nil
-                                    } else {
-                                        withAnimation { scrollProxy.scrollTo(member.id, anchor: .center) }
+                                    let snapshotIDs = dataSource.map { $0.id }
+                                    let memberID = member.id
+                                    let selectedField = field
+                                    let shouldOpenEmojiPicker = (field == "emoji")
+
+                                    DispatchQueue.main.async {
+                                        // Freeze using the exact on-screen order to prevent any movement
+                                        freezeNow(snapshotIDs)
+                                        // Now proceed to open the editor
+                                        if shouldOpenEmojiPicker {
+                                            emojiPickerVisible = true
+                                            emojiEditingID = memberID
+                                            editingMemberID = nil
+                                        } else {
+                                            editingField = selectedField
+                                            editingMemberID = memberID
+                                            withAnimation {
+                                                scrollProxy.scrollTo(memberID, anchor: .center)
+                                            }
+                                        }
                                     }
                                 },
                                 recentlyCompletedIDs: $recentlyCompletedIDs,

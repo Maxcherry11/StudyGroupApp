@@ -18,7 +18,7 @@ struct UserSelectorView: View {
     @State private var showAddUserAlert = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 Color(.systemBackground).ignoresSafeArea()
 
@@ -84,10 +84,9 @@ struct UserSelectorView: View {
                                 Button("Cancel", role: .cancel) { }
                             }
 
-                            NavigationLink(destination: MainTabView().environmentObject(userManager), isActive: $navigate) {
-                                EmptyView()
-                            }
-                            .hidden()
+                        }
+                        .navigationDestination(isPresented: $navigate) {
+                            MainTabView().environmentObject(userManager)
                         }
                         .padding()
                         Spacer()

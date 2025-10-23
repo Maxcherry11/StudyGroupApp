@@ -13,7 +13,7 @@ struct ScoreboardEditorOverlay: View {
                 .font(.headline)
 
             VStack(spacing: 16) {
-                IntStepperRow(label: "Score", value: $entry.score)
+                IntStepperRow(label: "Paid Apps", value: $entry.score)
                     .frame(maxWidth: .infinity)
                 IntStepperRow(label: "Pending Apps", value: $row.pending)
                     .frame(maxWidth: .infinity)
