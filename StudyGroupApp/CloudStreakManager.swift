@@ -190,8 +190,25 @@ final class CloudStreakManager {
 
     private func applyWeeklyReset(on record: CKRecord, now: Date) -> Bool {
         let currentKey = currentWeekKey(for: now)
-        let storedKey = record["weekKey"] as? String
-        guard storedKey != currentKey else { return false }
+        let rawStoredKey = record["weekKey"] as? String
+        let storedKey = normalizedWeekKey(rawStoredKey)
+
+        if storedKey == currentKey {
+            if rawStoredKey != storedKey {
+                record["weekKey"] = currentKey as CKRecordValue
+                return true
+            }
+            return false
+        }
+
+        if storedKey == nil {
+            if rawStoredKey != currentKey {
+                record["weekKey"] = currentKey as CKRecordValue
+                return true
+            }
+            return false
+        }
+
         record["weekKey"] = currentKey as CKRecordValue
         record["streakCountWeek"] = 0 as CKRecordValue
         record["quotesToday"] = 0 as CKRecordValue
@@ -201,8 +218,25 @@ final class CloudStreakManager {
 
     private func applyMonthlyReset(on record: CKRecord, now: Date) -> Bool {
         let currentKey = currentMonthKey(for: now)
-        let storedKey = record["monthKey"] as? String
-        guard storedKey != currentKey else { return false }
+        let rawStoredKey = record["monthKey"] as? String
+        let storedKey = normalizedMonthKey(rawStoredKey)
+
+        if storedKey == currentKey {
+            if rawStoredKey != storedKey {
+                record["monthKey"] = currentKey as CKRecordValue
+                return true
+            }
+            return false
+        }
+
+        if storedKey == nil {
+            if rawStoredKey != currentKey {
+                record["monthKey"] = currentKey as CKRecordValue
+                return true
+            }
+            return false
+        }
+
         record["monthKey"] = currentKey as CKRecordValue
         record["streakCountMonth"] = 0 as CKRecordValue
         record["salesMTD"] = 0 as CKRecordValue
@@ -220,6 +254,80 @@ final class CloudStreakManager {
         let components = calendar.dateComponents([.year, .month], from: date)
         let year = components.year ?? calendar.component(.year, from: date)
         let month = components.month ?? 1
+        return String(format: "%04d-M%02d", year, month)
+    }
+
+    private func normalizedWeekKey(_ key: String?) -> String? {
+        guard let key, !key.isEmpty else { return nil }
+
+        if let formatted = parseWeekKey(from: key) {
+            return formatted
+        }
+
+        return nil
+    }
+
+    private func normalizedMonthKey(_ key: String?) -> String? {
+        guard let key, !key.isEmpty else { return nil }
+
+        if let formatted = parseMonthKey(from: key) {
+            return formatted
+        }
+
+        return nil
+    }
+
+    private func parseWeekKey(from raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let uppercased = trimmed.uppercased()
+
+        if uppercased.contains("-") {
+            let parts = uppercased.split(separator: "-")
+            guard parts.count == 2,
+                  let year = Int(parts[0]) else { return nil }
+            var weekPart = parts[1]
+            if weekPart.hasPrefix("W") {
+                weekPart = weekPart.dropFirst()
+            }
+            guard let week = Int(weekPart),
+                  (1...53).contains(week) else { return nil }
+            return String(format: "%04d-W%02d", year, week)
+        }
+
+        let digits = uppercased.filter { $0.isNumber }
+        guard digits.count >= 5 else { return nil }
+        let yearDigits = digits.prefix(4)
+        let weekDigits = digits.dropFirst(4)
+        guard let year = Int(yearDigits),
+              let week = Int(weekDigits),
+              (1...53).contains(week) else { return nil }
+        return String(format: "%04d-W%02d", year, week)
+    }
+
+    private func parseMonthKey(from raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let uppercased = trimmed.uppercased()
+
+        if uppercased.contains("-") {
+            let parts = uppercased.split(separator: "-")
+            guard parts.count == 2,
+                  let year = Int(parts[0]) else { return nil }
+            var monthPart = parts[1]
+            if monthPart.hasPrefix("M") {
+                monthPart = monthPart.dropFirst()
+            }
+            guard let month = Int(monthPart),
+                  (1...12).contains(month) else { return nil }
+            return String(format: "%04d-M%02d", year, month)
+        }
+
+        let digits = uppercased.filter { $0.isNumber }
+        guard digits.count >= 5 else { return nil }
+        let yearDigits = digits.prefix(4)
+        let monthDigits = digits.dropFirst(4)
+        guard let year = Int(yearDigits),
+              let month = Int(monthDigits),
+              (1...12).contains(month) else { return nil }
         return String(format: "%04d-M%02d", year, month)
     }
 
@@ -243,3 +351,4 @@ final class CloudStreakManager {
         }
     }
 }
+

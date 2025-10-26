@@ -977,6 +977,14 @@ class WinTheDayViewModel: ObservableObject {
 
         let needsWeeklyReset = isNewWeek && isSunday
         let needsMonthlyReset = isNewMonth && isDayOne
+        let requiresNormalization: Bool = {
+            guard !teamMembers.isEmpty else { return false }
+            return teamMembers.contains {
+                needsPeriodKeyNormalization(for: $0,
+                                            currentWeekId: weekId,
+                                            currentMonthId: monthId)
+            }
+        }()
 
         if !needsWeeklyReset {
             pendingWeeklyReset = false
@@ -985,7 +993,7 @@ class WinTheDayViewModel: ObservableObject {
             pendingMonthlyReset = false
         }
 
-        guard needsWeeklyReset || needsMonthlyReset else { return }
+        guard needsWeeklyReset || needsMonthlyReset || requiresNormalization else { return }
 
         guard !teamMembers.isEmpty else {
             if needsWeeklyReset && !pendingWeeklyReset {
@@ -1010,10 +1018,15 @@ class WinTheDayViewModel: ObservableObject {
         Task { @MainActor in
             defer { self.isProcessingAutoReset = false }
 
-            await self.finalizeCurrentWeekIfNeeded(now: currentDate)
+            if needsWeeklyReset || needsMonthlyReset {
+                await self.finalizeCurrentWeekIfNeeded(now: currentDate)
+            }
 
             var resetRecords: [CKRecord] = []
-            if needsWeeklyReset || needsMonthlyReset {
+            if requiresNormalization && !needsWeeklyReset && !needsMonthlyReset {
+                print("🧭 [AutoReset] Normalizing legacy week/month keys without triggering resets")
+            }
+            if needsWeeklyReset || needsMonthlyReset || requiresNormalization {
                 resetRecords = await self.syncCloudResets(for: memberNames)
             }
 
@@ -1034,6 +1047,87 @@ class WinTheDayViewModel: ObservableObject {
             self.objectWillChange.send()
             self.fetchMembersFromCloud()
         }
+    }
+
+    private func needsPeriodKeyNormalization(for member: TeamMember,
+                                             currentWeekId: String,
+                                             currentMonthId: String) -> Bool {
+        if keyNeedsNormalization(rawKey: member.weekKey,
+                                 expected: currentWeekId,
+                                 normalize: normalizedWeekKey) {
+            return true
+        }
+        if keyNeedsNormalization(rawKey: member.monthKey,
+                                 expected: currentMonthId,
+                                 normalize: normalizedMonthKey) {
+            return true
+        }
+        return false
+    }
+
+    private func keyNeedsNormalization(rawKey: String?,
+                                       expected: String,
+                                       normalize: (String?) -> String?) -> Bool {
+        guard let rawKey else { return true }
+        guard let normalized = normalize(rawKey) else { return true }
+        if normalized != expected {
+            return false
+        }
+        return rawKey != normalized
+    }
+
+    private func normalizedWeekKey(_ key: String?) -> String? {
+        guard let key, !key.isEmpty else { return nil }
+
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if trimmed.contains("-") {
+            let parts = trimmed.split(separator: "-")
+            guard parts.count == 2,
+                  let year = Int(parts[0]) else { return nil }
+            var weekPart = parts[1]
+            if weekPart.hasPrefix("W") {
+                weekPart = weekPart.dropFirst()
+            }
+            guard let week = Int(weekPart),
+                  (1...53).contains(week) else { return nil }
+            return String(format: "%04d-W%02d", year, week)
+        }
+
+        let digits = trimmed.filter { $0.isNumber }
+        guard digits.count >= 5 else { return nil }
+        let yearDigits = digits.prefix(4)
+        let weekDigits = digits.dropFirst(4)
+        guard let year = Int(yearDigits),
+              let week = Int(weekDigits),
+              (1...53).contains(week) else { return nil }
+        return String(format: "%04d-W%02d", year, week)
+    }
+
+    private func normalizedMonthKey(_ key: String?) -> String? {
+        guard let key, !key.isEmpty else { return nil }
+
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if trimmed.contains("-") {
+            let parts = trimmed.split(separator: "-")
+            guard parts.count == 2,
+                  let year = Int(parts[0]) else { return nil }
+            var monthPart = parts[1]
+            if monthPart.hasPrefix("M") {
+                monthPart = monthPart.dropFirst()
+            }
+            guard let month = Int(monthPart),
+                  (1...12).contains(month) else { return nil }
+            return String(format: "%04d-M%02d", year, month)
+        }
+
+        let digits = trimmed.filter { $0.isNumber }
+        guard digits.count >= 5 else { return nil }
+        let yearDigits = digits.prefix(4)
+        let monthDigits = digits.dropFirst(4)
+        guard let year = Int(yearDigits),
+              let month = Int(monthDigits),
+              (1...12).contains(month) else { return nil }
+        return String(format: "%04d-M%02d", year, month)
     }
 
 
