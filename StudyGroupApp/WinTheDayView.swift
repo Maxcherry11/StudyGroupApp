@@ -205,9 +205,9 @@ struct WinTheDayView: View {
         .onReceive(NotificationCenter.default.publisher(for: .init("WinTheDayManualRefresh"))) { _ in
             print("🔄 [PULL DOWN REFRESH] Starting manual refresh")
             
-            // Fetch updated data from CloudKit (trophy logic runs locally on each device)
+            // Fetch updated data from CloudKit (trophies now finalized server-side)
             viewModel.fetchMembersFromCloud {
-                print("🔄 [PULL DOWN REFRESH] Data refreshed - trophy logic runs locally")
+                print("🔄 [PULL DOWN REFRESH] Data refreshed - trophy logic handled via CloudKit")
             }
             viewModel.fetchGoalNamesFromCloud()
         }
@@ -1046,30 +1046,15 @@ private func handleOnAppear() {
     }
     
     private func getTrophyCount(for member: TeamMember) -> Int {
-        let key = viewModel.streakKey(for: member.id)
-        let cachedState: TrophyStreakState
-        if let data = UserDefaults.standard.data(forKey: key),
-           let state = try? JSONDecoder().decode(TrophyStreakState.self, from: data) {
-            cachedState = state
-        } else {
-            cachedState = TrophyStreakState(streakCount: 0, lastFinalizedWeekId: nil, memberName: member.name)
-        }
-        
         let quotesHit = member.quotesGoal > 0 && member.quotesToday >= member.quotesGoal
         let salesHit = member.salesWTDGoal > 0 && member.salesWTD >= member.salesWTDGoal
         let currentWeekProgress = (quotesHit || salesHit) ? 1 : 0
-        return cachedState.streakCount + currentWeekProgress
+        return member.trophyStreakCount + currentWeekProgress
     }
     
 
     // Reset function to reset values
     private func resetValues() {
-        // 🏆 PRESERVE TROPHY DATA: Store current trophy states before resetting
-        var trophyStates: [UUID: TrophyStreakState] = [:]
-        for member in viewModel.teamMembers {
-            trophyStates[member.id] = viewModel.loadStreak(for: member.id)
-        }
-        
         for index in viewModel.teamMembers.indices {
             // Only reset Win The Day specific progress values
             // Preserve Life Scoreboard fields (score, pending, projected, actual)
@@ -1087,14 +1072,6 @@ private func handleOnAppear() {
             // Save only the Win The Day fields to avoid affecting Life Scoreboard data
             viewModel.saveWinTheDayFields(viewModel.teamMembers[index])
         }
-        
-        // 🏆 RESTORE TROPHY DATA: Ensure trophy states are preserved after reset
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            for (memberID, trophyState) in trophyStates {
-                self.viewModel.saveStreak(trophyState, for: memberID)
-            }
-        }
-        
         // Force update to trigger SwiftUI redraw
         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
     }
@@ -1761,20 +1738,10 @@ private struct TeamCardsListView: View {
                                 celebrationField: $celebrationField,
                                 confettiMemberID: $confettiMemberID,
                                 trophyCount: {
-                                    // Use cached data only - don't trigger CloudKit fetch during view rendering
-                                    let key = viewModel.streakKey(for: member.id)
-                                    let cachedState: TrophyStreakState
-                                    if let data = UserDefaults.standard.data(forKey: key),
-                                       let state = try? JSONDecoder().decode(TrophyStreakState.self, from: data) {
-                                        cachedState = state
-                                    } else {
-                                        cachedState = TrophyStreakState(streakCount: 0, lastFinalizedWeekId: nil, memberName: member.name)
-                                    }
-                                    
-                                    let quotesHit = member.quotesToday >= member.quotesGoal
-                                    let salesHit = member.salesWTD >= member.salesWTDGoal
+                                    let quotesHit = member.quotesGoal > 0 && member.quotesToday >= member.quotesGoal
+                                    let salesHit = member.salesWTDGoal > 0 && member.salesWTD >= member.salesWTDGoal
                                     let currentWeekProgress = (quotesHit || salesHit) ? 1 : 0
-                                    return cachedState.streakCount + currentWeekProgress
+                                    return member.trophyStreakCount + currentWeekProgress
                                 }()
                             )
                             .id(member.id)

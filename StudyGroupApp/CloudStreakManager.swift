@@ -19,9 +19,10 @@ final class CloudStreakManager {
     private init() {
         database = CloudKitManager.container.publicCloudDatabase
         timeZone = TimeZone(identifier: "America/Chicago") ?? .current
-        var calendar = Calendar(identifier: .iso8601)
+        var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
-        calendar.firstWeekday = 2 // Monday
+        calendar.firstWeekday = 1 // Sunday
+        calendar.minimumDaysInFirstWeek = 1
         self.calendar = calendar
     }
 
@@ -75,6 +76,41 @@ final class CloudStreakManager {
             case .monthly:
                 return applyMonthlyReset(on: record, now: Date())
             }
+        }, completion: completion)
+    }
+
+    /// Finalizes the specified week for the member by updating the CloudKit-backed trophy streak.
+    /// - Parameters:
+    ///   - memberName: Team member name matching the CloudKit record.
+    ///   - weekId: Identifier for the week being finalized (e.g., "2024-W08").
+    ///   - didWin: `true` when weekly goals were met; `false` if the streak should reset.
+    func finalizeWeek(for memberName: String,
+                      weekId: String,
+                      didWin: Bool,
+                      completion: @escaping (Result<CKRecord, Error>) -> Void) {
+        let recordID = recordID(for: memberName)
+        modifyRecord(with: recordID, mutate: { [weak self] record in
+            guard let self else { return false }
+
+            let lastFinalized = record["trophyLastFinalizedWeekId"] as? String
+            guard lastFinalized != weekId else {
+                return false // Already finalized for this week
+            }
+
+            let previousStreak = record["trophyStreakCount"] as? Int ?? 0
+            let newStreak = didWin ? previousStreak + 1 : 0
+
+            record["trophyStreakCount"] = newStreak as CKRecordValue
+            record["trophyLastFinalizedWeekId"] = weekId as CKRecordValue
+
+            let monthly = record["streakCountMonth"] as? Int ?? 0
+            record["trophies"] = updatedTrophies(
+                existing: record["trophies"] as? [String] ?? [],
+                weekly: newStreak,
+                monthly: monthly
+            ) as CKRecordValue
+
+            return true
         }, completion: completion)
     }
 

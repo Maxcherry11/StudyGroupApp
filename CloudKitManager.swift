@@ -124,7 +124,9 @@ class CloudKitManager: ObservableObject {
             "streakCountMonth",
             "trophies",
             "totalWins",
-            "lastCompletedAt"
+            "lastCompletedAt",
+            "trophyStreakCount",
+            "trophyLastFinalizedWeekId"
         ]
         operation.recordMatchedBlock = { recordID, result in
             switch result {
