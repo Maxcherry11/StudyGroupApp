@@ -43,6 +43,8 @@ class TeamMember: Identifiable, ObservableObject {
     @Published var lastCompletedAt: Date?
     @Published var trophyStreakCount: Int
     @Published var trophyLastFinalizedWeekId: String?
+    @Published var wonThisWeek: Bool
+    @Published var wonThisWeekSetAt: Date?
 
     init(
         id: UUID = UUID(),
@@ -68,7 +70,9 @@ class TeamMember: Identifiable, ObservableObject {
         totalWins: Int = 0,
         lastCompletedAt: Date? = nil,
         trophyStreakCount: Int = 0,
-        trophyLastFinalizedWeekId: String? = nil
+        trophyLastFinalizedWeekId: String? = nil,
+        wonThisWeek: Bool = false,
+        wonThisWeekSetAt: Date? = nil
     ) {
         self.id = id
         self.name = name
@@ -94,6 +98,8 @@ class TeamMember: Identifiable, ObservableObject {
         self.lastCompletedAt = lastCompletedAt
         self.trophyStreakCount = trophyStreakCount
         self.trophyLastFinalizedWeekId = trophyLastFinalizedWeekId
+        self.wonThisWeek = wonThisWeek
+        self.wonThisWeekSetAt = wonThisWeekSetAt
     }
 
     convenience init(name: String) {
@@ -175,6 +181,8 @@ extension TeamMember {
         var lastCompletedAt: Date?
         var trophyStreakCount: Int = 0
         var trophyLastFinalizedWeekId: String?
+        var wonThisWeek: Bool?
+        var wonThisWeekSetAt: Date?
     }
 
     var codable: CodableModel {
@@ -202,7 +210,9 @@ extension TeamMember {
             totalWins: totalWins,
             lastCompletedAt: lastCompletedAt,
             trophyStreakCount: trophyStreakCount,
-            trophyLastFinalizedWeekId: trophyLastFinalizedWeekId
+            trophyLastFinalizedWeekId: trophyLastFinalizedWeekId,
+            wonThisWeek: wonThisWeek,
+            wonThisWeekSetAt: wonThisWeekSetAt
         )
     }
 
@@ -231,7 +241,9 @@ extension TeamMember {
             totalWins: codable.totalWins,
             lastCompletedAt: codable.lastCompletedAt,
             trophyStreakCount: codable.trophyStreakCount,
-            trophyLastFinalizedWeekId: codable.trophyLastFinalizedWeekId
+            trophyLastFinalizedWeekId: codable.trophyLastFinalizedWeekId,
+            wonThisWeek: codable.wonThisWeek ?? false,
+            wonThisWeekSetAt: codable.wonThisWeekSetAt
         )
     }
 }
@@ -268,6 +280,17 @@ extension TeamMember {
         let lastCompletedAt = record["lastCompletedAt"] as? Date
         let trophyStreakCount = record["trophyStreakCount"] as? Int ?? 0
         let trophyLastFinalizedWeekId = record["trophyLastFinalizedWeekId"] as? String
+        let wonThisWeek: Bool
+        if let value = record["wonThisWeek"] as? Int {
+            wonThisWeek = value == 1
+        } else if let value = record["wonThisWeek"] as? Int64 {
+            wonThisWeek = value == 1
+        } else if let value = record["wonThisWeek"] as? NSNumber {
+            wonThisWeek = value.intValue == 1
+        } else {
+            wonThisWeek = false
+        }
+        let wonThisWeekSetAt = record["wonThisWeekSetAt"] as? Date
 
         self.init(
             id: UUID(),
@@ -293,7 +316,9 @@ extension TeamMember {
             totalWins: totalWins,
             lastCompletedAt: lastCompletedAt,
             trophyStreakCount: trophyStreakCount,
-            trophyLastFinalizedWeekId: trophyLastFinalizedWeekId
+            trophyLastFinalizedWeekId: trophyLastFinalizedWeekId,
+            wonThisWeek: wonThisWeek,
+            wonThisWeekSetAt: wonThisWeekSetAt
         )
     }
 
@@ -340,6 +365,12 @@ extension TeamMember {
             record["trophyLastFinalizedWeekId"] = trophyLastFinalizedWeekId as CKRecordValue
         } else {
             record["trophyLastFinalizedWeekId"] = nil
+        }
+        record["wonThisWeek"] = (self.wonThisWeek ? 1 : 0) as CKRecordValue
+        if let wonThisWeekSetAt = self.wonThisWeekSetAt {
+            record["wonThisWeekSetAt"] = wonThisWeekSetAt as CKRecordValue
+        } else {
+            record["wonThisWeekSetAt"] = nil
         }
         return record
     }

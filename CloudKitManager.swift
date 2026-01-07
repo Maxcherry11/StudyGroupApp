@@ -4,7 +4,12 @@ import Foundation
 class CloudKitManager: ObservableObject {
     static let shared = CloudKitManager()
     /// The primary iCloud container for all app data.
-    static let container = CKContainer(identifier: "iCloud.com.dj.Outcast")
+    static let container: CKContainer = {
+        let container = CKContainer(identifier: "iCloud.com.dj.Outcast")
+        print("☁️ CloudKit container:", container.containerIdentifier ?? "nil")
+        print("☁️ CloudKit database: public")
+        return container
+    }()
     private let database = CloudKitManager.container.publicCloudDatabase
     private let recordType = "TeamMember"
     private let cardRecordType = "Card"
@@ -19,10 +24,22 @@ class CloudKitManager: ObservableObject {
     /// Cached members fetched from CloudKit. Updates to this array reflect
     /// immediately in any views observing the manager.
     @Published var teamMembers: [TeamMember] = []
+    private var isFetchingTeam = false
+    private var isFetchingAllUserNames = false
+    private var deletingNames: Set<String> = []
+    private let deletingNamesLock = DispatchQueue(label: "CloudKitManager.deletingNames")
 
     // MARK: - Record ID Helpers
     private func memberID(for name: String) -> CKRecord.ID {
         CKRecord.ID(recordName: "member-\(name)")
+    }
+
+    private func teamMemberRecordID(for name: String) -> CKRecord.ID {
+        memberID(for: name)
+    }
+
+    private func twyRecordID(for name: String) -> CKRecord.ID {
+        CKRecord.ID(recordName: "twy-\(name)")
     }
 
     private func cardID(for name: String) -> CKRecord.ID {
@@ -96,6 +113,11 @@ class CloudKitManager: ObservableObject {
     }
 
     func fetchTeam(completion: @escaping ([TeamMember]) -> Void) {
+        if isFetchingTeam {
+            print("⚠️ fetchTeam() already in progress; skipping duplicate request")
+            return
+        }
+        isFetchingTeam = true
         print("\u{1F50D} Starting fetchTeam()")
         let predicate = NSPredicate(value: true)
         let query = CKQuery(recordType: "TeamMember", predicate: predicate)
@@ -126,7 +148,9 @@ class CloudKitManager: ObservableObject {
             "totalWins",
             "lastCompletedAt",
             "trophyStreakCount",
-            "trophyLastFinalizedWeekId"
+            "trophyLastFinalizedWeekId",
+            "wonThisWeek",
+            "wonThisWeekSetAt"
         ]
         operation.recordMatchedBlock = { recordID, result in
             switch result {
@@ -142,11 +166,16 @@ class CloudKitManager: ObservableObject {
 
         operation.queryResultBlock = { result in
             DispatchQueue.main.async {
+                defer { self.isFetchingTeam = false }
                 switch result {
                 case .success:
                     let valid = fetchedMembers.filter {
                         !$0.name.trimmingCharacters(in: .whitespaces).isEmpty
                     }
+                    let names = valid.map { $0.name }.sorted()
+                    let preview = names.prefix(8).joined(separator: ", ")
+                    let suffix = names.count > 8 ? ", ..." : ""
+                    print("📥 fetchTeam completion snapshotCount=\(valid.count) snapshotNames=[\(preview)\(suffix)]")
                     self.teamMembers = valid
                     print("✅ fetchTeam(): loaded \(valid.count) TeamMember records")
                     completion(valid)
@@ -170,6 +199,11 @@ class CloudKitManager: ObservableObject {
     /// The new member's production goals are initialized to match the existing
     /// team, if any members are already present.
     func addTeamMember(name: String, emoji: String = "🙂", completion: @escaping (Bool) -> Void = { _ in }) {
+        logCloudKitIdentityAndScope(
+            context: "addTeamMember()",
+            container: CloudKitManager.container,
+            dbScope: .public
+        )
         let createAndSave: (TeamMember?) -> Void = { template in
             let member = TeamMember(name: name)
 
@@ -258,6 +292,7 @@ class CloudKitManager: ObservableObject {
                 switch result {
                 case .failure(let error):
                     print("❌ Error saving: \(error.localizedDescription)")
+                    logCKError(error, context: "save(member)")
                     completion(nil)
                 case .success:
                     print("✅ Successfully saved member: \(member.name)")
@@ -270,12 +305,7 @@ class CloudKitManager: ObservableObject {
     }
 
     func delete(_ member: TeamMember) {
-        let id = memberID(for: member.name)
-        database.delete(withRecordID: id) { _, error in
-            if let error = error {
-                print("❌ Error deleting: \(error.localizedDescription)")
-            }
-        }
+        deleteUserEverywhere(name: member.name) { _ in }
     }
 
     func fetchAll(completion: @escaping ([TeamMember]) -> Void) {
@@ -367,46 +397,125 @@ class CloudKitManager: ObservableObject {
     }
     
     func deleteByName(_ name: String, completion: @escaping (Bool) -> Void) {
-        let predicate = NSPredicate(format: "name == %@", name)
-        let query = CKQuery(recordType: recordType, predicate: predicate)
+        deleteUserEverywhere(name: name, completion: completion)
+    }
 
-        let operation = CKQueryOperation(query: query)
-        operation.resultsLimit = 1
+    func deleteUserEverywhere(name: String, completion: @escaping (Bool) -> Void = { _ in }) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            print("⚠️ deleteUserEverywhere() called with empty name; skipping")
+            completion(false)
+            return
+        }
+        let deleteKey = trimmed.lowercased()
+        let alreadyDeleting = deletingNamesLock.sync { () -> Bool in
+            if deletingNames.contains(deleteKey) { return true }
+            deletingNames.insert(deleteKey)
+            return false
+        }
+        if alreadyDeleting {
+            print("⚠️ deleteUserEverywhere() already in progress for \(trimmed); skipping duplicate request")
+            completion(false)
+            return
+        }
+        print("🗑️ deleteUserEverywhere() starting for \(trimmed)")
 
-        var matchedID: CKRecord.ID?
+        let recordIDsLock = DispatchQueue(label: "CloudKitManager.deleteUserEverywhere.recordIDs")
+        var recordIDsToDelete = Set<CKRecord.ID>()
+        recordIDsLock.sync {
+            recordIDsToDelete.insert(teamMemberRecordID(for: trimmed))
+            recordIDsToDelete.insert(twyRecordID(for: trimmed))
+            recordIDsToDelete.insert(cardID(for: trimmed))
+        }
 
-        operation.recordMatchedBlock = { recordID, result in
-            switch result {
-            case .success:
-                matchedID = recordID
-            case .failure(let error):
-                print("❌ Failed to find record to delete: \(error.localizedDescription)")
+        let namePredicate = NSPredicate(format: "name == %@", trimmed)
+        let userNamePredicate = NSPredicate(format: "userName == %@", trimmed)
+        let group = DispatchGroup()
+        func finish(_ success: Bool) {
+            deletingNamesLock.sync {
+                deletingNames.remove(deleteKey)
+            }
+            completion(success)
+        }
+
+        func queryRecordIDs(recordType: String, predicate: NSPredicate, label: String) {
+            group.enter()
+            let query = CKQuery(recordType: recordType, predicate: predicate)
+            database.fetch(withQuery: query,
+                           inZoneWith: nil,
+                           desiredKeys: nil,
+                           resultsLimit: CKQueryOperation.maximumResults) { result in
+                switch result {
+                case .success(let (matchResults, _)):
+                    var found: [CKRecord.ID] = []
+                    for (recordID, recordResult) in matchResults {
+                        switch recordResult {
+                        case .success:
+                            found.append(recordID)
+                        case .failure(let error):
+                            print("❌ deleteUserEverywhere() \(label) record failed: \(error.localizedDescription)")
+                            logCKError(error, context: "deleteUserEverywhere() \(label)")
+                        }
+                    }
+                    if !found.isEmpty {
+                        recordIDsLock.sync {
+                            for recordID in found { recordIDsToDelete.insert(recordID) }
+                        }
+                    }
+                    print("🗑️ deleteUserEverywhere() \(label) found \(found.count) records")
+                case .failure(let error):
+                    print("❌ deleteUserEverywhere() \(label) query failed: \(error.localizedDescription)")
+                    logCKError(error, context: "deleteUserEverywhere() \(label)")
+                }
+                group.leave()
             }
         }
 
-        operation.queryResultBlock = { result in
-            DispatchQueue.main.async {
-                guard let recordID = matchedID else {
-                    print("⚠️ No matching record ID found for name: \(name)")
-                    completion(false)
-                    return
-                }
+        queryRecordIDs(recordType: recordType, predicate: namePredicate, label: "TeamMember(name)")
+        queryRecordIDs(recordType: TwelveWeekMember.recordType, predicate: namePredicate, label: "TwelveWeekMember(name)")
+        queryRecordIDs(recordType: cardRecordType, predicate: namePredicate, label: "Card(name)")
+        queryRecordIDs(recordType: cardOrderRecordType, predicate: userNamePredicate, label: "CardOrder(userName)")
+        queryRecordIDs(recordType: "CardModel", predicate: userNamePredicate, label: "CardModel(userName)")
 
-                self.database.delete(withRecordID: recordID) { _, error in
-                    DispatchQueue.main.async {
-                        if let error = error {
-                            print("❌ Error deleting record by name: \(error.localizedDescription)")
-                            completion(false)
-                        } else {
-                            print("🗑️ Deleted record with name: \(name)")
-                            completion(true)
+        group.notify(queue: .main) {
+            let recordIDs = recordIDsLock.sync { Array(recordIDsToDelete) }
+            guard !recordIDs.isEmpty else {
+                print("⚠️ deleteUserEverywhere() no records found for \(trimmed)")
+                finish(false)
+                return
+            }
+
+            let recordNames = recordIDs.map { $0.recordName }.sorted()
+            print("🗑️ deleteUserEverywhere() deleting \(recordIDs.count) records for \(trimmed): \(recordNames)")
+            let deleteOperation = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: recordIDs)
+            deleteOperation.isAtomic = false
+            deleteOperation.modifyRecordsResultBlock = { result in
+                DispatchQueue.main.async {
+                    var didSucceed = false
+                    defer { finish(didSucceed) }
+                    switch result {
+                    case .success:
+                        didSucceed = true
+                        print("🗑️ deleteUserEverywhere() deleted \(recordIDs.count) records for \(trimmed)")
+                        NotificationCenter.default.post(
+                            name: .cloudKitUserDeleted,
+                            object: nil,
+                            userInfo: ["name": trimmed]
+                        )
+                    case .failure(let error):
+                        print("❌ deleteUserEverywhere() delete failed: \(error.localizedDescription)")
+                        logCKError(error, context: "deleteUserEverywhere()")
+                        if let ckError = error as? CKError,
+                           let partials = ckError.userInfo[CKPartialErrorsByItemIDKey] as? [CKRecord.ID: Error] {
+                            for (recordID, partialError) in partials {
+                                logCKError(partialError, context: "deleteUserEverywhere() partial \(recordID.recordName)")
+                            }
                         }
                     }
                 }
             }
+            self.database.add(deleteOperation)
         }
-
-        database.add(operation)
     }
 
     // Save the given score entry, updating the matching TeamMember's score fields.
@@ -634,9 +743,21 @@ class CloudKitManager: ObservableObject {
 
     /// Fetches all user names stored in CloudKit without filtering by name.
     static func fetchAllUserNames(completion: @escaping ([String]) -> Void) {
+        let manager = CloudKitManager.shared
+        if manager.isFetchingAllUserNames {
+            print("⚠️ fetchAllUserNames() already in progress; skipping duplicate request")
+            return
+        }
+        manager.isFetchingAllUserNames = true
+        logCloudKitIdentityAndScope(
+            context: "fetchAllUserNames()",
+            container: CloudKitManager.container,
+            dbScope: .public
+        )
         print("🕒 \(Date()) — \u{1F50D} Starting fetchAllUserNames()")
         let query = CKQuery(recordType: userRecordType, predicate: NSPredicate(value: true))
         CloudKitManager.container.publicCloudDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: ["name"], resultsLimit: CKQueryOperation.maximumResults) { result in
+            defer { manager.isFetchingAllUserNames = false }
             switch result {
             case .success(let (matchResults, _)):
                 let records = matchResults.compactMap { _, recordResult in
@@ -665,11 +786,17 @@ class CloudKitManager: ObservableObject {
 
     /// Saves the provided user name to CloudKit.
     static func saveUser(_ name: String, completion: @escaping () -> Void) {
+        logCloudKitIdentityAndScope(
+            context: "saveUser()",
+            container: CloudKitManager.container,
+            dbScope: .public
+        )
         let record = CKRecord(recordType: userRecordType, recordID: CloudKitManager.shared.memberID(for: name))
         record["name"] = name as CKRecordValue
         CloudKitManager.container.publicCloudDatabase.save(record) { _, error in
             if let error = error {
                 print("❌ Error saving user: \(error)")
+                logCKError(error, context: "saveUser()")
             } else {
                 print("✅ Successfully saved member: \(name)")
             }
@@ -679,8 +806,7 @@ class CloudKitManager: ObservableObject {
 
     /// Deletes the user with the given name from CloudKit.
     static func deleteUser(_ name: String) {
-        let id = CloudKitManager.shared.memberID(for: name)
-        CloudKitManager.container.publicCloudDatabase.delete(withRecordID: id) { _, _ in }
+        CloudKitManager.shared.deleteUserEverywhere(name: name) { _ in }
     }
 
     // MARK: - Twelve Week Year
@@ -719,6 +845,7 @@ class CloudKitManager: ObservableObject {
                         switch modifyResult {
                         case .failure(let error):
                             print("❌ Error saving TWY member \(record.recordID.recordName): \(error.localizedDescription)")
+                            logCKError(error, context: "saveTwelveWeekMember()")
                             completion(.failure(error))
                         case .success:
                             print("✅ Successfully saved TWY member: \(member.name)")
@@ -848,4 +975,86 @@ class CloudKitManager: ObservableObject {
         }
     }
 
+}
+
+private extension CKAccountStatus {
+    var debugName: String {
+        switch self {
+        case .available:
+            return "available"
+        case .noAccount:
+            return "noAccount"
+        case .restricted:
+            return "restricted"
+        case .couldNotDetermine:
+            return "couldNotDetermine"
+        @unknown default:
+            return "unknown"
+        }
+    }
+}
+
+private extension CKDatabase.Scope {
+    var debugName: String {
+        switch self {
+        case .public:
+            return "public"
+        case .private:
+            return "private"
+        case .shared:
+            return "shared"
+        @unknown default:
+            return "unknown"
+        }
+    }
+}
+
+func logCloudKitIdentityAndScope(context: String,
+                                 container: CKContainer = .default(),
+                                 dbScope: CKDatabase.Scope) {
+    let identifier = container.containerIdentifier ?? "(nil)"
+    print("☁️ [CK DEBUG] \(context) containerIdentifier=\(identifier) dbScope=\(dbScope.debugName)")
+
+    container.accountStatus { status, error in
+        if let error = error {
+            print("☁️ [CK DEBUG] \(context) accountStatus error: \(error)")
+        } else {
+            print("☁️ [CK DEBUG] \(context) accountStatus=\(status.debugName)")
+        }
+    }
+
+    container.fetchUserRecordID { recordID, error in
+        if let error = error {
+            print("☁️ [CK DEBUG] \(context) fetchUserRecordID FAILED: \(error)")
+        } else {
+            print("☁️ [CK DEBUG] \(context) fetchUserRecordID OK: \(recordID?.recordName ?? "(nil)")")
+        }
+    }
+}
+
+func logCKError(_ error: Error, context: String) {
+    let ns = error as NSError
+    print("❌ [CK ERROR] \(context) domain=\(ns.domain) code=\(ns.code) desc=\(ns.localizedDescription)")
+
+    guard let ck = error as? CKError else { return }
+
+    if let retry = ck.userInfo[CKErrorRetryAfterKey] as? NSNumber {
+        print("❌ [CK ERROR] \(context) retryAfter=\(retry)")
+    }
+    if let message = ck.userInfo["CKErrorServerDescriptionKey"] as? String {
+        print("❌ [CK ERROR] \(context) serverMessage=\(message)")
+    }
+    if let requestID = ck.userInfo["CKErrorRequestUUIDKey"] as? String {
+        print("❌ [CK ERROR] \(context) requestUUID=\(requestID)")
+    }
+    if let clientRecord = ck.clientRecord {
+        print("❌ [CK ERROR] \(context) clientRecord=\(clientRecord.recordType)/\(clientRecord.recordID.recordName)")
+    }
+    if let serverRecord = ck.serverRecord {
+        print("❌ [CK ERROR] \(context) serverRecord=\(serverRecord.recordType)/\(serverRecord.recordID.recordName)")
+    }
+}
+
+extension Notification.Name {
+    static let cloudKitUserDeleted = Notification.Name("CloudKitUserDeleted")
 }

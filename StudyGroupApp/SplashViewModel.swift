@@ -58,8 +58,13 @@ class SplashViewModel: ObservableObject {
 
     private func saveCachedMembers(_ members: [TeamMember]) {
         let payload = members.map { $0.cached }
+        let names = members.map { $0.name }.sorted()
+        let preview = names.prefix(8).joined(separator: ", ")
+        let suffix = names.count > 8 ? ", ..." : ""
+        print("💾 [Splash] Saving snapshotCount=\(members.count) snapshotNames=[\(preview)\(suffix)]")
         if let data = try? JSONEncoder().encode(payload) {
             UserDefaults.standard.set(data, forKey: cacheKey)
+            print("💾 [Splash] Saved \(members.count) cached members: [\(preview)\(suffix)]")
         }
     }
 
@@ -67,9 +72,26 @@ class SplashViewModel: ObservableObject {
         name.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private func purgeCachedMembers(for name: String) {
+        let key = normalize(name).lowercased()
+        let filtered = teamMembers.filter { normalize($0.name).lowercased() != key }
+        guard filtered.count != teamMembers.count else { return }
+        print("🧹 [Splash] Purging cached members for deleted user: \(name)")
+        teamMembers = filtered
+        saveCachedMembers(filtered)
+    }
+
     init() {
         // Show any cached list immediately to avoid empty UI and accidental loss on transient fetch failures
         self.teamMembers = loadCachedMembers()
+        NotificationCenter.default.addObserver(
+            forName: .cloudKitUserDeleted,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let name = note.userInfo?["name"] as? String else { return }
+            self?.purgeCachedMembers(for: name)
+        }
     }
 
     /// Fetches all members from CloudKit and merges with cache, never implicitly deleting users.

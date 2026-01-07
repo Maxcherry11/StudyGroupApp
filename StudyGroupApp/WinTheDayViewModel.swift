@@ -65,6 +65,14 @@ class WinTheDayViewModel: ObservableObject {
         self.lastGoalHash = Self.computeGoalHash(for: names)
         self.lastFetchHash = computeHash(for: stored)
         migrateFinalizationTrackingIfNeeded()
+        NotificationCenter.default.addObserver(
+            forName: .cloudKitUserDeleted,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let name = note.userInfo?["name"] as? String else { return }
+            self?.purgeLocalCaches(for: name)
+        }
         // Initialize members from the splash screen user list
         fetchMembersFromCloud()
     }
@@ -299,6 +307,7 @@ class WinTheDayViewModel: ObservableObject {
                 let fetchedClean = self.sanitizeMembersArray(fetched)
 
                 DispatchQueue.main.async {
+                    var mergedSnapshot = self.teamMembers
                     // ⚠️ Non-destructive merge: only override from CloudKit when it returns non-empty
                     if !fetchedClean.isEmpty {
                         // Merge by name so we don't drop fields if only some members changed
@@ -312,7 +321,8 @@ class WinTheDayViewModel: ObservableObject {
                         self.displayedMembers = merged
                         self.teamData = merged
                         self.lastFetchHash = newHash
-                        self.saveLocalIfNonEmpty()
+                        mergedSnapshot = merged
+                        self.saveLocalIfNonEmpty(mergedSnapshot)
 
                         // If a weekly/monthly reset was deferred because members were missing, retry now that data is present.
                         if self.pendingWeeklyReset || self.pendingMonthlyReset {
@@ -331,6 +341,7 @@ class WinTheDayViewModel: ObservableObject {
                         print("ℹ️ User list is empty; skipping updateLocalEntries to avoid clearing cached members.")
                     }
 
+                    let membersToPersist = self.teamMembers
                     CloudKitManager.fetchCards { cards in
                         DispatchQueue.main.async {
                             let cleanedCards = self.sanitizeCardsArray(cards)
@@ -380,7 +391,7 @@ class WinTheDayViewModel: ObservableObject {
                                 // Persist changed cards to CloudKit so other devices get the new emoji
                                 for card in self.cards { CloudKitManager.saveCard(card) }
                             }
-                            self.saveLocal()
+                            self.saveLocal(members: membersToPersist)
 
                             let userList = UserManager.shared.userList
                             let names = userList.isEmpty ? self.teamMembers.map { $0.name } : userList
@@ -429,13 +440,58 @@ class WinTheDayViewModel: ObservableObject {
         }
     }
 
-    private func saveLocal() {
+    private func saveLocal(members: [TeamMember]) {
         // 🏆 SAFETY CHECK: Ensure we don't accidentally clear trophy data
         // Trophy data is stored separately and should not be affected by team member saves
-        let codable = sanitizeMembersArray(teamMembers).map { $0.codable }
+        let cleaned = sanitizeMembersArray(members)
+        let codable = cleaned.map { $0.codable }
+        let names = cleaned.map { $0.name }.sorted()
+        let preview = names.prefix(8).joined(separator: ", ")
+        let suffix = names.count > 8 ? ", ..." : ""
+        print("💾 Saving snapshotCount=\(cleaned.count) snapshotNames=[\(preview)\(suffix)] (trophy data preserved)")
         if let data = try? JSONEncoder().encode(codable) {
             UserDefaults.standard.set(data, forKey: storageKey)
-            print("💾 Saved \(teamMembers.count) team members to local storage (trophy data preserved)")
+            print("💾 Saved \(cleaned.count) team members to local storage: [\(preview)\(suffix)] (trophy data preserved)")
+        }
+    }
+
+    private func saveLocal() {
+        saveLocal(members: teamMembers)
+    }
+
+    private func purgeLocalCaches(for name: String) {
+        let key = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let filteredMembers = teamMembers.filter {
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != key
+        }
+        if filteredMembers.count != teamMembers.count {
+            print("🧹 Purging local team members for deleted user: \(name)")
+            teamMembers = filteredMembers
+            displayedMembers = filteredMembers
+            teamData = filteredMembers
+            saveLocal(members: filteredMembers)
+        }
+
+        if UserManager.shared.userList.contains(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == key }) {
+            let updated = UserManager.shared.userList.filter {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != key
+            }
+            UserManager.shared.userList = updated
+            UserManager.shared.allUsers = updated
+            if UserManager.shared.currentUser.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == key {
+                UserManager.shared.currentUser = updated.first ?? ""
+            }
+            print("🧹 Purged UserManager list for deleted user: \(name)")
+        }
+
+        let filteredCards = cards.filter {
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != key
+        }
+        if filteredCards.count != cards.count {
+            print("🧹 Purging local cards for deleted user: \(name)")
+            cards = filteredCards
+            displayedCards = filteredCards
+            saveCardsToDevice()
         }
     }
 
@@ -525,6 +581,11 @@ class WinTheDayViewModel: ObservableObject {
 
     /// Saves only Win The Day specific fields to avoid affecting Life Scoreboard data
     func saveWinTheDayFields(_ member: TeamMember, completion: ((CKRecord.ID?) -> Void)? = nil) {
+        logCloudKitIdentityAndScope(
+            context: "saveWinTheDayFields()",
+            container: CloudKitManager.container,
+            dbScope: .public
+        )
         let memberName = member.name
         let memberID = member.id
         
@@ -562,6 +623,7 @@ class WinTheDayViewModel: ObservableObject {
                         completion?(saved.recordID)
                     } catch {
                         print("❌ saveWinTheDayFields() save failed: \(error.localizedDescription)")
+                        logCKError(error, context: "saveWinTheDayFields()")
                         completion?(nil)
                     }
                 }
@@ -1220,9 +1282,13 @@ class WinTheDayViewModel: ObservableObject {
 
         CKContainer(identifier: "iCloud.com.dj.Outcast").publicCloudDatabase.add(operation)
     }
+    private func saveLocalIfNonEmpty(_ members: [TeamMember]) {
+        guard !members.isEmpty else { return }
+        saveLocal(members: members)
+    }
+
     private func saveLocalIfNonEmpty() {
-        guard !teamMembers.isEmpty else { return }
-        saveLocal()
+        saveLocalIfNonEmpty(teamMembers)
     }
 
     /// Pre-fetch so WinTheDayView can render instantly (call from Splash/App launch).

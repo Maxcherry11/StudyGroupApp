@@ -13,16 +13,49 @@ private let chicagoTimeZone = TimeZone(identifier: "America/Chicago")!
 // MARK: - Trophy Streak Persistence (Moved to WinTheDayViewModel)
 
 // MARK: - Trophy Row View
+private struct TrophyBreakdown {
+    let diamonds: Int
+    let trophies: Int
+}
+
+#if DEBUG
+private struct TrophyRowView_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            TrophyRowView(count: 0)
+            TrophyRowView(count: 4)
+            TrophyRowView(count: 5)
+            TrophyRowView(count: 12)
+            TrophyRowView(count: 27)
+        }
+        .padding()
+        .previewLayout(.sizeThatFits)
+    }
+}
+#endif
+
+private func trophyBreakdown(total: Int) -> TrophyBreakdown {
+    let safe = max(0, total)
+    return TrophyBreakdown(diamonds: safe / 5, trophies: safe % 5)
+}
+
 private struct TrophyRowView: View {
     let count: Int
+    private var breakdown: TrophyBreakdown { trophyBreakdown(total: count) }
+
     var body: some View {
         // Right-justified, newest added to the left (visually grows leftward)
         HStack(spacing: 4) {
-            ForEach(0..<max(0, count), id: \.self) { _ in
+            ForEach(0..<breakdown.diamonds, id: \.self) { _ in
+                Text("💎")
+                    .font(.system(size: 25))
+            }
+            ForEach(0..<breakdown.trophies, id: \.self) { _ in
                 Text("🏆")
                     .font(.system(size: 25))
             }
         }
+        .accessibilityLabel("\(max(0, count)) trophies")
     }
 }
 
@@ -939,7 +972,9 @@ private func handleOnAppear() {
         // Trophy count on the right side of header with larger font
         let trophyCount = getTrophyCount(for: member)
         if trophyCount > 0 {
-            let trophyText = String(repeating: "🏆", count: trophyCount)
+            let breakdown = trophyBreakdown(total: trophyCount)
+            let trophyText = String(repeating: "💎", count: breakdown.diamonds)
+                + String(repeating: "🏆", count: breakdown.trophies)
             let trophyAttributes: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 20)]
             let trophySize = trophyText.size(withAttributes: trophyAttributes)
             let trophyRect = CGRect(x: headerRect.maxX - trophySize.width - 10, y: headerRect.midY - trophySize.height/2, width: trophySize.width, height: trophySize.height)
@@ -1046,10 +1081,7 @@ private func handleOnAppear() {
     }
     
     private func getTrophyCount(for member: TeamMember) -> Int {
-        let quotesHit = member.quotesGoal > 0 && member.quotesToday >= member.quotesGoal
-        let salesHit = member.salesWTDGoal > 0 && member.salesWTD >= member.salesWTDGoal
-        let currentWeekProgress = (quotesHit || salesHit) ? 1 : 0
-        return member.trophyStreakCount + currentWeekProgress
+        member.trophyStreakCount
     }
     
 
@@ -1747,10 +1779,7 @@ private struct TeamCardsListView: View {
                                 celebrationField: $celebrationField,
                                 confettiMemberID: $confettiMemberID,
                                 trophyCount: {
-                                    let quotesHit = member.quotesGoal > 0 && member.quotesToday >= member.quotesGoal
-                                    let salesHit = member.salesWTDGoal > 0 && member.salesWTD >= member.salesWTDGoal
-                                    let currentWeekProgress = (quotesHit || salesHit) ? 1 : 0
-                                    return member.trophyStreakCount + currentWeekProgress
+                                    member.trophyStreakCount
                                 }()
                             )
                             .id(member.id)
