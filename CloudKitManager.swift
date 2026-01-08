@@ -16,6 +16,13 @@ class CloudKitManager: ObservableObject {
     private let cardOrderRecordType = "CardOrder"
     private let goalNameRecordType = "GoalNames"
     private static let userRecordType = "TeamMember"
+#if DEBUG
+    private static let enableFetchCardsDiagnostics = true
+#else
+    private static let enableFetchCardsDiagnostics = false
+#endif
+    private static var didRunFetchCardsDiagnostics = false
+    private static let fetchCardsDiagnosticsLock = DispatchQueue(label: "CloudKitManager.fetchCardsDiagnostics")
 
     // MARK: - Migration
     private static let migrationKey = "TeamMemberFieldMigrationVersion"
@@ -917,19 +924,252 @@ class CloudKitManager: ObservableObject {
 
     // MARK: - Card Sync
 
+    private static func logCK(_ tag: String, _ msg: String) {
+        print("☁️ [CK CARDS \(tag)] \(msg)")
+    }
+
     /// Fetches all Win the Day cards from CloudKit.
     static func fetchCards(completion: @escaping ([Card]) -> Void) {
-        let query = CKQuery(recordType: shared.cardRecordType, predicate: NSPredicate(value: true))
+        fetchCards(requestedNames: [], completion: completion)
+    }
+
+    /// Fetches all Win the Day cards from CloudKit.
+    static func fetchCards(requestedNames: [String], completion: @escaping ([Card]) -> Void) {
+        // AUDIT-ONLY: do not change record type, predicates, or persistence behavior.
+        let recordType = shared.cardRecordType
+        let identifier = container.containerIdentifier ?? "(nil)"
+        let fieldUsed = "name"
+        guard !requestedNames.isEmpty else {
+            logCK("QUERY", "containerIdentifier=\(identifier) dbScope=public recordType=\(recordType) fieldUsed=\(fieldUsed) predicate=<nil>")
+            logCK("QUERY", "requestedNames=\(requestedNames)")
+            logCK("RESULT", "⚠️ rawCount=0 mappedCount=0 droppedCount=0 predicate=<nil> fieldUsed=\(fieldUsed) (requestedNames empty)")
+            completion([])
+            return
+        }
+        let predicate = NSPredicate(format: "%K IN %@", fieldUsed, requestedNames)
+        logCK("QUERY", "containerIdentifier=\(identifier) dbScope=public recordType=\(recordType) fieldUsed=\(fieldUsed) predicate=\(predicate.predicateFormat)")
+        logCK("QUERY", "requestedNames=\(requestedNames)")
+
+        func handleRecords(_ records: [CKRecord], predicate: NSPredicate) {
+            logCK("RAW", "rawCount=\(records.count)")
+            let rawRecordIDs = records.prefix(10).map { $0.recordID.recordName }
+            logCK("RAW", "rawIDs=\(rawRecordIDs)")
+            for (index, record) in records.prefix(3).enumerated() {
+                let keys = record.allKeys().sorted()
+                let nameVal = record["name"] as? String
+                let userNameVal = record["userName"] as? String
+                let keysSummary = Array(keys.prefix(12))
+                logCK("RAW", "sample[\(index)] recordID=\(record.recordID.recordName) keys=\(keysSummary)")
+                logCK("RAW", "sample[\(index)] name=\(nameVal ?? "<nil>") userName=\(userNameVal ?? "<nil>")")
+            }
+
+            var cards: [Card] = []
+            var drops: [(id: String, reason: String, details: String)] = []
+            let requestedSet = Set(requestedNames)
+            func clean(_ value: String?) -> String? {
+                guard let value else { return nil }
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+            for record in records {
+                if let card = Card(record: record) {
+                    cards.append(card)
+                } else {
+                    let nameVal = clean(record["name"] as? String)
+                    let userNameVal = clean(record["userName"] as? String)
+                    let emojiVal = record["emoji"] as? String
+                    let productionVal = record["production"] as? Int
+                    let keys = record.allKeys().sorted()
+                    let keysSummary = Array(keys.prefix(12))
+                    let reason: String
+                    if nameVal == nil && userNameVal == nil {
+                        reason = "MISSING_USER_FIELD"
+                    } else if !requestedSet.isEmpty {
+                        let keyValue = userNameVal ?? nameVal
+                        if let keyValue, !requestedSet.contains(keyValue) {
+                            reason = "NAME_NOT_REQUESTED"
+                        } else if emojiVal == nil || productionVal == nil {
+                            reason = "DECODE_FAILURE"
+                        } else {
+                            reason = "UNKNOWN"
+                        }
+                    } else if emojiVal == nil || productionVal == nil {
+                        reason = "DECODE_FAILURE"
+                    } else {
+                        reason = "UNKNOWN"
+                    }
+                    let details = "name=\(nameVal ?? "<nil>") userName=\(userNameVal ?? "<nil>") keys=\(keysSummary)"
+                    drops.append((record.recordID.recordName, reason, details))
+                }
+            }
+            logCK("MAP", "mappedCount=\(cards.count) droppedCount=\(drops.count)")
+            if !drops.isEmpty {
+                for drop in drops.prefix(10) {
+                    logCK("DROP", "recordID=\(drop.id) reason=\(drop.reason) details=\(drop.details)")
+                }
+            }
+            let rawCount = records.count
+            let mappedCount = cards.count
+            let droppedCount = drops.count
+            let resultMessage: String
+            if rawCount == 0 {
+                resultMessage = "⚠️ rawCount=0 mappedCount=0 droppedCount=0 predicate=\(predicate.predicateFormat) fieldUsed=\(fieldUsed) (CloudKit returned no CKRecords)"
+            } else if mappedCount == 0 {
+                resultMessage = "⚠️ rawCount=\(rawCount) mappedCount=0 droppedCount=\(droppedCount) predicate=\(predicate.predicateFormat) fieldUsed=\(fieldUsed) (all records dropped during mapping)"
+            } else {
+                resultMessage = "✅ rawCount=\(rawCount) mappedCount=\(mappedCount) droppedCount=\(droppedCount) predicate=\(predicate.predicateFormat) fieldUsed=\(fieldUsed)"
+            }
+            logCK("RESULT", resultMessage)
+            if mappedCount == 0 {
+                runFetchCardsDiagnosticsIfNeeded(requestedNames: requestedNames)
+            }
+            completion(cards)
+        }
+
+        func fetchByRecordIDs() {
+            let recordIDs = requestedNames.map { shared.cardID(for: $0) }
+            let recordNames = recordIDs.prefix(10).map { $0.recordName }
+            logCK("QUERY", "fallback=recordIDFetch recordIDs=\(recordNames)")
+            let operation = CKFetchRecordsOperation(recordIDs: recordIDs)
+            var fetched: [CKRecord] = []
+            operation.perRecordResultBlock = { _, result in
+                switch result {
+                case .success(let record):
+                    fetched.append(record)
+                case .failure(let error):
+                    logCK("RAW", "perRecord error=\(error.localizedDescription)")
+                }
+            }
+            operation.fetchRecordsResultBlock = { result in
+                switch result {
+                case .success:
+                    handleRecords(fetched, predicate: predicate)
+                case .failure(let error):
+                    let ns = error as NSError
+                    logCK("RAW", "error=\(ns.domain)/\(ns.code) \(ns.localizedDescription)")
+                    if let ckError = error as? CKError {
+                        let keys = ckError.userInfo.keys.map { String(describing: $0) }.sorted()
+                        logCK("RAW", "ckErrorCode=\(ckError.code.rawValue) userInfoKeys=\(keys)")
+                    }
+                    logCK("RESULT", "⚠️ rawCount=0 mappedCount=0 droppedCount=0 predicate=\(predicate.predicateFormat) fieldUsed=\(fieldUsed) (CloudKit error)")
+                    completion([])
+                }
+            }
+            container.publicCloudDatabase.add(operation)
+        }
+
+        let query = CKQuery(recordType: recordType, predicate: predicate)
         CloudKitManager.container.publicCloudDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: CKQueryOperation.maximumResults) { result in
             switch result {
             case .success(let (matchResults, _)):
                 let records = matchResults.compactMap { _, recordResult in
                     try? recordResult.get()
                 }
-                let cards = records.compactMap(Card.init)
-                completion(cards)
-            case .failure:
+                handleRecords(records, predicate: predicate)
+            case .failure(let error):
+                let ns = error as NSError
+                logCK("RAW", "error=\(ns.domain)/\(ns.code) \(ns.localizedDescription)")
+                if let ckError = error as? CKError {
+                    let keys = ckError.userInfo.keys.map { String(describing: $0) }.sorted()
+                    logCK("RAW", "ckErrorCode=\(ckError.code.rawValue) userInfoKeys=\(keys)")
+                    if ckError.code == .invalidArguments {
+                        let serverDescription = ckError.userInfo["CKErrorServerDescriptionKey"] as? String
+                        let message = (serverDescription ?? ckError.localizedDescription).lowercased()
+                        if message.contains("not marked queryable") {
+                            let canUseRecordIDFallback = true
+                            if canUseRecordIDFallback {
+                                fetchByRecordIDs()
+                            } else {
+                                logCK("DIAG", "recordID fallback skipped (non-deterministic IDs)")
+                                logCK("RESULT", "⚠️ rawCount=0 mappedCount=0 droppedCount=0 predicate=\(predicate.predicateFormat) fieldUsed=\(fieldUsed) (CloudKit error)")
+                                completion([])
+                            }
+                            return
+                        }
+                        logCK("RESULT", "⚠️ error=invalidArguments (non-queryable mismatch)")
+                        completion([])
+                        return
+                    }
+                }
+                logCK("RESULT", "⚠️ rawCount=0 mappedCount=0 droppedCount=0 predicate=\(predicate.predicateFormat) fieldUsed=\(fieldUsed) (CloudKit error)")
                 completion([])
+            }
+        }
+    }
+
+    private static func runFetchCardsDiagnosticsIfNeeded(requestedNames: [String]) {
+        guard enableFetchCardsDiagnostics else { return }
+        let shouldRun = fetchCardsDiagnosticsLock.sync { () -> Bool in
+            if didRunFetchCardsDiagnostics { return false }
+            didRunFetchCardsDiagnostics = true
+            return true
+        }
+        guard shouldRun else { return }
+        runFetchCardsDiagnostics(requestedNames: requestedNames)
+    }
+
+    private static func runFetchCardsDiagnostics(requestedNames: [String]) {
+        let recordType = shared.cardRecordType
+        let identifier = container.containerIdentifier ?? "(nil)"
+        let predicate = NSPredicate(value: true)
+        logCK("DIAG", "start containerIdentifier=\(identifier) dbScope=public recordType=\(recordType) predicate=\(predicate.predicateFormat)")
+
+        let existenceQuery = CKQuery(recordType: recordType, predicate: predicate)
+        container.publicCloudDatabase.fetch(withQuery: existenceQuery,
+                                            inZoneWith: nil,
+                                            desiredKeys: nil,
+                                            resultsLimit: 10) { result in
+            switch result {
+            case .success(let (matchResults, _)):
+                let records = matchResults.compactMap { _, recordResult in
+                    try? recordResult.get()
+                }
+                logCK("DIAG", "existence count=\(records.count)")
+                if records.isEmpty {
+                    logCK("DIAG", "No records exist for recordType=\(recordType) in dbScope=public")
+                    return
+                }
+                for record in records {
+                    let keys = record.allKeys()
+                    let zoneName = record.recordID.zoneID.zoneName
+                    logCK("DIAG", "recordID=\(record.recordID.recordName) zone=\(zoneName) keys=\(keys)")
+                }
+                runFetchCardsFieldProbe(requestedNames: requestedNames, recordType: recordType)
+            case .failure(let error):
+                logCK("DIAG", "existence query failed: \(error.localizedDescription)")
+                logCKError(error, context: "fetchCardsDiagnostics.existence")
+            }
+        }
+    }
+
+    private static func runFetchCardsFieldProbe(requestedNames: [String], recordType: String) {
+        guard !requestedNames.isEmpty else {
+            logCK("DIAG", "field probe skipped (requestedNames empty)")
+            return
+        }
+        let fields = ["userName", "name"]
+        for field in fields {
+            let predicate = NSPredicate(format: "%K IN %@", field, requestedNames)
+            let query = CKQuery(recordType: recordType, predicate: predicate)
+            logCK("DIAG", "fieldProbe field=\(field) predicate=\(predicate.predicateFormat)")
+            container.publicCloudDatabase.fetch(withQuery: query,
+                                                inZoneWith: nil,
+                                                desiredKeys: nil,
+                                                resultsLimit: 50) { result in
+                switch result {
+                case .success(let (matchResults, _)):
+                    let records = matchResults.compactMap { _, recordResult in
+                        try? recordResult.get()
+                    }
+                    logCK("DIAG", "field=\(field) count=\(records.count)")
+                    if let sample = records.first {
+                        let value = sample[field] as? String ?? "(nil)"
+                        logCK("DIAG", "field=\(field) sampleRecordID=\(sample.recordID.recordName) value=\(value)")
+                    }
+                case .failure(let error):
+                    logCK("DIAG", "field=\(field) query failed: \(error.localizedDescription)")
+                    logCKError(error, context: "fetchCardsDiagnostics.fieldProbe.\(field)")
+                }
             }
         }
     }

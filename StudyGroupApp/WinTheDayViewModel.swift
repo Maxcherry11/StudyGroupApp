@@ -73,6 +73,48 @@ class WinTheDayViewModel: ObservableObject {
             guard let name = note.userInfo?["name"] as? String else { return }
             self?.purgeLocalCaches(for: name)
         }
+        NotificationCenter.default.addObserver(
+            forName: .userListDidUpdate,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let self = self else { return }
+            let names = note.userInfo?["names"] as? [String] ?? UserManager.shared.userList
+            let normalized = self.normalizeCardNames(names)
+            let incomingSet = Set(normalized)
+            if incomingSet.isEmpty {
+                print("🧭 [CARDS] skip reason=emptySet count=0 names=[]")
+                return
+            }
+            if incomingSet == self.lastRefreshedNameSet {
+                print("🧭 [CARDS] skip reason=sameSet count=\(normalized.count) names=\(self.previewNames(normalized))")
+                return
+            }
+            let now = Date()
+            let elapsed = now.timeIntervalSince(self.lastRefreshTime)
+            if elapsed < self.cardsRefreshCooldown {
+                let remaining = (self.cardsRefreshCooldown - elapsed) + self.cardsRefreshDebounce
+                self.pendingCardsRefreshWorkItem?.cancel()
+                self.pendingCardsRefreshWorkItem = nil
+                print("🧭 [CARDS] defer reason=cooldown remaining=\(String(format: "%.2fs", remaining)) count=\(normalized.count) names=\(self.previewNames(normalized))")
+                let namesSnapshot = normalized
+                let incomingSetSnapshot = incomingSet
+                let workItem = DispatchWorkItem { [weak self] in
+                    guard let self else { return }
+                    self.lastRefreshTime = Date()
+                    self.lastRefreshedNameSet = incomingSetSnapshot
+                    self.requestCardsFetch(names: namesSnapshot, trigger: "userListDidUpdate", reason: "diffSet")
+                }
+                self.pendingCardsRefreshWorkItem = workItem
+                DispatchQueue.main.asyncAfter(deadline: .now() + remaining, execute: workItem)
+                return
+            }
+            self.pendingCardsRefreshWorkItem?.cancel()
+            self.pendingCardsRefreshWorkItem = nil
+            self.lastRefreshTime = now
+            self.lastRefreshedNameSet = incomingSet
+            self.requestCardsFetch(names: normalized, trigger: "userListDidUpdate", reason: "diffSet")
+        }
         // Initialize members from the splash screen user list
         fetchMembersFromCloud()
     }
@@ -91,6 +133,11 @@ class WinTheDayViewModel: ObservableObject {
     /// Signature of the last CloudKit fetch used to detect changes
     private var lastFetchHash: Int?
     private var lastGoalHash: Int?
+    private var lastRefreshedNameSet: Set<String> = []
+    private var lastRefreshTime: Date = .distantPast
+    private var pendingCardsRefreshWorkItem: DispatchWorkItem?
+    private let cardsRefreshCooldown: TimeInterval = 1.0
+    private let cardsRefreshDebounce: TimeInterval = 0.15
     /// MARK: - Auto Reset Tracking (Weekly/Monthly)
     private let wtdLastWeeklyResetKey  = "wtd-last-weekly-reset"
     private let wtdLastMonthlyResetKey = "wtd-last-monthly-reset"
@@ -277,9 +324,11 @@ class WinTheDayViewModel: ObservableObject {
 
     /// Loads all `Card` records from CloudKit and updates the local arrays.
     func fetchCardsFromCloud() {
-        CloudKitManager.fetchCards { [weak self] records in
-            guard let self = self else { return }
-            DispatchQueue.main.async {
+        let names = UserManager.shared.userList
+        Task { [weak self] in
+            let records = await CardsFetchCoordinator.shared.requestFetch(names: names, reason: "fetchCardsFromCloud")
+            await MainActor.run {
+                guard let self else { return }
                 let cleaned = self.sanitizeCardsArray(records)
                 self.cards = cleaned.sorted { $0.orderIndex < $1.orderIndex }
                 self.displayedCards = self.cards
@@ -341,67 +390,9 @@ class WinTheDayViewModel: ObservableObject {
                         print("ℹ️ User list is empty; skipping updateLocalEntries to avoid clearing cached members.")
                     }
 
-                    let membersToPersist = self.teamMembers
-                    CloudKitManager.fetchCards { cards in
-                        DispatchQueue.main.async {
-                            let cleanedCards = self.sanitizeCardsArray(cards)
-                            if cleanedCards.isEmpty {
-                                print("⚠️ CloudKit fetchCards returned 0; preserving local cards to avoid blank UI.")
-                            } else {
-                                var merged = self.cards
-                                for card in cleanedCards {
-                                    if let idx = merged.firstIndex(where: { $0.id == card.id }) {
-                                        merged[idx] = card
-                                    } else {
-                                        merged.append(card)
-                                    }
-                                }
-                                self.cards = merged.sorted { $0.orderIndex < $1.orderIndex }
-                                self.displayedCards = self.cards
-                                self.saveCardsToDevice()
-                            }
-
-                            // 🧩 Backfill: If a Card has a default/empty emoji but TeamMember has a real one, copy it up and persist to CloudKit
-                            for m in self.teamMembers {
-                                if let idx = self.cards.firstIndex(where: { $0.name == m.name }) {
-                                    let current = self.cards[idx].emoji.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    let memberEmoji = m.emoji.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    let isDefaultOrEmpty = current.isEmpty || current == "\u{2728}"
-                                    let hasRealMemberEmoji = !memberEmoji.isEmpty && memberEmoji != "\u{2728}"
-                                    if isDefaultOrEmpty && hasRealMemberEmoji {
-                                        self.cards[idx].emoji = memberEmoji
-                                        self.saveCardsToDevice()
-                                        CloudKitManager.saveCard(self.cards[idx])
-                                    }
-                                }
-                            }
-
-                            // 🔗 Keep emoji as a single source of truth from TeamMember -> Card
-                            var didChangeAnyCardEmoji = false
-                            for idx in self.cards.indices {
-                                if let member = self.teamMembers.first(where: { $0.name == self.cards[idx].name }) {
-                                    if self.cards[idx].emoji != member.emoji {
-                                        self.cards[idx].emoji = member.emoji
-                                        didChangeAnyCardEmoji = true
-                                    }
-                                }
-                            }
-                            if didChangeAnyCardEmoji {
-                                self.saveCardsToDevice()
-                                // Persist changed cards to CloudKit so other devices get the new emoji
-                                for card in self.cards { CloudKitManager.saveCard(card) }
-                            }
-                            self.saveLocal(members: membersToPersist)
-
-                            let userList = UserManager.shared.userList
-                            let names = userList.isEmpty ? self.teamMembers.map { $0.name } : userList
-                            self.ensureCardsForAllUsers(names)
-
-                            self.lastGoalHash = Self.computeGoalHash(for: self.goalNames)
-                            self.isLoaded = true
-                            completion?()
-                        }
-                    }
+                    self.lastGoalHash = Self.computeGoalHash(for: self.goalNames)
+                    self.isLoaded = true
+                    completion?()
                 }
             }
         }
@@ -457,6 +448,84 @@ class WinTheDayViewModel: ObservableObject {
 
     private func saveLocal() {
         saveLocal(members: teamMembers)
+    }
+
+    private func normalizeCardNames(_ names: [String]) -> [String] {
+        let cleaned = names
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return Array(Set(cleaned)).sorted()
+    }
+
+    private func previewNames(_ names: [String]) -> String {
+        let preview = names.prefix(8).joined(separator: ", ")
+        let suffix = names.count > 8 ? ", ..." : ""
+        return "[\(preview)\(suffix)]"
+    }
+
+    private func requestCardsFetch(names: [String], trigger: String, reason: String) {
+        let sorted = normalizeCardNames(names)
+        print("🧭 [CARDS] trigger=\(trigger) reason=\(reason) count=\(sorted.count) names=\(previewNames(sorted))")
+        Task { [weak self] in
+            let cards = await CardsFetchCoordinator.shared.requestFetch(names: sorted, reason: "\(trigger):\(reason)")
+            await MainActor.run {
+                guard let self else { return }
+                let membersSnapshot = self.teamMembers
+                self.applyFetchedCards(cards, membersSnapshot: membersSnapshot)
+            }
+        }
+    }
+
+    private func applyFetchedCards(_ cards: [Card], membersSnapshot: [TeamMember]) {
+        let cleanedCards = sanitizeCardsArray(cards)
+        if cleanedCards.isEmpty {
+            print("⚠️ CloudKit fetchCards returned 0; preserving local cards to avoid blank UI.")
+        } else {
+            var merged = self.cards
+            for card in cleanedCards {
+                if let idx = merged.firstIndex(where: { $0.id == card.id }) {
+                    merged[idx] = card
+                } else {
+                    merged.append(card)
+                }
+            }
+            self.cards = merged.sorted { $0.orderIndex < $1.orderIndex }
+            self.displayedCards = self.cards
+            self.saveCardsToDevice()
+        }
+
+        for m in membersSnapshot {
+            if let idx = self.cards.firstIndex(where: { $0.name == m.name }) {
+                let current = self.cards[idx].emoji.trimmingCharacters(in: .whitespacesAndNewlines)
+                let memberEmoji = m.emoji.trimmingCharacters(in: .whitespacesAndNewlines)
+                let isDefaultOrEmpty = current.isEmpty || current == "\u{2728}"
+                let hasRealMemberEmoji = !memberEmoji.isEmpty && memberEmoji != "\u{2728}"
+                if isDefaultOrEmpty && hasRealMemberEmoji {
+                    self.cards[idx].emoji = memberEmoji
+                    self.saveCardsToDevice()
+                    CloudKitManager.saveCard(self.cards[idx])
+                }
+            }
+        }
+
+        var didChangeAnyCardEmoji = false
+        for idx in self.cards.indices {
+            if let member = membersSnapshot.first(where: { $0.name == self.cards[idx].name }) {
+                if self.cards[idx].emoji != member.emoji {
+                    self.cards[idx].emoji = member.emoji
+                    didChangeAnyCardEmoji = true
+                }
+            }
+        }
+        if didChangeAnyCardEmoji {
+            self.saveCardsToDevice()
+            for card in self.cards { CloudKitManager.saveCard(card) }
+        }
+        self.saveLocal(members: membersSnapshot)
+
+        let userList = UserManager.shared.userList
+        let names = userList.isEmpty ? membersSnapshot.map { $0.name } : userList
+        self.ensureCardsForAllUsers(names)
     }
 
     private func purgeLocalCaches(for name: String) {

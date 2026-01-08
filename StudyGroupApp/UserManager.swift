@@ -8,6 +8,10 @@ class UserManager: ObservableObject {
         didSet {
             if allUsers != userList { allUsers = userList }
             UserDefaults.standard.set(userList, forKey: userDefaultsKey)
+            if hasCompletedInitialLoad {
+                let reason = isUpdatingFromCloud ? "cloudKitRefresh" : "localEdit"
+                postUserListDidUpdateIfNeeded(userList, reason: reason)
+            }
         }
     }
     @Published var currentUser: String = "" {
@@ -30,6 +34,9 @@ class UserManager: ObservableObject {
     }
 
     private let userDefaultsKey = "allUsers"
+    private var hasCompletedInitialLoad = false
+    private var lastPostedUserSet: Set<String> = []
+    private var isUpdatingFromCloud = false
 
     private init() {
         let storedUser = UserDefaults.standard.string(forKey: "currentUser") ?? ""
@@ -51,6 +58,29 @@ class UserManager: ObservableObject {
 
     private func saveUsers() {
         UserDefaults.standard.set(userList, forKey: userDefaultsKey)
+    }
+
+    private func normalizeNames(_ names: [String]) -> [String] {
+        let cleaned = names
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return Array(Set(cleaned)).sorted()
+    }
+
+    private func postUserListDidUpdateIfNeeded(_ names: [String], reason: String?) {
+        let normalized = normalizeNames(names)
+        let normalizedSet = Set(normalized)
+        if lastPostedUserSet == normalizedSet { return }
+        lastPostedUserSet = normalizedSet
+        var userInfo: [String: Any] = ["names": normalized]
+        if let reason = reason {
+            userInfo["reason"] = reason
+        }
+        NotificationCenter.default.post(
+            name: .userListDidUpdate,
+            object: nil,
+            userInfo: userInfo
+        )
     }
 
     func addUser(_ name: String) {
@@ -75,13 +105,19 @@ class UserManager: ObservableObject {
         }
     }
 
-    func deleteUser(_ name: String) {
-        CloudKitManager.deleteUser(name)
-        CloudKitManager.deleteTwelveWeekMember(named: name)
-        if currentUser == name {
-            currentUser = ""
+    func deleteUser(_ name: String, completion: (() -> Void)? = nil) {
+        print("🧨 [DELETE] UserManager forwarding unified delete for \(name)")
+        CloudKitManager.shared.deleteUserEverywhere(name: name) { [weak self] _ in
+            guard let self else {
+                completion?()
+                return
+            }
+            if self.currentUser == name {
+                self.currentUser = ""
+            }
+            self.fetchUsersFromCloud()
+            completion?()
         }
-        fetchUsersFromCloud()
     }
 
     func selectUser(_ name: String) {
@@ -97,15 +133,27 @@ class UserManager: ObservableObject {
             DispatchQueue.main.async {
                 print("📥 Received users from CloudKit: \(names)")
                 let sorted = names
+                let isInitialLoad = !self.hasCompletedInitialLoad
+                self.isUpdatingFromCloud = true
                 if sorted != self.userList {
                     self.userList = sorted
                     self.allUsers = sorted
                     self.saveUsers()
                 }
+                self.isUpdatingFromCloud = false
                 if !sorted.contains(self.currentUser) {
                     self.currentUser = sorted.first ?? ""
                 }
+                if isInitialLoad {
+                    self.hasCompletedInitialLoad = true
+                }
+                let reason = isInitialLoad ? "initialLoad" : "cloudKitRefresh"
+                self.postUserListDidUpdateIfNeeded(sorted, reason: reason)
             }
         }
     }
+}
+
+extension Notification.Name {
+    static let userListDidUpdate = Notification.Name("UserListDidUpdate")
 }

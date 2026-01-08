@@ -15,6 +15,7 @@
 		9879C9718C6D4BC1BA174261 /* CloudStreakManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9879C9718C6D4BC1BA174262 /* CloudStreakManager.swift */; };
 		A1B2C3D42DEFCAFE00000001 /* Card.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D32DEFCAFE00000001 /* Card.swift */; };
 		ABCDE12345ABCDE12345ABCE /* GoalNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCDE12345ABCDE12345ABCD /* GoalNames.swift */; };
+		B6F00D1E2F00000100000002 /* CardsFetchCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F00D1E2F00000100000001 /* CardsFetchCoordinator.swift */; };
 		B653C50C2DE22E7D001B905F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B653C5002DE22E7D001B905F /* Assets.xcassets */; };
 		B653C5312DE23D36001B905F /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C5282DE23D36001B905F /* MainTabView.swift */; };
 		B653C5322DE23D36001B905F /* WinTheDayViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C52E2DE23D36001B905F /* WinTheDayViewModel.swift */; };
@@ -51,6 +52,7 @@
 		B653C5002DE22E7D001B905F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B653C5282DE23D36001B905F /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		B653C52E2DE23D36001B905F /* WinTheDayViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WinTheDayViewModel.swift; sourceTree = "<group>"; };
+		B6F00D1E2F00000100000001 /* CardsFetchCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardsFetchCoordinator.swift; sourceTree = "<group>"; };
 		B653C5352DE23DAD001B905F /* Outcast.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Outcast.entitlements; sourceTree = "<group>"; };
 		B653C53B2DE2400B001B905F /* Outcast IOs.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Outcast IOs.entitlements"; sourceTree = "<group>"; };
 		B653C53C2DE2403E001B905F /* WinTheDayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WinTheDayView.swift; sourceTree = "<group>"; };
@@ -103,6 +105,7 @@
 				A7EA411A31E5BFD7BCDCD242 /* CardModel.swift */,
 				ABCDE12345ABCDE12345ABCD /* GoalNames.swift */,
 				B653C52E2DE23D36001B905F /* WinTheDayViewModel.swift */,
+				B6F00D1E2F00000100000001 /* CardsFetchCoordinator.swift */,
 				B653C4F32DE22D8D001B905F /* Products */,
 				B653C5002DE22E7D001B905F /* Assets.xcassets */,
 				B653C5352DE23DAD001B905F /* Outcast.entitlements */,
@@ -212,6 +215,7 @@
 				A1B2C3D42DEFCAFE00000001 /* Card.swift in Sources */,
 				167AB56E4291FC388E6FD5C7 /* CardModel.swift in Sources */,
 				ABCDE12345ABCDE12345ABCE /* GoalNames.swift in Sources */,
+				B6F00D1E2F00000100000002 /* CardsFetchCoordinator.swift in Sources */,
 				B653C5312DE23D36001B905F /* MainTabView.swift in Sources */,
 				B653C5322DE23D36001B905F /* WinTheDayViewModel.swift in Sources */,
 				B653C54D2DE270A5001B905F /* UserSelectorView.swift in Sources */,

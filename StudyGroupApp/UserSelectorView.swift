@@ -101,8 +101,8 @@ struct UserSelectorView: View {
         let sorted = viewModel.teamMembers.sorted { $0.name < $1.name }
         for index in offsets {
             let member = sorted[index]
-            userManager.deleteUser(member.name)
-            CloudKitManager.shared.deleteByName(member.name) { _ in
+            print("🧨 [DELETE] UI requested delete for \(member.name)")
+            userManager.deleteUser(member.name) {
                 viewModel.fetchMembersFromCloud()
             }
         }
