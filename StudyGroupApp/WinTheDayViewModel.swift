@@ -642,7 +642,8 @@ class WinTheDayViewModel: ObservableObject {
 
 
     func saveMember(_ member: TeamMember, completion: ((CKRecord.ID?) -> Void)? = nil) {
-        CloudKitManager.shared.save(member) { id in
+        syncWonThisWeekFromProgress(member: member)
+        CloudKitManager.shared.save(member, forceWriteWonThisWeek: true) { id in
             completion?(id)
         }
         saveLocal()
@@ -669,6 +670,7 @@ class WinTheDayViewModel: ObservableObject {
                     return
                 }
                 let memberRef = self.teamMembers[memberIndex]
+                self.syncWonThisWeekFromProgress(member: memberRef)
 
                 func applyAndSave(to record: CKRecord) async {
                     // Clamp values before write
@@ -684,6 +686,12 @@ class WinTheDayViewModel: ObservableObject {
                     record["emoji"] = safe.emoji as CKRecordValue
                     record["emojiUserSet"] = safe.emojiUserSet as CKRecordValue
                     record["sortIndex"] = safe.sortIndex as CKRecordValue
+                    record["wonThisWeek"] = (memberRef.wonThisWeek ? 1 : 0) as CKRecordValue
+                    if let wonThisWeekSetAt = memberRef.wonThisWeekSetAt {
+                        record["wonThisWeekSetAt"] = wonThisWeekSetAt as CKRecordValue
+                    } else {
+                        record["wonThisWeekSetAt"] = nil
+                    }
 
                     print("\u{1F4BE} saveWinTheDayFields() saving for \(memberName) [quotes=\(safe.quotesToday), wtd=\(safe.salesWTD), mtd=\(safe.salesMTD), emoji=\(safe.emoji)] -> \(record.recordID.recordName)")
                     do {
@@ -733,7 +741,7 @@ class WinTheDayViewModel: ObservableObject {
                 await applyAndSave(to: newRecord)
             }
         }
-        
+
         saveLocal()
     }
 
@@ -844,6 +852,48 @@ class WinTheDayViewModel: ObservableObject {
         let quotesHit = member.quotesGoal > 0 && member.quotesToday >= member.quotesGoal
         let salesHit  = member.salesWTDGoal > 0 && member.salesWTD >= member.salesWTDGoal
         return quotesHit || salesHit
+    }
+
+    private func syncWonThisWeekFromProgress(member: TeamMember) -> Bool {
+        let shouldWinNow = isWeeklyMet(for: member)
+        var changed = false
+
+        if shouldWinNow {
+            if !member.wonThisWeek {
+                member.wonThisWeek = true
+                changed = true
+            }
+            if member.wonThisWeekSetAt == nil {
+                member.wonThisWeekSetAt = Date()
+                changed = true
+            }
+        } else {
+            if member.wonThisWeek {
+                member.wonThisWeek = false
+                changed = true
+            }
+            if member.wonThisWeekSetAt != nil {
+                member.wonThisWeekSetAt = nil
+                changed = true
+            }
+        }
+
+        if let idx = teamMembers.firstIndex(where: { $0.id == member.id }) {
+            teamMembers[idx].wonThisWeek = member.wonThisWeek
+            teamMembers[idx].wonThisWeekSetAt = member.wonThisWeekSetAt
+        }
+        if let idx = teamData.firstIndex(where: { $0.id == member.id }) {
+            teamData[idx].wonThisWeek = member.wonThisWeek
+            teamData[idx].wonThisWeekSetAt = member.wonThisWeekSetAt
+        }
+
+        if changed {
+            teamMembers = teamMembers.map { $0 }
+            teamData = teamData.map { $0 }
+            print("[WON_THIS_WEEK_SYNC] name=\(member.name) weekKey=\(member.weekKey ?? "nil") now=\(shouldWinNow) changed=\(changed)")
+        }
+
+        return changed
     }
     
     /// Generates a unique week ID for trophy finalization tracking

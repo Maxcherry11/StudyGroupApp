@@ -322,7 +322,7 @@ extension TeamMember {
         )
     }
 
-    func toRecord(existing: CKRecord? = nil) -> CKRecord {
+    func toRecord(existing: CKRecord? = nil, forceWriteWonThisWeek: Bool = false) -> CKRecord {
         let record = existing ?? CKRecord(
             recordType: "TeamMember",
             recordID: CKRecord.ID(recordName: "member-\(self.name)")
@@ -366,11 +366,36 @@ extension TeamMember {
         } else {
             record["trophyLastFinalizedWeekId"] = nil
         }
-        record["wonThisWeek"] = (self.wonThisWeek ? 1 : 0) as CKRecordValue
-        if let wonThisWeekSetAt = self.wonThisWeekSetAt {
-            record["wonThisWeekSetAt"] = wonThisWeekSetAt as CKRecordValue
+        if forceWriteWonThisWeek {
+            record["wonThisWeek"] = (self.wonThisWeek ? 1 : 0) as CKRecordValue
+            if let wonThisWeekSetAt = self.wonThisWeekSetAt {
+                record["wonThisWeekSetAt"] = wonThisWeekSetAt as CKRecordValue
+            } else {
+                record["wonThisWeekSetAt"] = nil
+            }
+        } else if let existing = existing {
+            let serverWonThisWeek: Bool
+            if let value = existing["wonThisWeek"] as? Int {
+                serverWonThisWeek = value == 1
+            } else if let value = existing["wonThisWeek"] as? Int64 {
+                serverWonThisWeek = value == 1
+            } else if let value = existing["wonThisWeek"] as? NSNumber {
+                serverWonThisWeek = value.intValue == 1
+            } else {
+                serverWonThisWeek = false
+            }
+
+            if self.wonThisWeek || !serverWonThisWeek {
+                record["wonThisWeek"] = (self.wonThisWeek ? 1 : 0) as CKRecordValue
+                if let wonThisWeekSetAt = self.wonThisWeekSetAt {
+                    record["wonThisWeekSetAt"] = wonThisWeekSetAt as CKRecordValue
+                }
+            }
         } else {
-            record["wonThisWeekSetAt"] = nil
+            record["wonThisWeek"] = (self.wonThisWeek ? 1 : 0) as CKRecordValue
+            if let wonThisWeekSetAt = self.wonThisWeekSetAt {
+                record["wonThisWeekSetAt"] = wonThisWeekSetAt as CKRecordValue
+            }
         }
         return record
     }

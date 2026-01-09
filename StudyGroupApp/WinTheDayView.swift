@@ -970,7 +970,7 @@ private func handleOnAppear() {
         nameText.draw(in: nameRect, withAttributes: nameAttributes)
         
         // Trophy count on the right side of header with larger font
-        let trophyCount = getTrophyCount(for: member)
+        let trophyCount = Self.getTrophyCount(for: member)
         if trophyCount > 0 {
             let breakdown = trophyBreakdown(total: trophyCount)
             let trophyText = String(repeating: "💎", count: breakdown.diamonds)
@@ -1080,8 +1080,8 @@ private func handleOnAppear() {
         return isOnTrack ? UIColor.systemGreen : UIColor.systemYellow
     }
     
-    private func getTrophyCount(for member: TeamMember) -> Int {
-        member.trophyStreakCount
+    fileprivate static func getTrophyCount(for member: TeamMember) -> Int {
+        member.trophyStreakCount + (member.wonThisWeek ? 1 : 0)
     }
     
 
@@ -1741,6 +1741,7 @@ private struct TeamCardsListView: View {
                     ForEach(dataSource, id: \.id) { member in
                         if let idx = teamMembers.firstIndex(where: { $0.name == member.name }) {
                             let isEditable = teamMembers[idx].name == currentUser
+                            let trophyCount = WinTheDayView.getTrophyCount(for: member)
                             TeamMemberCardView(
                                 member: $teamMembers[idx],
                                 isEditable: isEditable,
@@ -1778,10 +1779,13 @@ private struct TeamCardsListView: View {
                                 celebrationMemberID: $celebrationMemberID,
                                 celebrationField: $celebrationField,
                                 confettiMemberID: $confettiMemberID,
-                                trophyCount: {
-                                    member.trophyStreakCount
-                                }()
+                                trophyCount: trophyCount
                             )
+                            .onAppear {
+                                if member.wonThisWeek {
+                                    print("[TROPHY_UI] \(member.name) streak=\(member.trophyStreakCount) wonThisWeek=\(member.wonThisWeek) display=\(trophyCount)")
+                                }
+                            }
                             .id(member.id)
                         }
                     }

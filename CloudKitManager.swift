@@ -257,7 +257,7 @@ class CloudKitManager: ObservableObject {
         }
     }
 
-    func save(_ member: TeamMember, completion: @escaping (CKRecord.ID?) -> Void) {
+    func save(_ member: TeamMember, forceWriteWonThisWeek: Bool = false, completion: @escaping (CKRecord.ID?) -> Void) {
         guard isValid(member) else {
             print("⚠️ Skipping save for invalid member: \(member.name)")
             completion(nil)
@@ -283,7 +283,7 @@ class CloudKitManager: ObservableObject {
 
         operation.queryResultBlock = { result in
             DispatchQueue.main.async {
-                let modifyOperation = self.prepareModifyOperation(for: member, existingRecord: matchedRecord, completion: completion)
+                let modifyOperation = self.prepareModifyOperation(for: member, existingRecord: matchedRecord, forceWriteWonThisWeek: forceWriteWonThisWeek, completion: completion)
                 self.database.add(modifyOperation)
             }
         }
@@ -291,8 +291,8 @@ class CloudKitManager: ObservableObject {
         database.add(operation)
     }
 
-    private func prepareModifyOperation(for member: TeamMember, existingRecord: CKRecord?, completion: @escaping (CKRecord.ID?) -> Void) -> CKModifyRecordsOperation {
-        let record = member.toRecord(existing: existingRecord)
+    private func prepareModifyOperation(for member: TeamMember, existingRecord: CKRecord?, forceWriteWonThisWeek: Bool, completion: @escaping (CKRecord.ID?) -> Void) -> CKModifyRecordsOperation {
+        let record = member.toRecord(existing: existingRecord, forceWriteWonThisWeek: forceWriteWonThisWeek)
         let modifyOperation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
         modifyOperation.modifyRecordsResultBlock = { result in
             DispatchQueue.main.async {
