@@ -65,7 +65,7 @@ struct MainTabView: View {
             scoreboardVM.fetchTeamMembersFromCloud()
             twyVM.fetchMembersFromCloud()
         }
-        .onChange(of: scenePhase) { phase in
+        .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 // Skip WinTheDay fetch if already warm
                 if !viewModel.isWarm {

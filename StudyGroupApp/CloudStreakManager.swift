@@ -16,6 +16,15 @@ final class CloudStreakManager {
         case monthly
     }
 
+    struct RolloverDecision {
+        let weekRolledOver: Bool
+        let monthRolledOver: Bool
+        let storedWeekKey: String?
+        let currentWeekKey: String
+        let storedMonthKey: String?
+        let currentMonthKey: String
+    }
+
     private init() {
         database = CloudKitManager.container.publicCloudDatabase
         timeZone = TimeZone(identifier: "America/Chicago") ?? .current
@@ -189,9 +198,12 @@ final class CloudStreakManager {
     }
 
     private func applyWeeklyReset(on record: CKRecord, now: Date) -> Bool {
-        let currentKey = currentWeekKey(for: now)
         let rawStoredKey = record["weekKey"] as? String
-        let storedKey = normalizedWeekKey(rawStoredKey)
+        let decision = computeRolloverDecision(storedWeekKey: rawStoredKey,
+                                               storedMonthKey: record["monthKey"] as? String,
+                                               now: now)
+        let currentKey = decision.currentWeekKey
+        let storedKey = decision.storedWeekKey
 
         if storedKey == currentKey {
             if rawStoredKey != storedKey {
@@ -209,6 +221,7 @@ final class CloudStreakManager {
             return false
         }
 
+        guard decision.weekRolledOver else { return false }
         record["weekKey"] = currentKey as CKRecordValue
         record["streakCountWeek"] = 0 as CKRecordValue
         record["quotesToday"] = 0 as CKRecordValue
@@ -217,9 +230,12 @@ final class CloudStreakManager {
     }
 
     private func applyMonthlyReset(on record: CKRecord, now: Date) -> Bool {
-        let currentKey = currentMonthKey(for: now)
         let rawStoredKey = record["monthKey"] as? String
-        let storedKey = normalizedMonthKey(rawStoredKey)
+        let decision = computeRolloverDecision(storedWeekKey: record["weekKey"] as? String,
+                                               storedMonthKey: rawStoredKey,
+                                               now: now)
+        let currentKey = decision.currentMonthKey
+        let storedKey = decision.storedMonthKey
 
         if storedKey == currentKey {
             if rawStoredKey != storedKey {
@@ -237,10 +253,37 @@ final class CloudStreakManager {
             return false
         }
 
+        guard decision.monthRolledOver else { return false }
         record["monthKey"] = currentKey as CKRecordValue
         record["streakCountMonth"] = 0 as CKRecordValue
         record["salesMTD"] = 0 as CKRecordValue
         return true
+    }
+
+    private func computeRolloverDecision(storedWeekKey: String?,
+                                         storedMonthKey: String?,
+                                         now: Date) -> RolloverDecision {
+        let currentWeek = currentWeekKey(for: now)
+        let currentMonth = currentMonthKey(for: now)
+        let normalizedWeek = normalizedWeekKey(storedWeekKey)
+        let normalizedMonth = normalizedMonthKey(storedMonthKey)
+        let weekRolledOver = normalizedWeek != nil && normalizedWeek != currentWeek
+        let monthRolledOver = normalizedMonth != nil && normalizedMonth != currentMonth
+
+        return RolloverDecision(weekRolledOver: weekRolledOver,
+                                monthRolledOver: monthRolledOver,
+                                storedWeekKey: normalizedWeek,
+                                currentWeekKey: currentWeek,
+                                storedMonthKey: normalizedMonth,
+                                currentMonthKey: currentMonth)
+    }
+
+    func rolloverDecision(storedWeekKey: String?,
+                          storedMonthKey: String?,
+                          now: Date = Date()) -> RolloverDecision {
+        computeRolloverDecision(storedWeekKey: storedWeekKey,
+                                storedMonthKey: storedMonthKey,
+                                now: now)
     }
 
     private func currentWeekKey(for date: Date) -> String {
@@ -351,4 +394,3 @@ final class CloudStreakManager {
         }
     }
 }
-

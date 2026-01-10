@@ -16,6 +16,7 @@ class CloudKitManager: ObservableObject {
     private let cardOrderRecordType = "CardOrder"
     private let goalNameRecordType = "GoalNames"
     private static let userRecordType = "TeamMember"
+    private static let teamMemberSubscriptionID = "team-member-changes"
 #if DEBUG
     private static let enableFetchCardsDiagnostics = true
 #else
@@ -28,10 +29,72 @@ class CloudKitManager: ObservableObject {
     private static let migrationKey = "TeamMemberFieldMigrationVersion"
     private static let migrationVersion = 1
 
+    // MARK: - Subscriptions
+    func ensureTeamMemberSubscription() {
+        let subscriptionID = Self.teamMemberSubscriptionID
+        database.fetch(withSubscriptionID: subscriptionID) { subscription, error in
+            if let subscription = subscription {
+                print("✅ CloudKit subscription ready: \(subscription.subscriptionID)")
+                return
+            }
+            if let error = error as? CKError, error.code != .unknownItem {
+                print("❌ CloudKit subscription fetch failed: \(error.localizedDescription)")
+                return
+            }
+
+            let predicate = NSPredicate(value: true)
+            let subscription = CKQuerySubscription(
+                recordType: self.recordType,
+                predicate: predicate,
+                subscriptionID: subscriptionID,
+                options: [.firesOnRecordUpdate, .firesOnRecordCreation, .firesOnRecordDeletion]
+            )
+            let info = CKSubscription.NotificationInfo()
+            info.shouldSendContentAvailable = true
+            subscription.notificationInfo = info
+
+            self.database.save(subscription) { _, error in
+                if let error = error {
+                    print("❌ CloudKit subscription save failed: \(error.localizedDescription)")
+                } else {
+                    print("✅ CloudKit subscription installed: \(subscriptionID)")
+                }
+            }
+        }
+    }
+
+    func handleRemoteNotification(_ userInfo: [AnyHashable: Any], completion: @escaping (Bool) -> Void) {
+        guard let notification = CKNotification(fromRemoteNotificationDictionary: userInfo) else {
+            completion(false)
+            return
+        }
+        guard notification.subscriptionID == Self.teamMemberSubscriptionID else {
+            completion(false)
+            return
+        }
+        print("📬 [CK PUSH] TeamMember change notification received")
+        refreshTeamMembersFromPush(completion: completion)
+    }
+
+    private func refreshTeamMembersFromPush(completion: @escaping (Bool) -> Void) {
+        guard !isFetchingTeam else {
+            print("⚠️ [CK PUSH] fetchTeam already in progress; deferring notification")
+            pendingTeamMemberPushNotification = true
+            completion(false)
+            return
+        }
+        print("🔄 [CK PUSH] Triggering TeamMember refetch")
+        fetchTeam { _ in
+            NotificationCenter.default.post(name: .cloudKitTeamMemberDidChange, object: nil)
+            completion(true)
+        }
+    }
+
     /// Cached members fetched from CloudKit. Updates to this array reflect
     /// immediately in any views observing the manager.
     @Published var teamMembers: [TeamMember] = []
     private var isFetchingTeam = false
+    private var pendingTeamMemberPushNotification = false
     private var isFetchingAllUserNames = false
     private var deletingNames: Set<String> = []
     private let deletingNamesLock = DispatchQueue(label: "CloudKitManager.deletingNames")
@@ -184,6 +247,10 @@ class CloudKitManager: ObservableObject {
                     let suffix = names.count > 8 ? ", ..." : ""
                     print("📥 fetchTeam completion snapshotCount=\(valid.count) snapshotNames=[\(preview)\(suffix)]")
                     self.teamMembers = valid
+                    if self.pendingTeamMemberPushNotification {
+                        self.pendingTeamMemberPushNotification = false
+                        NotificationCenter.default.post(name: .cloudKitTeamMemberDidChange, object: nil)
+                    }
                     print("✅ fetchTeam(): loaded \(valid.count) TeamMember records")
                     completion(valid)
                 case .failure(let error):
@@ -257,7 +324,10 @@ class CloudKitManager: ObservableObject {
         }
     }
 
-    func save(_ member: TeamMember, forceWriteWonThisWeek: Bool = false, completion: @escaping (CKRecord.ID?) -> Void) {
+    func save(_ member: TeamMember,
+              allowZeroWeeklyFields: Bool = false,
+              allowZeroMonthlyFields: Bool = false,
+              completion: @escaping (CKRecord.ID?) -> Void) {
         guard isValid(member) else {
             print("⚠️ Skipping save for invalid member: \(member.name)")
             completion(nil)
@@ -283,7 +353,11 @@ class CloudKitManager: ObservableObject {
 
         operation.queryResultBlock = { result in
             DispatchQueue.main.async {
-                let modifyOperation = self.prepareModifyOperation(for: member, existingRecord: matchedRecord, forceWriteWonThisWeek: forceWriteWonThisWeek, completion: completion)
+                let modifyOperation = self.prepareModifyOperation(for: member,
+                                                                 existingRecord: matchedRecord,
+                                                                 allowZeroWeeklyFields: allowZeroWeeklyFields,
+                                                                 allowZeroMonthlyFields: allowZeroMonthlyFields,
+                                                                 completion: completion)
                 self.database.add(modifyOperation)
             }
         }
@@ -291,8 +365,14 @@ class CloudKitManager: ObservableObject {
         database.add(operation)
     }
 
-    private func prepareModifyOperation(for member: TeamMember, existingRecord: CKRecord?, forceWriteWonThisWeek: Bool, completion: @escaping (CKRecord.ID?) -> Void) -> CKModifyRecordsOperation {
-        let record = member.toRecord(existing: existingRecord, forceWriteWonThisWeek: forceWriteWonThisWeek)
+    private func prepareModifyOperation(for member: TeamMember,
+                                        existingRecord: CKRecord?,
+                                        allowZeroWeeklyFields: Bool,
+                                        allowZeroMonthlyFields: Bool,
+                                        completion: @escaping (CKRecord.ID?) -> Void) -> CKModifyRecordsOperation {
+        let record = member.toRecord(existing: existingRecord,
+                                     allowZeroWeeklyFields: allowZeroWeeklyFields,
+                                     allowZeroMonthlyFields: allowZeroMonthlyFields)
         let modifyOperation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
         modifyOperation.modifyRecordsResultBlock = { result in
             DispatchQueue.main.async {
@@ -439,7 +519,7 @@ class CloudKitManager: ObservableObject {
         let userNamePredicate = NSPredicate(format: "userName == %@", trimmed)
         let group = DispatchGroup()
         func finish(_ success: Bool) {
-            deletingNamesLock.sync {
+            deletingNamesLock.sync { () -> Void in
                 deletingNames.remove(deleteKey)
             }
             completion(success)
@@ -1076,14 +1156,7 @@ class CloudKitManager: ObservableObject {
                         let serverDescription = ckError.userInfo["CKErrorServerDescriptionKey"] as? String
                         let message = (serverDescription ?? ckError.localizedDescription).lowercased()
                         if message.contains("not marked queryable") {
-                            let canUseRecordIDFallback = true
-                            if canUseRecordIDFallback {
-                                fetchByRecordIDs()
-                            } else {
-                                logCK("DIAG", "recordID fallback skipped (non-deterministic IDs)")
-                                logCK("RESULT", "⚠️ rawCount=0 mappedCount=0 droppedCount=0 predicate=\(predicate.predicateFormat) fieldUsed=\(fieldUsed) (CloudKit error)")
-                                completion([])
-                            }
+                            fetchByRecordIDs()
                             return
                         }
                         logCK("RESULT", "⚠️ error=invalidArguments (non-queryable mismatch)")
@@ -1228,6 +1301,8 @@ private extension CKAccountStatus {
             return "restricted"
         case .couldNotDetermine:
             return "couldNotDetermine"
+        case .temporarilyUnavailable:
+            return "temporarilyUnavailable"
         @unknown default:
             return "unknown"
         }
@@ -1297,4 +1372,5 @@ func logCKError(_ error: Error, context: String) {
 
 extension Notification.Name {
     static let cloudKitUserDeleted = Notification.Name("CloudKitUserDeleted")
+    static let cloudKitTeamMemberDidChange = Notification.Name("CloudKitTeamMemberDidChange")
 }

@@ -34,6 +34,16 @@ class LifeScoreboardViewModel: ObservableObject {
         }
         lastFetchHash = computeHash(for: stored)
         lastMemberHash = computeMemberHash(for: teamMembers)
+        NotificationCenter.default.addObserver(
+            forName: .cloudKitTeamMemberDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.applyTeamMemberSnapshot(CloudKitManager.shared.teamMembers)
+            }
+        }
     }
 
     struct ScoreEntry: Identifiable, Hashable, Codable {
@@ -184,6 +194,23 @@ class LifeScoreboardViewModel: ObservableObject {
             guard let left = scores.firstIndex(where: { $0.name == lhs.name }),
                   let right = scores.firstIndex(where: { $0.name == rhs.name }) else { return false }
             return left < right
+        }
+    }
+
+    private func applyTeamMemberSnapshot(_ members: [TeamMember]) {
+        let newHash = computeMemberHash(for: members)
+        teamMembers = members
+
+        if lastMemberHash != newHash {
+            let entries = buildScoreEntries(from: members)
+            let rows = buildActivityRows(from: entries)
+            scores = entries
+            activity = rows
+            lastMemberHash = newHash
+            saveLocalMembers()
+            load(for: members.map { $0.name })
+        } else {
+            load(for: members.map { $0.name })
         }
     }
 

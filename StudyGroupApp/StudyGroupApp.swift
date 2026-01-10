@@ -1,8 +1,27 @@
 import CloudKit
 import SwiftUI
+import UIKit
+
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        application.registerForRemoteNotifications()
+        CloudKitManager.shared.ensureTeamMemberSubscription()
+        return true
+    }
+
+    func application(_ application: UIApplication,
+                     didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+                     fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        CloudKitManager.shared.handleRemoteNotification(userInfo) { handled in
+            completionHandler(handled ? .newData : .noData)
+        }
+    }
+}
 
 @main
 struct StudyGroupApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var isShowingLaunchScreen = true
     @StateObject private var userManager = UserManager.shared
 

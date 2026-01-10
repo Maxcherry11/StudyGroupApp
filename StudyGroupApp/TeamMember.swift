@@ -45,6 +45,18 @@ class TeamMember: Identifiable, ObservableObject {
     @Published var trophyLastFinalizedWeekId: String?
     @Published var wonThisWeek: Bool
     @Published var wonThisWeekSetAt: Date?
+    static let wtdFieldKeys: Set<String> = [
+        "quotesToday",
+        "salesWTD",
+        "salesMTD",
+        "streakCountWeek",
+        "streakCountMonth",
+        "wonThisWeek",
+        "wonThisWeekSetAt",
+        "weekKey",
+        "monthKey"
+    ]
+    var loadedFieldKeys: Set<String>
 
     init(
         id: UUID = UUID(),
@@ -100,6 +112,11 @@ class TeamMember: Identifiable, ObservableObject {
         self.trophyLastFinalizedWeekId = trophyLastFinalizedWeekId
         self.wonThisWeek = wonThisWeek
         self.wonThisWeekSetAt = wonThisWeekSetAt
+        self.loadedFieldKeys = TeamMember.wtdFieldKeys
+    }
+
+    func didLoadField(_ key: String) -> Bool {
+        loadedFieldKeys.contains(key)
     }
 
     convenience init(name: String) {
@@ -258,6 +275,17 @@ extension TeamMember {
             return nil
         }
 
+        var loadedKeys: Set<String> = []
+        if record["quotesToday"] != nil { loadedKeys.insert("quotesToday") }
+        if record["salesWTD"] != nil { loadedKeys.insert("salesWTD") }
+        if record["salesMTD"] != nil { loadedKeys.insert("salesMTD") }
+        if record["streakCountWeek"] != nil { loadedKeys.insert("streakCountWeek") }
+        if record["streakCountMonth"] != nil { loadedKeys.insert("streakCountMonth") }
+        if record["wonThisWeek"] != nil { loadedKeys.insert("wonThisWeek") }
+        if record["wonThisWeekSetAt"] != nil { loadedKeys.insert("wonThisWeekSetAt") }
+        if record["weekKey"] != nil { loadedKeys.insert("weekKey") }
+        if record["monthKey"] != nil { loadedKeys.insert("monthKey") }
+
         let quotesToday = record["quotesToday"] as? Int ?? 0
         let salesWTD = record["salesWTD"] as? Int ?? 0
         let salesMTD = record["salesMTD"] as? Int ?? 0
@@ -320,13 +348,26 @@ extension TeamMember {
             wonThisWeek: wonThisWeek,
             wonThisWeekSetAt: wonThisWeekSetAt
         )
+        self.loadedFieldKeys = loadedKeys
     }
 
-    func toRecord(existing: CKRecord? = nil, forceWriteWonThisWeek: Bool = false) -> CKRecord {
+    func toRecord(existing: CKRecord? = nil,
+                  allowZeroWeeklyFields: Bool = false,
+                  allowZeroMonthlyFields: Bool = false) -> CKRecord {
         let record = existing ?? CKRecord(
             recordType: "TeamMember",
             recordID: CKRecord.ID(recordName: "member-\(self.name)")
         )
+        func shouldWriteField(_ key: String, value: Int, allowZero: Bool) -> Bool {
+            if allowZero { return true }
+            if loadedFieldKeys.contains(key) { return true }
+            return value != 0
+        }
+        func shouldWriteOptionalField(_ key: String, value: String?, allowNil: Bool) -> Bool {
+            if allowNil { return true }
+            if loadedFieldKeys.contains(key) { return true }
+            return value != nil
+        }
         record["name"] = self.name
         record["emoji"] = self.emoji
         record["emojiUserSet"] = self.emojiUserSet as CKRecordValue
@@ -334,25 +375,39 @@ extension TeamMember {
         record["projected"] = self.projected as CKRecordValue
         record["actual"] = self.actual as CKRecordValue
         record["quotesGoal"] = self.quotesGoal as CKRecordValue
-        record["quotesToday"] = self.quotesToday as CKRecordValue
-        record["salesMTD"] = self.salesMTD as CKRecordValue
+        if shouldWriteField("quotesToday", value: self.quotesToday, allowZero: allowZeroWeeklyFields) {
+            record["quotesToday"] = self.quotesToday as CKRecordValue
+        }
+        if shouldWriteField("salesMTD", value: self.salesMTD, allowZero: allowZeroMonthlyFields) {
+            record["salesMTD"] = self.salesMTD as CKRecordValue
+        }
         record["salesMTDGoal"] = self.salesMTDGoal as CKRecordValue
-        record["salesWTD"] = self.salesWTD as CKRecordValue
+        if shouldWriteField("salesWTD", value: self.salesWTD, allowZero: allowZeroWeeklyFields) {
+            record["salesWTD"] = self.salesWTD as CKRecordValue
+        }
         record["salesWTDGoal"] = self.salesWTDGoal as CKRecordValue
         record["score"] = self.score as CKRecordValue
         record["sortIndex"] = self.sortIndex as CKRecordValue
-        if let weekKey = self.weekKey {
-            record["weekKey"] = weekKey as CKRecordValue
-        } else {
-            record["weekKey"] = nil
+        if shouldWriteOptionalField("weekKey", value: self.weekKey, allowNil: allowZeroWeeklyFields) {
+            if let weekKey = self.weekKey {
+                record["weekKey"] = weekKey as CKRecordValue
+            } else {
+                record["weekKey"] = nil
+            }
         }
-        if let monthKey = self.monthKey {
-            record["monthKey"] = monthKey as CKRecordValue
-        } else {
-            record["monthKey"] = nil
+        if shouldWriteOptionalField("monthKey", value: self.monthKey, allowNil: allowZeroMonthlyFields) {
+            if let monthKey = self.monthKey {
+                record["monthKey"] = monthKey as CKRecordValue
+            } else {
+                record["monthKey"] = nil
+            }
         }
-        record["streakCountWeek"] = self.streakCountWeek as CKRecordValue
-        record["streakCountMonth"] = self.streakCountMonth as CKRecordValue
+        if shouldWriteField("streakCountWeek", value: self.streakCountWeek, allowZero: allowZeroWeeklyFields) {
+            record["streakCountWeek"] = self.streakCountWeek as CKRecordValue
+        }
+        if shouldWriteField("streakCountMonth", value: self.streakCountMonth, allowZero: allowZeroMonthlyFields) {
+            record["streakCountMonth"] = self.streakCountMonth as CKRecordValue
+        }
         record["trophies"] = self.trophies as CKRecordValue
         record["totalWins"] = self.totalWins as CKRecordValue
         if let lastCompletedAt = self.lastCompletedAt {
@@ -366,36 +421,11 @@ extension TeamMember {
         } else {
             record["trophyLastFinalizedWeekId"] = nil
         }
-        if forceWriteWonThisWeek {
-            record["wonThisWeek"] = (self.wonThisWeek ? 1 : 0) as CKRecordValue
-            if let wonThisWeekSetAt = self.wonThisWeekSetAt {
-                record["wonThisWeekSetAt"] = wonThisWeekSetAt as CKRecordValue
-            } else {
-                record["wonThisWeekSetAt"] = nil
-            }
-        } else if let existing = existing {
-            let serverWonThisWeek: Bool
-            if let value = existing["wonThisWeek"] as? Int {
-                serverWonThisWeek = value == 1
-            } else if let value = existing["wonThisWeek"] as? Int64 {
-                serverWonThisWeek = value == 1
-            } else if let value = existing["wonThisWeek"] as? NSNumber {
-                serverWonThisWeek = value.intValue == 1
-            } else {
-                serverWonThisWeek = false
-            }
-
-            if self.wonThisWeek || !serverWonThisWeek {
-                record["wonThisWeek"] = (self.wonThisWeek ? 1 : 0) as CKRecordValue
-                if let wonThisWeekSetAt = self.wonThisWeekSetAt {
-                    record["wonThisWeekSetAt"] = wonThisWeekSetAt as CKRecordValue
-                }
-            }
+        record["wonThisWeek"] = (self.wonThisWeek ? 1 : 0) as CKRecordValue
+        if let wonThisWeekSetAt = self.wonThisWeekSetAt {
+            record["wonThisWeekSetAt"] = wonThisWeekSetAt as CKRecordValue
         } else {
-            record["wonThisWeek"] = (self.wonThisWeek ? 1 : 0) as CKRecordValue
-            if let wonThisWeekSetAt = self.wonThisWeekSetAt {
-                record["wonThisWeekSetAt"] = wonThisWeekSetAt as CKRecordValue
-            }
+            record["wonThisWeekSetAt"] = nil
         }
         return record
     }

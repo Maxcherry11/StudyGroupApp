@@ -270,7 +270,7 @@ private struct GoalRowEditor: View {
                     .onTapGesture { 
                         isInteracting = true
                     }
-                    .onChange(of: goal.title) { _ in isInteracting = true }
+                    .onChange(of: goal.title) { _, _ in isInteracting = true }
 
                 HStack {
                     AppleMusicStyleSlider(

@@ -3,8 +3,8 @@ import CloudKit
 
 class TwelveWeekYearViewModel: ObservableObject {
     // NOTE: Non-destructive sync rules
-    // 1) Never delete local members during automatic sync/merge.
-    // 2) Only delete on explicit user action via `deleteMember`.
+    // 1) Never delete local members based on CloudKit fetch results alone.
+    // 2) Reconcile local members against the canonical UserManager list.
     // 3) Treat empty CloudKit fetches as non-authoritative; preserve locals and resync.
     @Published var members: [TwelveWeekMember] = []
 
@@ -78,23 +78,25 @@ class TwelveWeekYearViewModel: ObservableObject {
     //  - Local cached members + goal stats are preserved and only merged/upserted.
     func fetchMembersFromCloud() {
         let names = UserManager.shared.userList
-        // Only *add* missing names locally here; never delete based on this list.
+        guard !names.isEmpty else { return }
         updateLocalEntries(names: names)
+        let canonicalNames = Set(names)
 
         CloudKitManager.fetchTwelveWeekMembers(matching: names) { [weak self] fetched in
             guard let self = self else { return }
-            let newHash = self.computeHash(for: fetched)
+            let filtered = fetched.filter { canonicalNames.contains($0.name) }
+            let newHash = self.computeHash(for: filtered)
             DispatchQueue.main.async {
                 // If CloudKit returns *empty*, do NOT treat that as authoritative.
                 // Keep locals and schedule an upload instead.
-                if fetched.isEmpty {
+                if filtered.isEmpty {
                     self.scheduleUploadOfLocalMembersIfNeeded()
                     return
                 }
 
                 // Only merge when content actually changed.
                 if self.lastFetchHash != newHash {
-                    self.mergeMembersSafely(serverMembers: fetched, fetchSucceeded: true)
+                    self.mergeMembersSafely(serverMembers: filtered, fetchSucceeded: true)
                     self.lastFetchHash = newHash
                     self.saveLocalMembers()
                 }
@@ -183,8 +185,16 @@ class TwelveWeekYearViewModel: ObservableObject {
 
     // MARK: - Sync with UserManager
     func updateLocalEntries(names: [String]) {
-        // Only add missing names; do NOT delete local members based on this list.
-        // Deletions must be explicit via `deleteMember(named:)`.
+        guard !names.isEmpty else { return }
+        let canonicalNames = Set(names)
+        let removed = members.filter { !canonicalNames.contains($0.name) }.map { $0.name }.sorted()
+        if !removed.isEmpty {
+            members.removeAll { !canonicalNames.contains($0.name) }
+            print("[12WY_PRUNE] removed orphaned users: \(removed.joined(separator: ", "))")
+            for name in removed {
+                CloudKitManager.deleteTwelveWeekMember(named: name)
+            }
+        }
         for name in names where !members.contains(where: { $0.name == name }) {
             let newMember = TwelveWeekMember(name: name, goals: [])
             members.append(newMember)

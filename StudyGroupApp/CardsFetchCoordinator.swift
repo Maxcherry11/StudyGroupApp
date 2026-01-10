@@ -1,6 +1,6 @@
 import Foundation
 
-final class CardsFetchCoordinator {
+final class CardsFetchCoordinator: @unchecked Sendable {
     static let shared = CardsFetchCoordinator()
 
     private let stateQueue = DispatchQueue(label: "CardsFetchCoordinator.state")

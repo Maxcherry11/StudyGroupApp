@@ -129,10 +129,10 @@ struct TwelveWeekYearView: View {
             .refreshable {
                 viewModel.fetchMembersFromCloud()
             }
-            .onChange(of: userManager.userList) { _ in
+            .onChange(of: userManager.userList) { _, _ in
                 viewModel.fetchMembersFromCloud()
             }
-            .onChange(of: viewModel.members) { newMembers in
+            .onChange(of: viewModel.members) { _, newMembers in
                 // Update stable order when members change, but only if not interacting
                 if !isInteracting && !isScrolling {
                     stableMemberOrder = newMembers.sorted { $0.progress > $1.progress }
@@ -265,7 +265,7 @@ struct TwelveWeekYearView: View {
                         .onEnded { _ in setScrolling(false) }
                 )
                 .safeAreaInset(edge: .bottom) { Color.clear.frame(height: 64) }
-                .onChange(of: isInteracting) { newValue in
+                .onChange(of: isInteracting) { _, newValue in
                     if !newValue {
                         // When interaction ends, allow resorting next time members update
                     }
@@ -305,7 +305,7 @@ struct TwelveWeekYearView: View {
             }
             .navigationViewStyle(.stack)
         }
-        .onChange(of: selectedMember) { newValue in
+        .onChange(of: selectedMember) { _, newValue in
             if newValue == nil {
                 resetInteractionState()
             }

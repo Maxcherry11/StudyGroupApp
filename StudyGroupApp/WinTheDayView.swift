@@ -185,10 +185,10 @@ struct WinTheDayView: View {
         .onAppear {
             handleOnAppear()
         }
-        .onChange(of: userManager.currentUser) { _ in
+        .onChange(of: userManager.currentUser) { _, _ in
             viewModel.loadCardOrderFromCloud(for: userManager.currentUser)
         }
-        .onChange(of: userManager.userList) { names in
+        .onChange(of: userManager.userList) { _, names in
             // Skip if view model is already warm and has data
             if viewModel.isWarm && !viewModel.teamMembers.isEmpty {
                 print("🚀 [WinTheDay] onChange userList - skipping fetch, already warm")
@@ -198,7 +198,7 @@ struct WinTheDayView: View {
                 viewModel?.ensureCardsForAllUsers(names)
             }
         }
-        .onChange(of: viewModel.teamMembers.map { $0.id }) { _ in
+        .onChange(of: viewModel.teamMembers.map { $0.id }) { _, _ in
             let members = viewModel.teamMembers
             if !members.isEmpty { lastNonEmptyMembers = members }
             // Only modify bootstrapping state if we're actually in a bootstrapping scenario
@@ -209,7 +209,7 @@ struct WinTheDayView: View {
                 }
             }
         }
-        .onChange(of: viewModel.teamData.map { $0.id }) { _ in
+        .onChange(of: viewModel.teamData.map { $0.id }) { _, _ in
             let data = viewModel.teamData
             if !data.isEmpty { lastNonEmptyTeamData = data }
             if enableOrderLogs { logOrder("teamData changed", data) }
@@ -222,7 +222,7 @@ struct WinTheDayView: View {
                 }
             }
         }
-        .onChange(of: editingMemberID) { newValue in
+        .onChange(of: editingMemberID) { _, newValue in
             if newValue == nil {
                 if isAwaitingDelayedReorder {
                     // Keep frozen through the delayed reorder window to avoid intermediate resort
@@ -1087,6 +1087,7 @@ private func handleOnAppear() {
 
     // Reset function to reset values
     private func resetValues() {
+        let decision = viewModel.resetDecision(forceReset: true, now: Date())
         for index in viewModel.teamMembers.indices {
             // Only reset Win The Day specific progress values
             // Preserve Life Scoreboard fields (score, pending, projected, actual)
@@ -1102,7 +1103,7 @@ private func handleOnAppear() {
             print("🔁 Resetting Win The Day values for \(viewModel.teamMembers[index].name): Quotes Goal = \(viewModel.teamMembers[index].quotesGoal), WTD Goal = \(viewModel.teamMembers[index].salesWTDGoal), MTD Goal = \(viewModel.teamMembers[index].salesMTDGoal)")
             
             // Save only the Win The Day fields to avoid affecting Life Scoreboard data
-            viewModel.saveWinTheDayFields(viewModel.teamMembers[index])
+            viewModel.saveWinTheDayFields(viewModel.teamMembers[index], resetDecision: decision)
         }
         // Force update to trigger SwiftUI redraw
         viewModel.teamMembers = viewModel.teamMembers.map { $0 }
@@ -1222,7 +1223,7 @@ struct StatRow: View {
             }
         }
         .opacity(1.0)
-        .onChange(of: value) { newValue in
+        .onChange(of: value) { _, newValue in
             let oldColor = progressColor(for: type, value: newValue - 1, goal: goal)
             let newColor = progressColor(for: type, value: newValue, goal: goal)
             if oldColor != .green && newColor == .green {
@@ -1811,7 +1812,7 @@ private struct TeamCardsListView: View {
             .refreshable {
                 NotificationCenter.default.post(name: .init("WinTheDayManualRefresh"), object: nil)
             }
-            .onChange(of: isEditing) { newValue in
+            .onChange(of: isEditing) { _, newValue in
                 if newValue {
                     // Capture the exact on-screen order at the moment editing begins
                     let base = teamData.isEmpty ? lastNonEmptyTeamData : teamData
@@ -1822,7 +1823,7 @@ private struct TeamCardsListView: View {
                     snapshotIDs.removeAll()
                 }
             }
-            .onChange(of: frozenOrderIDs) { ids in
+            .onChange(of: frozenOrderIDs) { _, ids in
                 if !ids.isEmpty {
                     snapshotIDs = ids
                 }

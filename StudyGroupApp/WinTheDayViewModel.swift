@@ -71,49 +71,66 @@ class WinTheDayViewModel: ObservableObject {
             queue: .main
         ) { [weak self] note in
             guard let name = note.userInfo?["name"] as? String else { return }
-            self?.purgeLocalCaches(for: name)
+            Task { @MainActor [weak self] in
+                self?.purgeLocalCaches(for: name)
+            }
         }
         NotificationCenter.default.addObserver(
             forName: .userListDidUpdate,
             object: nil,
             queue: .main
         ) { [weak self] note in
-            guard let self = self else { return }
-            let names = note.userInfo?["names"] as? [String] ?? UserManager.shared.userList
-            let normalized = self.normalizeCardNames(names)
-            let incomingSet = Set(normalized)
-            if incomingSet.isEmpty {
-                print("🧭 [CARDS] skip reason=emptySet count=0 names=[]")
-                return
-            }
-            if incomingSet == self.lastRefreshedNameSet {
-                print("🧭 [CARDS] skip reason=sameSet count=\(normalized.count) names=\(self.previewNames(normalized))")
-                return
-            }
-            let now = Date()
-            let elapsed = now.timeIntervalSince(self.lastRefreshTime)
-            if elapsed < self.cardsRefreshCooldown {
-                let remaining = (self.cardsRefreshCooldown - elapsed) + self.cardsRefreshDebounce
+            let incomingNames = note.userInfo?["names"] as? [String]
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let names = incomingNames ?? UserManager.shared.userList
+                let normalized = self.normalizeCardNames(names)
+                let incomingSet = Set(normalized)
+                if incomingSet.isEmpty {
+                    print("🧭 [CARDS] skip reason=emptySet count=0 names=[]")
+                    return
+                }
+                if incomingSet == self.lastRefreshedNameSet {
+                    print("🧭 [CARDS] skip reason=sameSet count=\(normalized.count) names=\(self.previewNames(normalized))")
+                    return
+                }
+                let now = Date()
+                let elapsed = now.timeIntervalSince(self.lastRefreshTime)
+                if elapsed < self.cardsRefreshCooldown {
+                    let remaining = (self.cardsRefreshCooldown - elapsed) + self.cardsRefreshDebounce
+                    self.pendingCardsRefreshWorkItem?.cancel()
+                    self.pendingCardsRefreshWorkItem = nil
+                    print("🧭 [CARDS] defer reason=cooldown remaining=\(String(format: "%.2fs", remaining)) count=\(normalized.count) names=\(self.previewNames(normalized))")
+                    let namesSnapshot = normalized
+                    let incomingSetSnapshot = incomingSet
+                    let workItem = DispatchWorkItem { [weak self] in
+                        Task { @MainActor [weak self] in
+                            guard let self else { return }
+                            self.lastRefreshTime = Date()
+                            self.lastRefreshedNameSet = incomingSetSnapshot
+                            self.requestCardsFetch(names: namesSnapshot, trigger: "userListDidUpdate", reason: "diffSet")
+                        }
+                    }
+                    self.pendingCardsRefreshWorkItem = workItem
+                    DispatchQueue.main.asyncAfter(deadline: .now() + remaining, execute: workItem)
+                    return
+                }
                 self.pendingCardsRefreshWorkItem?.cancel()
                 self.pendingCardsRefreshWorkItem = nil
-                print("🧭 [CARDS] defer reason=cooldown remaining=\(String(format: "%.2fs", remaining)) count=\(normalized.count) names=\(self.previewNames(normalized))")
-                let namesSnapshot = normalized
-                let incomingSetSnapshot = incomingSet
-                let workItem = DispatchWorkItem { [weak self] in
-                    guard let self else { return }
-                    self.lastRefreshTime = Date()
-                    self.lastRefreshedNameSet = incomingSetSnapshot
-                    self.requestCardsFetch(names: namesSnapshot, trigger: "userListDidUpdate", reason: "diffSet")
-                }
-                self.pendingCardsRefreshWorkItem = workItem
-                DispatchQueue.main.asyncAfter(deadline: .now() + remaining, execute: workItem)
-                return
+                self.lastRefreshTime = now
+                self.lastRefreshedNameSet = incomingSet
+                self.requestCardsFetch(names: normalized, trigger: "userListDidUpdate", reason: "diffSet")
             }
-            self.pendingCardsRefreshWorkItem?.cancel()
-            self.pendingCardsRefreshWorkItem = nil
-            self.lastRefreshTime = now
-            self.lastRefreshedNameSet = incomingSet
-            self.requestCardsFetch(names: normalized, trigger: "userListDidUpdate", reason: "diffSet")
+        }
+        NotificationCenter.default.addObserver(
+            forName: .cloudKitTeamMemberDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.applyFetchedTeamMembers(CloudKitManager.shared.teamMembers, context: "push")
+            }
         }
         // Initialize members from the splash screen user list
         fetchMembersFromCloud()
@@ -148,6 +165,19 @@ class WinTheDayViewModel: ObservableObject {
     private var pendingWeeklyReset: Bool = false
     /// Flag a deferred monthly reset when the member list is empty at the moment we detect a new month.
     private var pendingMonthlyReset: Bool = false
+
+    struct ResetDecision {
+        let forceReset: Bool
+        let weekRolledOver: Bool
+        let monthRolledOver: Bool
+        let currentWeekKey: String
+        let currentMonthKey: String
+        let reason: String
+
+        var shouldZeroWeekly: Bool { forceReset || weekRolledOver }
+        var shouldZeroMonthly: Bool { forceReset || monthRolledOver }
+        var allowsClearingWonThisWeek: Bool { forceReset || weekRolledOver }
+    }
 
     private var lastWeeklyResetId: String? {
         get {
@@ -188,6 +218,48 @@ class WinTheDayViewModel: ObservableObject {
 
     /// MARK: - Date Helpers
     private let resetTimeZone = TimeZone(identifier: "America/Chicago")!
+
+    func resetDecision(forceReset: Bool,
+                       now: Date = Date(),
+                       members: [TeamMember]? = nil) -> ResetDecision {
+        let snapshot = members ?? (teamMembers.isEmpty ? loadLocalMembers() : teamMembers)
+        let seed = CloudStreakManager.shared.rolloverDecision(storedWeekKey: snapshot.first?.weekKey,
+                                                              storedMonthKey: snapshot.first?.monthKey,
+                                                              now: now)
+        var weekRolledOver = false
+        var monthRolledOver = false
+        for member in snapshot {
+            let decision = CloudStreakManager.shared.rolloverDecision(storedWeekKey: member.weekKey,
+                                                                      storedMonthKey: member.monthKey,
+                                                                      now: now)
+            weekRolledOver = weekRolledOver || decision.weekRolledOver
+            monthRolledOver = monthRolledOver || decision.monthRolledOver
+        }
+
+        let reason: String
+        if forceReset {
+            reason = "forceReset"
+        } else if weekRolledOver && monthRolledOver {
+            reason = "weekAndMonthRolledOver"
+        } else if weekRolledOver {
+            reason = "weekRolledOver"
+        } else if monthRolledOver {
+            reason = "monthRolledOver"
+        } else {
+            reason = "none"
+        }
+
+        let decision = ResetDecision(forceReset: forceReset,
+                                     weekRolledOver: weekRolledOver,
+                                     monthRolledOver: monthRolledOver,
+                                     currentWeekKey: seed.currentWeekKey,
+                                     currentMonthKey: seed.currentMonthKey,
+                                     reason: reason)
+        if reason != "none" {
+            print("[RESET_DECISION] forceReset=\(forceReset) weekRolledOver=\(weekRolledOver) monthRolledOver=\(monthRolledOver) reason=\(reason) weekKey=\(decision.currentWeekKey) monthKey=\(decision.currentMonthKey)")
+        }
+        return decision
+    }
 
     /// Calculates a simple hash representing the current production values for
     /// the provided team members. This allows quick comparison between
@@ -288,6 +360,21 @@ class WinTheDayViewModel: ObservableObject {
         fetchMembersFromCloud()
     }
 
+    private func applyFetchedTeamMembers(_ members: [TeamMember], context: String) {
+        guard !isEditing else {
+            print("[REORDER] \(context): blocked sort/update because isEditing = true")
+            return
+        }
+        print("[REORDER] \(context): applying sorted order from CloudKit")
+
+        let cleaned = sanitizeMembersArray(members)
+        teamData = cleaned.sorted(by: stableByScoreThenIndex)
+
+        teamMembers = teamData
+        displayedMembers = teamData
+        print("✅ Loaded \(teamData.count) TeamMember records from CloudKit")
+    }
+
     /// Loads all `TeamMember` records from CloudKit and populates
     /// ``teamData`` without altering the selected user.
     func fetchTeam() {
@@ -295,18 +382,7 @@ class WinTheDayViewModel: ObservableObject {
             guard let self = self else { return }
 
             DispatchQueue.main.async {
-                guard !self.isEditing else {
-                    print("[REORDER] fetchTeam: blocked sort/update because isEditing = true")
-                    return
-                }
-                print("[REORDER] fetchTeam: applying sorted order from CloudKit")
-
-                let cleaned = self.sanitizeMembersArray(members)
-                self.teamData = cleaned.sorted(by: self.stableByScoreThenIndex)
-
-                self.teamMembers = self.teamData
-                self.displayedMembers = self.teamData
-                print("✅ Loaded \(self.teamData.count) TeamMember records from CloudKit")
+                self.applyFetchedTeamMembers(members, context: "fetchTeam")
             }
         }
     }
@@ -641,21 +717,35 @@ class WinTheDayViewModel: ObservableObject {
     }
 
 
-    func saveMember(_ member: TeamMember, completion: ((CKRecord.ID?) -> Void)? = nil) {
+    func saveMember(_ member: TeamMember,
+                    resetDecision: ResetDecision? = nil,
+                    completion: ((CKRecord.ID?) -> Void)? = nil) {
         syncWonThisWeekFromProgress(member: member)
-        CloudKitManager.shared.save(member, forceWriteWonThisWeek: true) { id in
+        if let resetDecision, resetDecision.reason != "none" {
+            print("[RESET_SAVE] saveMember reason=\(resetDecision.reason)")
+        }
+        let allowZeroWeekly = resetDecision?.shouldZeroWeekly ?? false
+        let allowZeroMonthly = resetDecision?.shouldZeroMonthly ?? false
+        CloudKitManager.shared.save(member,
+                                    allowZeroWeeklyFields: allowZeroWeekly,
+                                    allowZeroMonthlyFields: allowZeroMonthly) { id in
             completion?(id)
         }
         saveLocal()
     }
 
     /// Saves only Win The Day specific fields to avoid affecting Life Scoreboard data
-    func saveWinTheDayFields(_ member: TeamMember, completion: ((CKRecord.ID?) -> Void)? = nil) {
+    func saveWinTheDayFields(_ member: TeamMember,
+                             resetDecision: ResetDecision? = nil,
+                             completion: ((CKRecord.ID?) -> Void)? = nil) {
         logCloudKitIdentityAndScope(
             context: "saveWinTheDayFields()",
             container: CloudKitManager.container,
             dbScope: .public
         )
+        if let resetDecision, resetDecision.reason != "none" {
+            print("[RESET_SAVE] saveWinTheDayFields reason=\(resetDecision.reason)")
+        }
         let memberName = member.name
         let memberID = member.id
         
@@ -675,11 +765,25 @@ class WinTheDayViewModel: ObservableObject {
                 func applyAndSave(to record: CKRecord) async {
                     // Clamp values before write
                     let safe = Self.sanitized(memberRef)
-                    
+                    let allowZeroWeekly = resetDecision?.shouldZeroWeekly ?? false
+                    let allowZeroMonthly = resetDecision?.shouldZeroMonthly ?? false
+
+                    func shouldWriteIntField(_ key: String, value: Int, allowZero: Bool) -> Bool {
+                        if allowZero { return true }
+                        if memberRef.didLoadField(key) { return true }
+                        return value != 0
+                    }
+
                     // Update only Win The Day fields
-                    record["quotesToday"] = safe.quotesToday as CKRecordValue
-                    record["salesWTD"] = safe.salesWTD as CKRecordValue
-                    record["salesMTD"] = safe.salesMTD as CKRecordValue
+                    if shouldWriteIntField("quotesToday", value: safe.quotesToday, allowZero: allowZeroWeekly) {
+                        record["quotesToday"] = safe.quotesToday as CKRecordValue
+                    }
+                    if shouldWriteIntField("salesWTD", value: safe.salesWTD, allowZero: allowZeroWeekly) {
+                        record["salesWTD"] = safe.salesWTD as CKRecordValue
+                    }
+                    if shouldWriteIntField("salesMTD", value: safe.salesMTD, allowZero: allowZeroMonthly) {
+                        record["salesMTD"] = safe.salesMTD as CKRecordValue
+                    }
                     record["quotesGoal"] = safe.quotesGoal as CKRecordValue
                     record["salesWTDGoal"] = safe.salesWTDGoal as CKRecordValue
                     record["salesMTDGoal"] = safe.salesMTDGoal as CKRecordValue
@@ -854,28 +958,26 @@ class WinTheDayViewModel: ObservableObject {
         return quotesHit || salesHit
     }
 
+    @discardableResult
     private func syncWonThisWeekFromProgress(member: TeamMember) -> Bool {
         let shouldWinNow = isWeeklyMet(for: member)
         var changed = false
+        var flipped = false
+
+        if member.wonThisWeek != shouldWinNow {
+            member.wonThisWeek = shouldWinNow
+            changed = true
+            flipped = true
+        }
 
         if shouldWinNow {
-            if !member.wonThisWeek {
-                member.wonThisWeek = true
-                changed = true
-            }
             if member.wonThisWeekSetAt == nil {
                 member.wonThisWeekSetAt = Date()
                 changed = true
             }
-        } else {
-            if member.wonThisWeek {
-                member.wonThisWeek = false
-                changed = true
-            }
-            if member.wonThisWeekSetAt != nil {
-                member.wonThisWeekSetAt = nil
-                changed = true
-            }
+        } else if member.wonThisWeekSetAt != nil {
+            member.wonThisWeekSetAt = nil
+            changed = true
         }
 
         if let idx = teamMembers.firstIndex(where: { $0.id == member.id }) {
@@ -890,7 +992,9 @@ class WinTheDayViewModel: ObservableObject {
         if changed {
             teamMembers = teamMembers.map { $0 }
             teamData = teamData.map { $0 }
-            print("[WON_THIS_WEEK_SYNC] name=\(member.name) weekKey=\(member.weekKey ?? "nil") now=\(shouldWinNow) changed=\(changed)")
+        }
+        if flipped {
+            print("[WON_THIS_WEEK_SYNC] name=\(member.name) weekKey=\(member.weekKey ?? "nil") now=\(shouldWinNow) changed=true")
         }
 
         return changed
@@ -1116,75 +1220,20 @@ class WinTheDayViewModel: ObservableObject {
             }
         }
 
-        if didWeekly {
-            for idx in teamMembers.indices {
-                teamMembers[idx].quotesToday = 0
-                teamMembers[idx].salesWTD = 0
-            }
-        }
-        if didMonthly {
-            for idx in teamMembers.indices {
-                teamMembers[idx].salesMTD = 0
-            }
-        }
+        _ = didWeekly
+        _ = didMonthly
     }
 
-    /// MARK: - Auto Reset Logic (Quotes/Sales WTD weekly on Sunday, Sales MTD monthly on 1st)
+    /// MARK: - Auto Reset Logic (CloudStreakManager rollover only)
     func performAutoResetsIfNeeded(currentDate: Date = Date()) {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = resetTimeZone
-        let weekId = currentWeekId(currentDate)
-        let monthId = currentMonthId(currentDate)
-
-        let weekday = cal.component(.weekday, from: currentDate) // 1 = Sunday
-        let day = cal.component(.day, from: currentDate)
-
-        if lastWeeklyResetId == nil && weekday != 1 {
-            print("🧭 [AutoReset] Bootstrap weekly id (no reset) — setting lastWeeklyResetId=\(weekId) on non-Sunday")
-            lastWeeklyResetId = weekId
-        }
-        if lastMonthlyResetId == nil && day != 1 {
-            print("🧭 [AutoReset] Bootstrap monthly id (no reset) — setting lastMonthlyResetId=\(monthId) on non-day-1")
-            lastMonthlyResetId = monthId
-        }
-
-        let isNewWeek = lastWeeklyResetId != weekId
-        let isNewMonth = lastMonthlyResetId != monthId
-
         resetSessionFinalizationIfNeeded(now: currentDate)
-
-        let isSunday = (weekday == 1)
-        let isDayOne = (day == 1)
-
-        let needsWeeklyReset = isNewWeek && isSunday
-        let needsMonthlyReset = isNewMonth && isDayOne
-        let requiresNormalization: Bool = {
-            guard !teamMembers.isEmpty else { return false }
-            return teamMembers.contains {
-                needsPeriodKeyNormalization(for: $0,
-                                            currentWeekId: weekId,
-                                            currentMonthId: monthId)
+        let memberNames = teamMembers.map { $0.name }
+        guard !memberNames.isEmpty else {
+            if !pendingWeeklyReset || !pendingMonthlyReset {
+                print("⚠️ [AutoReset] No members loaded — deferring CloudStreakManager sync")
             }
-        }()
-
-        if !needsWeeklyReset {
-            pendingWeeklyReset = false
-        }
-        if !needsMonthlyReset {
-            pendingMonthlyReset = false
-        }
-
-        guard needsWeeklyReset || needsMonthlyReset || requiresNormalization else { return }
-
-        guard !teamMembers.isEmpty else {
-            if needsWeeklyReset && !pendingWeeklyReset {
-                print("⚠️ [AutoReset] Detected new week (\(weekId)) but no members are loaded — deferring reset")
-                pendingWeeklyReset = true
-            }
-            if needsMonthlyReset && !pendingMonthlyReset {
-                print("⚠️ [AutoReset] Detected new month (\(monthId)) but no members are loaded — deferring reset")
-                pendingMonthlyReset = true
-            }
+            pendingWeeklyReset = true
+            pendingMonthlyReset = true
             return
         }
 
@@ -1194,35 +1243,21 @@ class WinTheDayViewModel: ObservableObject {
         }
 
         isProcessingAutoReset = true
-        let memberNames = teamMembers.map { $0.name }
 
         Task { @MainActor in
             defer { self.isProcessingAutoReset = false }
 
-            if needsWeeklyReset || needsMonthlyReset {
-                await self.finalizeCurrentWeekIfNeeded(now: currentDate)
-            }
+            await self.finalizeCurrentWeekIfNeeded(now: currentDate)
 
-            var resetRecords: [CKRecord] = []
-            if requiresNormalization && !needsWeeklyReset && !needsMonthlyReset {
-                print("🧭 [AutoReset] Normalizing legacy week/month keys without triggering resets")
-            }
-            if needsWeeklyReset || needsMonthlyReset || requiresNormalization {
-                resetRecords = await self.syncCloudResets(for: memberNames)
-            }
+            let resetRecords = await self.syncCloudResets(for: memberNames)
 
             self.apply(resetRecords: resetRecords,
-                       didWeekly: needsWeeklyReset,
-                       didMonthly: needsMonthlyReset)
+                       didWeekly: false,
+                       didMonthly: false)
 
-            if needsWeeklyReset {
-                self.lastWeeklyResetId = weekId
-                self.pendingWeeklyReset = false
-            }
-            if needsMonthlyReset {
-                self.lastMonthlyResetId = monthId
-                self.pendingMonthlyReset = false
-            }
+            self.pendingWeeklyReset = false
+            self.pendingMonthlyReset = false
+            print("[AutoReset] CloudStreakManager sync complete — local zeroing disabled")
 
             self.saveLocal()
             self.objectWillChange.send()
