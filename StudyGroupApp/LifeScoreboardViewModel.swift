@@ -163,6 +163,27 @@ class LifeScoreboardViewModel: ObservableObject {
         return hasher.finalize()
     }
 
+    private func hasLocalLifeScoreboardData() -> Bool {
+        // Consider any non-empty derived/cache arrays as “local data exists”.
+        if !teamMembers.isEmpty { return true }
+        if !scores.isEmpty { return true }
+        if !activity.isEmpty { return true }
+        return false
+    }
+
+    private func shouldApplyCloudSnapshot(_ members: [TeamMember], source: String) -> Bool {
+        if members.isEmpty {
+            if hasLocalLifeScoreboardData() {
+                print("[LS_GUARD] Ignoring empty CloudKit snapshot from \(source) (keeping local). localTeamMembers=\(teamMembers.count) localScores=\(scores.count) localActivity=\(activity.count)")
+                return false
+            } else {
+                print("[LS_GUARD] Allowing empty CloudKit snapshot from \(source) because no local cache exists (first-run/empty state).")
+                return true
+            }
+        }
+        return true
+    }
+
     private func updateLocalEntries(names: [String]) {
         // Remove entries for deleted users
         scores.removeAll { entry in !names.contains(entry.name) }
@@ -198,6 +219,10 @@ class LifeScoreboardViewModel: ObservableObject {
     }
 
     private func applyTeamMemberSnapshot(_ members: [TeamMember]) {
+        guard shouldApplyCloudSnapshot(members, source: "applyTeamMemberSnapshot") else {
+            return
+        }
+
         let newHash = computeMemberHash(for: members)
         teamMembers = members
 
@@ -430,6 +455,9 @@ class LifeScoreboardViewModel: ObservableObject {
 
             CloudKitManager.shared.fetchAllTeamMembers { [weak self] fetched in
                 guard let self = self else { return }
+                guard self.shouldApplyCloudSnapshot(fetched, source: "fetchTeamMembersFromCloud") else {
+                    return
+                }
                 let newHash = self.computeMemberHash(for: fetched)
 
                 DispatchQueue.main.async {

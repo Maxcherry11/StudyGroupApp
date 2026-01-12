@@ -15,7 +15,6 @@
 		9879C9718C6D4BC1BA174261 /* CloudStreakManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9879C9718C6D4BC1BA174262 /* CloudStreakManager.swift */; };
 		A1B2C3D42DEFCAFE00000001 /* Card.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D32DEFCAFE00000001 /* Card.swift */; };
 		ABCDE12345ABCDE12345ABCE /* GoalNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCDE12345ABCDE12345ABCD /* GoalNames.swift */; };
-		B6F00D1E2F00000100000002 /* CardsFetchCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F00D1E2F00000100000001 /* CardsFetchCoordinator.swift */; };
 		B653C50C2DE22E7D001B905F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B653C5002DE22E7D001B905F /* Assets.xcassets */; };
 		B653C5312DE23D36001B905F /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C5282DE23D36001B905F /* MainTabView.swift */; };
 		B653C5322DE23D36001B905F /* WinTheDayViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B653C52E2DE23D36001B905F /* WinTheDayViewModel.swift */; };
@@ -28,6 +27,7 @@
 		B6C560C02DEFC75800F64256 /* LifeScoreboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C560BF2DEFC75800F64256 /* LifeScoreboardViewModel.swift */; };
 		B6C560C62DEFCC0E00F64256 /* ActivityEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C560C52DEFCC0E00F64256 /* ActivityEditorView.swift */; };
 		B6CB206A2DE3D90A00CE7A18 /* LaunchScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6CB20692DE3D90A00CE7A18 /* LaunchScreenView.swift */; };
+		B6F00D1E2F00000100000002 /* CardsFetchCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F00D1E2F00000100000001 /* CardsFetchCoordinator.swift */; };
 		C0DECAFEDEADBEEF00112234 /* TeamModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DECAFEDEADBEEF00112233 /* TeamModels.swift */; };
 		F00DBABE2FD3C0DE00000002 /* PreviewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00DBABE2FD3C0DE00000001 /* PreviewHelpers.swift */; };
 		F1E2D3C4B5A6978812345679 /* TwelveWeekMember.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E2D3C4B5A6978812345678 /* TwelveWeekMember.swift */; };
@@ -52,7 +52,6 @@
 		B653C5002DE22E7D001B905F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B653C5282DE23D36001B905F /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		B653C52E2DE23D36001B905F /* WinTheDayViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WinTheDayViewModel.swift; sourceTree = "<group>"; };
-		B6F00D1E2F00000100000001 /* CardsFetchCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardsFetchCoordinator.swift; sourceTree = "<group>"; };
 		B653C5352DE23DAD001B905F /* Outcast.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Outcast.entitlements; sourceTree = "<group>"; };
 		B653C53B2DE2400B001B905F /* Outcast IOs.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Outcast IOs.entitlements"; sourceTree = "<group>"; };
 		B653C53C2DE2403E001B905F /* WinTheDayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WinTheDayView.swift; sourceTree = "<group>"; };
@@ -65,6 +64,7 @@
 		B6C560C52DEFCC0E00F64256 /* ActivityEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityEditorView.swift; sourceTree = "<group>"; };
 		B6CB20682DE3B35B00CE7A18 /* StudyGroupApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = StudyGroupApp.entitlements; sourceTree = "<group>"; };
 		B6CB20692DE3D90A00CE7A18 /* LaunchScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScreenView.swift; sourceTree = "<group>"; };
+		B6F00D1E2F00000100000001 /* CardsFetchCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardsFetchCoordinator.swift; sourceTree = "<group>"; };
 		C0DECAFEDEADBEEF00112233 /* TeamModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamModels.swift; sourceTree = "<group>"; };
 		E57DBE9EC5619492E58B917E /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		F00DBABE2FD3C0DE00000001 /* PreviewHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewHelpers.swift; sourceTree = "<group>"; };
@@ -380,7 +380,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.4.4;
+				MARKETING_VERSION = 4.41;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dj.StudyGroupApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -410,7 +410,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.4.4;
+				MARKETING_VERSION = 4.41;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dj.StudyGroupApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
