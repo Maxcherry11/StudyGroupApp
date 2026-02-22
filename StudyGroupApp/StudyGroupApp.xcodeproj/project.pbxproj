@@ -380,7 +380,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.41;
+				MARKETING_VERSION = 4.42;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dj.StudyGroupApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -410,7 +410,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.41;
+				MARKETING_VERSION = 4.42;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dj.StudyGroupApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

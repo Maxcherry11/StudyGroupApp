@@ -1218,6 +1218,21 @@ class WinTheDayViewModel: ObservableObject {
             if let last = record["trophyLastFinalizedWeekId"] as? String {
                 teamMembers[index].trophyLastFinalizedWeekId = last
             }
+            let wonThisWeek: Bool
+            if let value = record["wonThisWeek"] as? Int {
+                wonThisWeek = value == 1
+            } else if let value = record["wonThisWeek"] as? Int64 {
+                wonThisWeek = value == 1
+            } else if let value = record["wonThisWeek"] as? NSNumber {
+                wonThisWeek = value.intValue == 1
+            } else if let value = record["wonThisWeek"] as? Bool {
+                wonThisWeek = value
+            } else {
+                wonThisWeek = teamMembers[index].wonThisWeek
+            }
+            teamMembers[index].wonThisWeek = wonThisWeek
+            teamMembers[index].wonThisWeekSetAt = record["wonThisWeekSetAt"] as? Date
+            print("[RESET_APPLY] name=\(name) weekKey=\(teamMembers[index].weekKey ?? "nil") wonThisWeek=\(teamMembers[index].wonThisWeek)")
         }
 
         _ = didWeekly

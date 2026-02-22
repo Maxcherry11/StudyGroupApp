@@ -6,6 +6,10 @@
 	<string></string>
 	<key>CFBundleDisplayName</key>
 	<string>Elevate 365</string>
+	<key>CFBundleShortVersionString</key>
+	<string>4.42</string>
+	<key>CFBundleVersion</key>
+	<string>4.42</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 </dict>

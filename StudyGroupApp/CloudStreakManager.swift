@@ -222,10 +222,16 @@ final class CloudStreakManager {
         }
 
         guard decision.weekRolledOver else { return false }
+        let oldKey = storedKey ?? "nil"
         record["weekKey"] = currentKey as CKRecordValue
         record["streakCountWeek"] = 0 as CKRecordValue
         record["quotesToday"] = 0 as CKRecordValue
         record["salesWTD"] = 0 as CKRecordValue
+        record["wonThisWeek"] = 0 as CKRecordValue
+        record["wonThisWeekSetAt"] = nil
+        if let name = record["name"] as? String {
+            print("[WEEK_RESET] name=\(name) weekKey \(oldKey)->\(currentKey) clearedWonThisWeek=1")
+        }
         return true
     }
 
