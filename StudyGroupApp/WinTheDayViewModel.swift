@@ -1168,24 +1168,32 @@ class WinTheDayViewModel: ObservableObject {
         }
     }
 
-    private func appBecameActiveInCloud(for memberName: String) async -> CKRecord? {
+    private func finalizeAndResetInCloud(for memberName: String, now: Date) async -> CKRecord? {
         await withCheckedContinuation { continuation in
-            CloudStreakManager.shared.appBecameActive(for: memberName) { result in
+            CloudStreakManager.shared.finalizePriorWeekAndApplyResets(for: memberName, now: now) { result in
                 switch result {
                 case .success(let record):
                     continuation.resume(returning: record)
                 case .failure(let error):
-                    print("❌ [AutoReset] appBecameActive failed for \(memberName): \(error.localizedDescription)")
+                    print("❌ [AutoReset] cloud finalization/reset failed for \(memberName): \(error.localizedDescription)")
                     continuation.resume(returning: nil)
                 }
             }
         }
     }
 
-    private func syncCloudResets(for memberNames: [String]) async -> [CKRecord] {
+    private func fetchCloudMemberNames() async -> [String] {
+        await withCheckedContinuation { continuation in
+            CloudKitManager.shared.fetchTeam { members in
+                continuation.resume(returning: members.map(\.name))
+            }
+        }
+    }
+
+    private func syncCloudResets(for memberNames: [String], now: Date) async -> [CKRecord] {
         var records: [CKRecord] = []
         for name in memberNames {
-            if let record = await appBecameActiveInCloud(for: name) {
+            if let record = await finalizeAndResetInCloud(for: name, now: now) {
                 records.append(record)
             }
         }
@@ -1242,15 +1250,6 @@ class WinTheDayViewModel: ObservableObject {
     /// MARK: - Auto Reset Logic (CloudStreakManager rollover only)
     func performAutoResetsIfNeeded(currentDate: Date = Date()) {
         resetSessionFinalizationIfNeeded(now: currentDate)
-        let memberNames = teamMembers.map { $0.name }
-        guard !memberNames.isEmpty else {
-            if !pendingWeeklyReset || !pendingMonthlyReset {
-                print("⚠️ [AutoReset] No members loaded — deferring CloudStreakManager sync")
-            }
-            pendingWeeklyReset = true
-            pendingMonthlyReset = true
-            return
-        }
 
         if isProcessingAutoReset {
             print("⏳ [AutoReset] Reset already in progress, skipping concurrent request")
@@ -1262,9 +1261,17 @@ class WinTheDayViewModel: ObservableObject {
         Task { @MainActor in
             defer { self.isProcessingAutoReset = false }
 
-            await self.finalizeCurrentWeekIfNeeded(now: currentDate)
+            // Fetch the authoritative member list before doing any rollover work.
+            // Cached device values never determine trophy or diamond outcomes.
+            let memberNames = await self.fetchCloudMemberNames()
+            guard !memberNames.isEmpty else {
+                print("⚠️ [AutoReset] CloudKit returned no members — deferring finalization/reset")
+                self.pendingWeeklyReset = true
+                self.pendingMonthlyReset = true
+                return
+            }
 
-            let resetRecords = await self.syncCloudResets(for: memberNames)
+            let resetRecords = await self.syncCloudResets(for: memberNames, now: currentDate)
 
             self.apply(resetRecords: resetRecords,
                        didWeekly: false,
@@ -1272,7 +1279,7 @@ class WinTheDayViewModel: ObservableObject {
 
             self.pendingWeeklyReset = false
             self.pendingMonthlyReset = false
-            print("[AutoReset] CloudStreakManager sync complete — local zeroing disabled")
+            print("[AutoReset] Cloud-authoritative finalization/reset complete — local decisions disabled")
 
             self.saveLocal()
             self.objectWillChange.send()

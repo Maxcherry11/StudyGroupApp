@@ -47,6 +47,56 @@ final class CloudStreakManager {
         }, completion: completion)
     }
 
+    /// Uses the CloudKit record as the sole source of truth when a period rolls over.
+    /// The prior week's trophy result is finalized from the still-unreset cloud values,
+    /// then the weekly/monthly counters are reset in the same conflict-protected save.
+    func finalizePriorWeekAndApplyResets(for memberName: String,
+                                         now: Date = Date(),
+                                         completion: @escaping (Result<CKRecord, Error>) -> Void) {
+        let recordID = recordID(for: memberName)
+        modifyRecord(with: recordID, mutate: { [weak self] record in
+            guard let self else { return false }
+
+            let rollover = self.computeRolloverDecision(
+                storedWeekKey: record["weekKey"] as? String,
+                storedMonthKey: record["monthKey"] as? String,
+                now: now
+            )
+            var didChange = false
+
+            let trophyResult = WeeklyRolloverPolicy.evaluate(
+                .init(storedWeekId: rollover.storedWeekKey,
+                      currentWeekId: rollover.currentWeekKey,
+                      lastFinalizedWeekId: record["trophyLastFinalizedWeekId"] as? String,
+                      previousStreak: record["trophyStreakCount"] as? Int ?? 0,
+                      quotes: record["quotesToday"] as? Int ?? 0,
+                      quotesGoal: record["quotesGoal"] as? Int ?? 0,
+                      salesWTD: record["salesWTD"] as? Int ?? 0,
+                      salesWTDGoal: record["salesWTDGoal"] as? Int ?? 0)
+            )
+
+            if trophyResult.shouldFinalize,
+               let priorWeekId = trophyResult.finalizedWeekId {
+                let newStreak = trophyResult.newStreak
+
+                record["trophyStreakCount"] = newStreak as CKRecordValue
+                record["trophyLastFinalizedWeekId"] = priorWeekId as CKRecordValue
+                let monthly = record["streakCountMonth"] as? Int ?? 0
+                record["trophies"] = self.updatedTrophies(
+                    existing: record["trophies"] as? [String] ?? [],
+                    weekly: newStreak,
+                    monthly: monthly
+                ) as CKRecordValue
+                didChange = true
+
+                let name = record["name"] as? String ?? memberName
+                print("[CLOUD_FINALIZE] name=\(name) week=\(priorWeekId) didWin=\(trophyResult.didWin) streak=\(newStreak)")
+            }
+
+            return self.applyResetsIfNeeded(on: record, now: now) || didChange
+        }, completion: completion)
+    }
+
     /// Registers a completed goal. Ensures any pending resets occur before
     /// incrementing streak counters and awarding trophies.
     func markWin(for memberName: String, completion: @escaping (Result<CKRecord, Error>) -> Void) {
