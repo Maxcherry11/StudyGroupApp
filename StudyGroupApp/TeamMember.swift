@@ -363,11 +363,6 @@ extension TeamMember {
             if loadedFieldKeys.contains(key) { return true }
             return value != 0
         }
-        func shouldWriteOptionalField(_ key: String, value: String?, allowNil: Bool) -> Bool {
-            if allowNil { return true }
-            if loadedFieldKeys.contains(key) { return true }
-            return value != nil
-        }
         record["name"] = self.name
         record["emoji"] = self.emoji
         record["emojiUserSet"] = self.emojiUserSet as CKRecordValue
@@ -388,20 +383,13 @@ extension TeamMember {
         record["salesWTDGoal"] = self.salesWTDGoal as CKRecordValue
         record["score"] = self.score as CKRecordValue
         record["sortIndex"] = self.sortIndex as CKRecordValue
-        if shouldWriteOptionalField("weekKey", value: self.weekKey, allowNil: allowZeroWeeklyFields) {
-            if let weekKey = self.weekKey {
-                record["weekKey"] = weekKey as CKRecordValue
-            } else {
-                record["weekKey"] = nil
-            }
-        }
-        if shouldWriteOptionalField("monthKey", value: self.monthKey, allowNil: allowZeroMonthlyFields) {
-            if let monthKey = self.monthKey {
-                record["monthKey"] = monthKey as CKRecordValue
-            } else {
-                record["monthKey"] = nil
-            }
-        }
+        // weekKey, monthKey, trophyStreakCount, and trophyLastFinalizedWeekId are
+        // intentionally NOT written here. Those fields belong exclusively to
+        // CloudStreakManager's rollover logic, which always decides them from a
+        // freshly-fetched CloudKit record. Writing them from whatever this
+        // TeamMember happens to hold in local memory risks overwriting a correct,
+        // just-finalized trophy result with a stale value (e.g. from an ordinary
+        // goal edit that saves every member at once).
         if shouldWriteField("streakCountWeek", value: self.streakCountWeek, allowZero: allowZeroWeeklyFields) {
             record["streakCountWeek"] = self.streakCountWeek as CKRecordValue
         }
@@ -414,12 +402,6 @@ extension TeamMember {
             record["lastCompletedAt"] = lastCompletedAt as CKRecordValue
         } else {
             record["lastCompletedAt"] = nil
-        }
-        record["trophyStreakCount"] = self.trophyStreakCount as CKRecordValue
-        if let trophyLastFinalizedWeekId = self.trophyLastFinalizedWeekId {
-            record["trophyLastFinalizedWeekId"] = trophyLastFinalizedWeekId as CKRecordValue
-        } else {
-            record["trophyLastFinalizedWeekId"] = nil
         }
         record["wonThisWeek"] = (self.wonThisWeek ? 1 : 0) as CKRecordValue
         if let wonThisWeekSetAt = self.wonThisWeekSetAt {

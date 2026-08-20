@@ -1182,14 +1182,6 @@ class WinTheDayViewModel: ObservableObject {
         }
     }
 
-    private func fetchCloudMemberNames() async -> [String] {
-        await withCheckedContinuation { continuation in
-            CloudKitManager.shared.fetchTeam { members in
-                continuation.resume(returning: members.map(\.name))
-            }
-        }
-    }
-
     private func syncCloudResets(for memberNames: [String], now: Date) async -> [CKRecord] {
         var records: [CKRecord] = []
         for name in memberNames {
@@ -1251,6 +1243,22 @@ class WinTheDayViewModel: ObservableObject {
     func performAutoResetsIfNeeded(currentDate: Date = Date()) {
         resetSessionFinalizationIfNeeded(now: currentDate)
 
+        // Use the already-loaded member list to know WHO to check. This does not
+        // weaken CloudKit authority: the actual win/lose decision for each person
+        // still comes from finalizePriorWeekAndApplyResets, which re-fetches that
+        // person's real record from CloudKit and decides from those cloud values,
+        // not from anything cached locally. This list only decides which names to
+        // loop over, avoiding a blocking CloudKit roster fetch that can silently
+        // hang if another part of the app is already mid-fetch (CloudKitManager's
+        // fetchTeam drops a caller's completion when a fetch is already in flight).
+        let memberNames = teamMembers.map { $0.name }
+        guard !memberNames.isEmpty else {
+            print("⚠️ [AutoReset] No members loaded — deferring finalization/reset")
+            pendingWeeklyReset = true
+            pendingMonthlyReset = true
+            return
+        }
+
         if isProcessingAutoReset {
             print("⏳ [AutoReset] Reset already in progress, skipping concurrent request")
             return
@@ -1260,16 +1268,6 @@ class WinTheDayViewModel: ObservableObject {
 
         Task { @MainActor in
             defer { self.isProcessingAutoReset = false }
-
-            // Fetch the authoritative member list before doing any rollover work.
-            // Cached device values never determine trophy or diamond outcomes.
-            let memberNames = await self.fetchCloudMemberNames()
-            guard !memberNames.isEmpty else {
-                print("⚠️ [AutoReset] CloudKit returned no members — deferring finalization/reset")
-                self.pendingWeeklyReset = true
-                self.pendingMonthlyReset = true
-                return
-            }
 
             let resetRecords = await self.syncCloudResets(for: memberNames, now: currentDate)
 
@@ -1286,6 +1284,7 @@ class WinTheDayViewModel: ObservableObject {
             self.fetchMembersFromCloud()
         }
     }
+
 
     private func needsPeriodKeyNormalization(for member: TeamMember,
                                              currentWeekId: String,
